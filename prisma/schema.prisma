@@ -13,12 +13,15 @@ datasource db {
 }
 
 model Patient {
-  id          Int      @id @default(autoincrement())
-  chartNumber String   @unique
-  name        String
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  visits      Visit[]
+  id            Int            @id @default(autoincrement())
+  chartNumber   String         @unique
+  name          String
+  memo          String?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  visits        Visit[]
+  prescriptions Prescription[]
+  messageLogs   MessageLog[]
 }
 
 model TreatmentCategory {
@@ -55,12 +58,75 @@ model Visit {
 }
 
 model StaffUser {
-  id        Int      @id @default(autoincrement())
-  name      String   @unique
-  role      String
-  isActive  Boolean  @default(true)
-  createdAt DateTime @default(now())
-  visits    Visit[]
+  id             Int            @id @default(autoincrement())
+  name           String         @unique
+  role           String
+  isActive       Boolean        @default(true)
+  createdAt      DateTime       @default(now())
+  visits         Visit[]
+  prescriptions  Prescription[] @relation("PrescriptionStaff")
+  todoTasks      TodoTask[]     @relation("TodoTaskStaff")
+  doneTodoTasks  TodoTask[]     @relation("TodoTaskDoneBy")
+  messageLogs    MessageLog[]
+}
+
+model Program {
+  id                Int      @id @default(autoincrement())
+  name              String   @unique
+  type              String // SPLIT(분할처방) | SINGLE(단회처방)
+  splitIntervalDays Int?     @default(14)
+  totalDurationDays Int?     @default(90)
+  followUpDays      Int?
+  isActive          Boolean  @default(true)
+  sortOrder         Int      @default(0)
+  createdAt         DateTime @default(now())
+  prescriptions     Prescription[]
+}
+
+model Prescription {
+  id           Int        @id @default(autoincrement())
+  patientId    Int
+  patient      Patient    @relation(fields: [patientId], references: [id])
+  programId    Int
+  program      Program    @relation(fields: [programId], references: [id])
+  startDate    DateTime
+  currentRound Int?
+  totalRounds  Int?
+  staffUserId  Int
+  staffUser    StaffUser  @relation("PrescriptionStaff", fields: [staffUserId], references: [id])
+  status       String     @default("ACTIVE") // ACTIVE | COMPLETED | STOPPED
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  todoTasks    TodoTask[]
+}
+
+model TodoTask {
+  id             Int          @id @default(autoincrement())
+  prescriptionId Int
+  prescription   Prescription @relation(fields: [prescriptionId], references: [id])
+  taskType       String // NEXT_DOSE(다음 처방일) | FOLLOW_UP(후속조치)
+  dueDate        DateTime
+  staffUserId    Int
+  staffUser      StaffUser    @relation("TodoTaskStaff", fields: [staffUserId], references: [id])
+  isDone         Boolean      @default(false)
+  doneByUserId   Int?
+  doneByUser     StaffUser?   @relation("TodoTaskDoneBy", fields: [doneByUserId], references: [id])
+  doneAt         DateTime?
+  createdAt      DateTime     @default(now())
+}
+
+model MessageLog {
+  id             Int       @id @default(autoincrement())
+  patientId      Int
+  patient        Patient   @relation(fields: [patientId], references: [id])
+  messageType    String // WELCOME | MEETING | DAY2 | DAY7 | THIRD_VISIT
+  sentDate       DateTime?
+  staffUserId    Int?
+  staffUser      StaffUser? @relation(fields: [staffUserId], references: [id])
+  aiDraftContent String?
+  createdAt      DateTime  @default(now())
+
+  @@unique([patientId, messageType])
 }
 
 model Goal {

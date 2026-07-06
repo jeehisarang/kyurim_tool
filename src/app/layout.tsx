@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Noto_Serif_KR, Noto_Sans_KR, IBM_Plex_Mono } from "next/font/google";
-import CurrentUserSelector from "@/components/CurrentUserSelector";
+import Sidebar from "@/components/Sidebar";
+import styles from "./layout.module.css";
 import "./globals.css";
 
 const notoSerifKR = Noto_Serif_KR({
@@ -37,8 +38,10 @@ export default function RootLayout({
       className={`${notoSerifKR.variable} ${notoSansKR.variable} ${ibmPlexMono.variable}`}
     >
       <body>
-        <CurrentUserSelector />
-        {children}
+        <div className={styles.shell}>
+          <Sidebar />
+          <main className={styles.main}>{children}</main>
+        </div>
       </body>
     </html>
   );

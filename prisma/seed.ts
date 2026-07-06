@@ -16,6 +16,14 @@ const staffUsers = [
   { name: "최실장", role: "직원" },
 ];
 
+const programs = [
+  { name: "킬팻캡슐", type: "SPLIT", splitIntervalDays: 14, totalDurationDays: 90, followUpDays: null },
+  { name: "감비탕", type: "SPLIT", splitIntervalDays: 14, totalDurationDays: 90, followUpDays: null },
+  { name: "황제감비탕", type: "SPLIT", splitIntervalDays: 14, totalDurationDays: 90, followUpDays: null },
+  { name: "S환", type: "SINGLE", splitIntervalDays: null, totalDurationDays: null, followUpDays: 30 },
+  { name: "하비환", type: "SINGLE", splitIntervalDays: null, totalDurationDays: null, followUpDays: 30 },
+];
+
 async function main() {
   for (const [index, name] of treatmentCategories.entries()) {
     await prisma.treatmentCategory.upsert({
@@ -38,6 +46,14 @@ async function main() {
       where: { name },
       update: {},
       create: { name, role },
+    });
+  }
+
+  for (const [index, program] of programs.entries()) {
+    await prisma.program.upsert({
+      where: { name: program.name },
+      update: {},
+      create: { ...program, sortOrder: index },
     });
   }
 

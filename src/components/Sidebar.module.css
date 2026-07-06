@@ -1,0 +1,56 @@
+.sidebar {
+  position: sticky;
+  top: 0;
+  display: flex;
+  flex-direction: column;
+  width: 240px;
+  flex-shrink: 0;
+  height: 100vh;
+  background: var(--color-hanji-card);
+  border-right: 1px solid rgba(110, 148, 140, 0.35);
+}
+
+.title {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 17px;
+  color: var(--color-ink);
+  padding: 24px 20px;
+  border-bottom: 1px solid rgba(110, 148, 140, 0.25);
+}
+
+.nav {
+  display: flex;
+  flex-direction: column;
+  padding: 12px;
+  gap: 4px;
+}
+
+.navItem {
+  padding: 10px 14px;
+  border-radius: 4px;
+  border-left: 3px solid transparent;
+  color: var(--color-ink);
+  font-size: 14px;
+  font-family: var(--font-body);
+}
+
+.navItem:hover {
+  background: rgba(110, 148, 140, 0.12);
+}
+
+.navItemActive {
+  background: var(--color-celadon);
+  border-left-color: var(--color-celadon-dark);
+  color: var(--color-hanji-card);
+  font-weight: 500;
+}
+
+.navItemActive:hover {
+  background: var(--color-celadon);
+}
+
+.userSelector {
+  margin-top: auto;
+  border-top: 1px solid rgba(110, 148, 140, 0.25);
+}
