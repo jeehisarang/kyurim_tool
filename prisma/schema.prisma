@@ -1,0 +1,76 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model Patient {
+  id          Int      @id @default(autoincrement())
+  chartNumber String   @unique
+  name        String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  visits      Visit[]
+}
+
+model TreatmentCategory {
+  id        Int      @id @default(autoincrement())
+  name      String   @unique
+  isActive  Boolean  @default(true)
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  visits    Visit[]
+}
+
+model VisitType {
+  id        Int      @id @default(autoincrement())
+  name      String   @unique
+  isActive  Boolean  @default(true)
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  visits    Visit[]
+}
+
+model Visit {
+  id                  Int               @id @default(autoincrement())
+  patientId           Int
+  patient             Patient           @relation(fields: [patientId], references: [id])
+  visitDate           DateTime
+  treatmentCategoryId Int
+  treatmentCategory   TreatmentCategory @relation(fields: [treatmentCategoryId], references: [id])
+  visitTypeId         Int
+  visitType           VisitType         @relation(fields: [visitTypeId], references: [id])
+  isReserved          Boolean
+  createdAt           DateTime          @default(now())
+  checkedByUserId     Int?
+  checkedByUser       StaffUser?        @relation(fields: [checkedByUserId], references: [id])
+}
+
+model StaffUser {
+  id        Int      @id @default(autoincrement())
+  name      String   @unique
+  role      String
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  visits    Visit[]
+}
+
+model Goal {
+  id          Int      @id @default(autoincrement())
+  metricKey   String
+  periodType  String
+  periodStart DateTime
+  targetValue Float
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([metricKey, periodType, periodStart])
+}

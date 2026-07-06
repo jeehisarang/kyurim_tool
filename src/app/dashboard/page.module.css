@@ -1,0 +1,234 @@
+.container {
+  max-width: 880px;
+  margin: 0 auto;
+  padding: 32px 16px 64px;
+}
+
+.pageTitle {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 26px;
+  color: var(--color-ink);
+  margin-bottom: 24px;
+}
+
+.cardGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 16px;
+  margin-bottom: 28px;
+}
+
+.statCard {
+  background: var(--color-hanji-card);
+  border: 1px solid rgba(110, 148, 140, 0.35);
+  border-radius: 6px;
+  box-shadow: 0 1px 2px rgba(43, 39, 35, 0.04);
+  padding: 18px 16px;
+  text-align: center;
+}
+
+.statValue {
+  font-family: var(--font-mono);
+  font-size: 28px;
+  font-weight: 500;
+  color: var(--color-celadon-dark);
+  margin-bottom: 6px;
+}
+
+.statLabel {
+  font-size: 13px;
+  color: var(--color-ink);
+  opacity: 0.75;
+}
+
+.section {
+  background: var(--color-hanji-card);
+  border: 1px solid rgba(110, 148, 140, 0.35);
+  border-radius: 6px;
+  box-shadow: 0 1px 2px rgba(43, 39, 35, 0.04);
+  padding: 20px;
+  margin-bottom: 24px;
+}
+
+.sectionTitle {
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--color-celadon-dark);
+  border-left: 3px solid var(--color-celadon);
+  padding-left: 8px;
+  margin-bottom: 16px;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.table th,
+.table td {
+  text-align: left;
+  padding: 10px 8px;
+  border-bottom: 1px solid rgba(110, 148, 140, 0.2);
+  font-size: 14px;
+}
+
+.table th {
+  color: var(--color-celadon-dark);
+  font-weight: 500;
+}
+
+.mono {
+  font-family: var(--font-mono);
+}
+
+.muted {
+  color: var(--color-ink);
+  opacity: 0.55;
+  font-size: 13px;
+}
+
+.goalRow {
+  padding: 14px 0;
+  border-bottom: 1px solid rgba(110, 148, 140, 0.2);
+}
+
+.goalRow:last-child {
+  border-bottom: none;
+}
+
+.goalRowHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 14px;
+  margin-bottom: 8px;
+}
+
+.goalRowValue {
+  font-family: var(--font-mono);
+  color: var(--color-celadon-dark);
+}
+
+.goalSetButton {
+  border: 1px solid var(--color-celadon);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--color-celadon-dark);
+  padding: 6px 14px;
+  font-size: 13px;
+  font-family: var(--font-body);
+  cursor: pointer;
+}
+
+.goalSetButton:hover {
+  background: rgba(110, 148, 140, 0.1);
+}
+
+.goalForm {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 6px;
+}
+
+.goalForm select,
+.goalForm input {
+  border: 1px solid rgba(110, 148, 140, 0.4);
+  border-radius: 4px;
+  background: var(--color-hanji-bg);
+  color: var(--color-ink);
+  padding: 6px 8px;
+  font-size: 13px;
+  font-family: var(--font-body);
+}
+
+.goalForm input[type="number"] {
+  width: 120px;
+}
+
+.goalForm button {
+  border: none;
+  border-radius: 4px;
+  background: var(--color-celadon);
+  color: var(--color-hanji-card);
+  padding: 6px 14px;
+  font-size: 13px;
+  font-family: var(--font-body);
+  cursor: pointer;
+}
+
+.goalForm button[type="button"] {
+  background: transparent;
+  border: 1px solid rgba(110, 148, 140, 0.4);
+  color: var(--color-ink);
+}
+
+.goalPeriodLabel {
+  font-size: 13px;
+  color: var(--color-celadon-dark);
+}
+
+.goalSaveWrap {
+  position: relative;
+  display: inline-block;
+}
+
+.goalEditButton {
+  border: 1px solid rgba(110, 148, 140, 0.4);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--color-celadon-dark);
+  padding: 3px 10px;
+  font-size: 12px;
+  font-family: var(--font-body);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.goalEditButton:hover {
+  background: rgba(110, 148, 140, 0.1);
+}
+
+.goalBlock {
+  margin-top: 4px;
+}
+
+.goalMeta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  font-size: 13px;
+  color: var(--color-ink);
+  margin-bottom: 6px;
+}
+
+.progressTrack {
+  width: 100%;
+  height: 8px;
+  background: rgba(110, 148, 140, 0.15);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.progressFillDone {
+  height: 100%;
+  background: var(--color-celadon);
+  border-radius: 4px;
+  transition: width 0.2s ease;
+}
+
+.progressFillPending {
+  height: 100%;
+  background: var(--color-seal);
+  border-radius: 4px;
+  transition: width 0.2s ease;
+}
+
+.errorText {
+  color: var(--color-seal);
+  font-size: 13px;
+  margin: 4px 0 0;
+}
