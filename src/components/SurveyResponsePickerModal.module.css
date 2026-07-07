@@ -1,0 +1,105 @@
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(43, 39, 35, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  padding: 16px;
+}
+
+.modal {
+  width: 100%;
+  max-width: 480px;
+  max-height: 80vh;
+  overflow-y: auto;
+  background: var(--color-hanji-card);
+  border: 1px solid rgba(110, 148, 140, 0.35);
+  border-radius: 6px;
+  box-shadow: 0 4px 16px rgba(43, 39, 35, 0.2);
+  padding: 20px;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+
+.title {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 17px;
+  color: var(--color-ink);
+}
+
+.closeButton {
+  border: 1px solid var(--color-celadon);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--color-celadon-dark);
+  padding: 5px 12px;
+  font-size: 13px;
+  font-family: var(--font-body);
+  cursor: pointer;
+}
+
+.closeButton:hover {
+  background: rgba(110, 148, 140, 0.1);
+}
+
+.muted {
+  color: var(--color-ink);
+  opacity: 0.55;
+  font-size: 13px;
+}
+
+.list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 10px;
+  background: var(--color-hanji-bg);
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.item:hover {
+  background: rgba(110, 148, 140, 0.15);
+}
+
+.itemName {
+  font-weight: 500;
+  color: var(--color-ink);
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.linkedBadge {
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--color-celadon-dark);
+  border: 1px solid var(--color-celadon);
+  border-radius: 3px;
+  padding: 1px 5px;
+}
+
+.itemMeta {
+  font-size: 12px;
+  color: var(--color-ink);
+  opacity: 0.6;
+  font-family: var(--font-mono);
+}

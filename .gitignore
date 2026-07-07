@@ -42,3 +42,6 @@ next-env.d.ts
 
 /src/generated/prisma
 dev.db
+
+# google service account key (절대 커밋 금지)
+/secrets

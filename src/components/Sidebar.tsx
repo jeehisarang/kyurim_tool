@@ -11,6 +11,7 @@ const MENU_ITEMS = [
   { label: "톡생성기", href: "/messages" },
   { label: "오늘 할 일", href: "/todo" },
   { label: "치료처방", href: "/prescriptions" },
+  { label: "검사", href: "/examinations" },
   { label: "통계 대시보드", href: "/dashboard" },
 ];
 

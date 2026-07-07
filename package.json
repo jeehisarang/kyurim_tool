@@ -12,6 +12,7 @@
     "db:seed-prescriptions": "tsx prisma/seed-prescriptions.ts"
   },
   "dependencies": {
+    "@googleapis/sheets": "^13.0.2",
     "@prisma/adapter-better-sqlite3": "^7.8.0",
     "@prisma/client": "^7.8.0",
     "better-sqlite3": "^12.11.1",

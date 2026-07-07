@@ -5,6 +5,10 @@ import Link from "next/link";
 import styles from "./page.module.css";
 import SealStamp from "@/components/SealStamp";
 import { getCurrentUserId } from "@/lib/currentUser";
+import SurveyResponsePickerModal, {
+  type SurveyResponseCache,
+} from "@/components/SurveyResponsePickerModal";
+import { formatSurveyResponseText } from "@/lib/survey-response-format";
 
 type Patient = { id: number; chartNumber: string; name: string };
 type Program = { id: number; name: string; type: string };
@@ -28,6 +32,8 @@ export default function NewPrescriptionPage() {
   const [programId, setProgramId] = useState("");
   const [staffUserId, setStaffUserId] = useState("");
   const [surveyDataJson, setSurveyDataJson] = useState("");
+  const [surveyResponseCacheId, setSurveyResponseCacheId] = useState<number | null>(null);
+  const [showSurveyPicker, setShowSurveyPicker] = useState(false);
 
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -75,6 +81,13 @@ export default function NewPrescriptionPage() {
     setSelectedPatient(null);
     setProgramId("");
     setSurveyDataJson("");
+    setSurveyResponseCacheId(null);
+  }
+
+  function handleSelectSurveyResponse(response: SurveyResponseCache) {
+    setSurveyDataJson(formatSurveyResponseText(response.rawDataJson));
+    setSurveyResponseCacheId(response.id);
+    setShowSurveyPicker(false);
   }
 
   const selectedProgram = programs.find((p) => String(p.id) === programId) ?? null;
@@ -97,6 +110,7 @@ export default function NewPrescriptionPage() {
           programId: Number(programId),
           staffUserId: Number(staffUserId),
           surveyDataJson: isTrialSurveyProgram ? surveyDataJson : undefined,
+          surveyResponseCacheId: isTrialSurveyProgram ? surveyResponseCacheId ?? undefined : undefined,
         }),
       });
       const data = await res.json();
@@ -112,6 +126,7 @@ export default function NewPrescriptionPage() {
       });
       setProgramId("");
       setSurveyDataJson("");
+      setSurveyResponseCacheId(null);
       setStampKey((k) => k + 1);
     } finally {
       setSubmitting(false);
@@ -212,7 +227,16 @@ export default function NewPrescriptionPage() {
 
             {isTrialSurveyProgram && (
               <label className={styles.surveyLabel}>
-                설문 데이터 (수동 입력, 자유 형식)
+                <span className={styles.surveyLabelRow}>
+                  설문 데이터 (수동 입력, 자유 형식)
+                  <button
+                    type="button"
+                    className={styles.surveyImportButton}
+                    onClick={() => setShowSurveyPicker(true)}
+                  >
+                    구글폼에서 가져오기
+                  </button>
+                </span>
                 <textarea
                   className={styles.surveyTextarea}
                   rows={4}
@@ -222,9 +246,13 @@ export default function NewPrescriptionPage() {
                 />
               </label>
             )}
-            {/* 정형 스키마 아님 — 지금은 직원이 구글폼 응답을 보고 수동 입력. 13-3(구글폼 실시간
-                연동) 적용 시 이 값을 자동 파싱 결과로 채우는 방식으로 확장 예정(프롬프트 조립
-                코드는 그대로 두고 이 필드를 채우는 방식만 바뀌면 됨). */}
+
+            {showSurveyPicker && (
+              <SurveyResponsePickerModal
+                onSelect={handleSelectSurveyResponse}
+                onClose={() => setShowSurveyPicker(false)}
+              />
+            )}
 
             {submitError && <p className={styles.errorText}>{submitError}</p>}
 

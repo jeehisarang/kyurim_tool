@@ -29,24 +29,6 @@
   text-decoration: underline;
 }
 
-.dateLabel {
-  font-family: var(--font-mono);
-  font-size: 14px;
-  color: var(--color-celadon-dark);
-  margin-bottom: 32px;
-}
-
-.successBanner {
-  border: 1px solid var(--color-celadon);
-  border-left: 3px solid var(--color-celadon);
-  background: rgba(110, 148, 140, 0.12);
-  color: var(--color-celadon-dark);
-  border-radius: 4px;
-  padding: 10px 14px;
-  font-size: 14px;
-  margin-bottom: 20px;
-}
-
 .section {
   background: var(--color-hanji-card);
   border: 1px solid rgba(110, 148, 140, 0.35);
@@ -170,52 +152,106 @@
   margin-left: 4px;
 }
 
-.surveyLabel {
-  display: block;
-  font-size: 14px;
-  color: var(--color-ink);
+.fieldGrid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px 16px;
   margin-bottom: 16px;
 }
 
-.surveyLabelRow {
+.fieldGrid label {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+  color: var(--color-ink);
 }
 
-.surveyImportButton {
-  border: 1px solid var(--color-celadon);
-  border-radius: 4px;
-  background: transparent;
-  color: var(--color-celadon-dark);
-  padding: 4px 10px;
-  font-size: 12px;
-  font-family: var(--font-body);
-  cursor: pointer;
+.fieldGridWide {
+  grid-column: 1 / -1;
 }
 
-.surveyImportButton:hover {
-  background: rgba(110, 148, 140, 0.1);
-}
-
-.surveyTextarea {
-  display: block;
-  width: 100%;
-  resize: vertical;
+.fieldGrid input {
   border: 1px solid rgba(110, 148, 140, 0.4);
   border-radius: 4px;
   background: var(--color-hanji-bg);
   color: var(--color-ink);
-  padding: 8px 10px;
-  font-size: 13px;
+  padding: 6px 10px;
+  font-size: 14px;
   font-family: var(--font-body);
-  margin-top: 6px;
 }
 
-.submitWrap {
-  position: relative;
-  display: inline-block;
+.previewBox {
+  background: var(--color-hanji-bg);
+  border: 1px dashed rgba(110, 148, 140, 0.5);
+  border-radius: 6px;
+  padding: 14px 16px;
+  margin-bottom: 16px;
+}
+
+.previewTitle {
+  font-size: 12px;
+  color: var(--color-celadon-dark);
+  font-weight: 500;
+  margin-bottom: 8px;
+}
+
+.resultGrid {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.resultRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 14px;
+}
+
+.resultValue {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 20px;
+  color: var(--color-ink);
+}
+
+.judgementGood {
+  font-weight: 700;
+  color: var(--color-celadon-dark);
+  background: rgba(110, 148, 140, 0.15);
+  border-radius: 4px;
+  padding: 2px 10px;
+}
+
+.judgementBad {
+  font-weight: 700;
+  color: var(--color-seal);
+  background: rgba(179, 60, 46, 0.12);
+  border-radius: 4px;
+  padding: 2px 10px;
+}
+
+.resultBanner {
+  border: 1px solid var(--color-celadon);
+  border-left: 4px solid var(--color-celadon);
+  background: rgba(110, 148, 140, 0.12);
+  color: var(--color-celadon-dark);
+  border-radius: 4px;
+  padding: 16px 18px;
+  font-size: 16px;
+  margin-bottom: 20px;
+}
+
+.resultTitle {
+  font-size: 16px;
+  margin-bottom: 6px;
+}
+
+.errorText {
+  color: var(--color-seal);
+  font-size: 13px;
+  margin: 4px 0 12px;
 }
 
 .submitButton {
@@ -233,30 +269,6 @@
 
 .submitButton:hover {
   background: var(--color-celadon-dark);
-}
-
-.errorText {
-  color: var(--color-seal);
-  font-size: 13px;
-  margin: 4px 0 12px;
-}
-
-.table {
-  width: 100%;
-  border-collapse: collapse;
-}
-
-.table th,
-.table td {
-  text-align: left;
-  padding: 10px 8px;
-  border-bottom: 1px solid rgba(110, 148, 140, 0.2);
-  font-size: 14px;
-}
-
-.table th {
-  color: var(--color-celadon-dark);
-  font-weight: 500;
 }
 
 .muted {

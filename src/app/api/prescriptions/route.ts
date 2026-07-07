@@ -12,7 +12,7 @@ export async function GET() {
 
 export async function POST(request: Request) {
   const body = await request.json();
-  const { patientId, programId, staffUserId, startDate, surveyDataJson } = body;
+  const { patientId, programId, staffUserId, startDate, surveyDataJson, surveyResponseCacheId } = body;
 
   if (!patientId || !programId || !staffUserId) {
     return NextResponse.json(
@@ -27,6 +27,8 @@ export async function POST(request: Request) {
     staffUserId: Number(staffUserId),
     startDate: startDate ? new Date(startDate) : new Date(),
     surveyDataJson: typeof surveyDataJson === "string" && surveyDataJson.trim() ? surveyDataJson : undefined,
+    surveyResponseCacheId:
+      typeof surveyResponseCacheId === "number" ? surveyResponseCacheId : undefined,
   });
 
   const withRelations = await prisma.prescription.findUniqueOrThrow({

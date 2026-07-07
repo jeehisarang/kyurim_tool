@@ -19,6 +19,7 @@ export async function createPrescription(input: {
   startDate: Date;
   staffUserId: number;
   surveyDataJson?: string;
+  surveyResponseCacheId?: number;
 }) {
   const program = await prisma.program.findUniqueOrThrow({
     where: { id: input.programId },
@@ -39,6 +40,13 @@ export async function createPrescription(input: {
         surveyDataJson: input.surveyDataJson,
       },
     });
+
+    if (input.surveyResponseCacheId) {
+      await prisma.surveyResponseCache.update({
+        where: { id: input.surveyResponseCacheId },
+        data: { linkedPrescriptionId: String(prescription.id) },
+      });
+    }
 
     const templates = await prisma.programEventTemplate.findMany({
       where: { programId: input.programId },

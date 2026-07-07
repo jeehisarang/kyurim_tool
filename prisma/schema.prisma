@@ -24,6 +24,8 @@ model Patient {
   messageLogs   MessageLog[]
   todoTasks     TodoTask[]
   patientNotes  PatientNote[]
+  bodyCompositionRecords BodyCompositionRecord[]
+  strengthTestRecords    StrengthTestRecord[]
 }
 
 model TreatmentCategory {
@@ -74,6 +76,8 @@ model StaffUser {
   patientNotes            PatientNote[]
   programEventLogs        ProgramEventLog[] @relation("ProgramEventLogStaff")
   skippedProgramEventLogs ProgramEventLog[] @relation("ProgramEventLogSkippedBy")
+  bodyCompositionRecords  BodyCompositionRecord[]
+  strengthTestRecords     StrengthTestRecord[]
 }
 
 model Program {
@@ -118,14 +122,60 @@ model Prescription {
   staffUserId    Int
   staffUser      StaffUser  @relation("PrescriptionStaff", fields: [staffUserId], references: [id])
   status         String     @default("ACTIVE") // ACTIVE | COMPLETED | STOPPED
-  // FIXED_SEQUENCE 프로그램(예: 킬팻캡슐 3일체험)의 설문 데이터 임시 입력 필드.
-  // 정형 스키마 아님 — 자유 텍스트 또는 느슨한 key-value JSON 문자열로 직원이 수동 입력.
-  // 13-3(구글폼 실시간 연동) 적용 시 이 필드에 파싱된 값을 자동으로 채우는 방식으로
-  // 확장할 예정이라 프롬프트 조립 코드는 그대로 두고 이 필드 채우는 방식만 바뀌면 됨.
+  // FIXED_SEQUENCE 프로그램(예: 킬팻캡슐 3일체험)의 설문 데이터 필드.
+  // 정형 스키마 아님 — 자유 텍스트. 직원이 직접 입력하거나(자유형식), SurveyResponseCache에서
+  // 골라 채워넣는 반자동 방식(구글폼 연동) 둘 다로 채워질 수 있음.
   surveyDataJson String?
   createdAt      DateTime   @default(now())
   updatedAt      DateTime   @updatedAt
   todoTasks      TodoTask[]
+  bodyCompositionRecords BodyCompositionRecord[]
+  strengthTestRecords    StrengthTestRecord[]
+}
+
+// 13-6 검사: 인바디(체성분) 기록. 이번 범위는 "체중 위주 감량추이 확인"이 핵심이라
+// 체중 중심의 단순 구조로 시작 — 체성분 세부수치는 필요시 향후 확장.
+model BodyCompositionRecord {
+  id             Int           @id @default(autoincrement())
+  patientId      Int
+  patient        Patient       @relation(fields: [patientId], references: [id])
+  // 측정 당시 진행 중이던 처방(선택사항) — 자동매칭 없음, 직원이 목록에서 직접 선택.
+  prescriptionId Int?
+  prescription   Prescription? @relation(fields: [prescriptionId], references: [id])
+  measuredAt     DateTime
+  weightKg       Float
+  note           String?
+  staffUserId    Int
+  staffUser      StaffUser     @relation(fields: [staffUserId], references: [id])
+  createdAt      DateTime      @default(now())
+}
+
+// 13-6 검사: 근력검사(SMI지표 + 악력) 기록.
+// smi/smiJudgement/gripAvgKg/gripJudgement는 계산값이지만 저장 시점 값을 그대로 고정 저장한다 —
+// 판정기준(src/lib/exam-thresholds.ts)이 나중에 바뀌어도 과거 판정이 소급 변경되지 않도록 하기 위함.
+model StrengthTestRecord {
+  id                   Int           @id @default(autoincrement())
+  patientId            Int
+  patient              Patient       @relation(fields: [patientId], references: [id])
+  prescriptionId       Int?
+  prescription         Prescription? @relation(fields: [prescriptionId], references: [id])
+  measuredAt           DateTime
+  gender               String // MALE | FEMALE — 측정시점 스냅샷(Patient에 성별 필드가 없음)
+  measuredAge          Int // 측정시점 나이 스냅샷 — 악력 판정표의 연령대 구간 조회용
+  heightCm             Float
+  armMuscleMassLeftKg  Float
+  armMuscleMassRightKg Float
+  legMuscleMassLeftKg  Float
+  legMuscleMassRightKg Float
+  smi                  Float
+  smiJudgement         String // NORMAL | SARCOPENIA
+  gripLeftKg           Float
+  gripRightKg          Float
+  gripAvgKg            Float
+  gripJudgement        String // WEAK | NORMAL | STRONG | UNKNOWN(판정불가, 예: 20세 미만)
+  staffUserId          Int
+  staffUser            StaffUser     @relation(fields: [staffUserId], references: [id])
+  createdAt            DateTime      @default(now())
 }
 
 model TodoTask {
@@ -192,6 +242,23 @@ model PatientNote {
   staffUserId Int
   staffUser   StaffUser @relation(fields: [staffUserId], references: [id])
   createdAt   DateTime  @default(now())
+}
+
+// 킬팻캡슐 3일체험 등록(구글폼) 응답을 시트에서 폴링해 캐싱해두는 테이블.
+// 완전 자동매칭은 하지 않고, 직원이 /prescriptions/new 화면에서 이 목록 중 골라
+// surveyDataJson에 채워넣는 반자동 방식의 소스 데이터로만 사용한다.
+model SurveyResponseCache {
+  id                   Int      @id @default(autoincrement())
+  // 시트상 행 식별용(타임스탬프+이름+연락처 조합) — 재폴링 시 중복 적재 방지
+  sourceRowId          String   @unique
+  respondentName       String
+  respondentPhone      String
+  // 행 전체를 헤더-값 매핑 JSON 문자열로 보관(텍스트 정리 시 재사용)
+  rawDataJson          String
+  fetchedAt            DateTime @default(now())
+  // 실제 Prescription과의 FK 관계는 두지 않음 — 이 캐시는 어디까지나 선택 참고용 소스라
+  // 처방 삭제/재등록 흐름에 얽히지 않게 느슨한 참조(문자열)로만 남긴다(13-4 대비 기초 작업).
+  linkedPrescriptionId String?
 }
 
 model Goal {
