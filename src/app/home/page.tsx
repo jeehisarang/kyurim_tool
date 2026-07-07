@@ -30,6 +30,8 @@ type TodoTask = {
   staffUser: StaffUser | null;
   isDone: boolean;
   doneByUser: StaffUser | null;
+  skippedAt: string | null;
+  skippedByUser: StaffUser | null;
 };
 type WeeklySummary = { weekDone: number; weekTotal: number };
 
@@ -373,6 +375,10 @@ export default function HomePage() {
                         {task.isDone ? (
                           <span className={styles.doneLabel}>
                             완료 ({task.doneByUser?.name ?? "-"})
+                          </span>
+                        ) : task.skippedAt ? (
+                          <span className={styles.skippedLabel}>
+                            보류됨 ({task.skippedByUser?.name ?? "-"})
                           </span>
                         ) : (
                           "미완료"

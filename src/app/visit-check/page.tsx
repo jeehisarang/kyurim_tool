@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import styles from "./page.module.css";
 import SealStamp from "@/components/SealStamp";
+import PatientNotes from "@/components/PatientNotes";
 import { getCurrentUserId } from "@/lib/currentUser";
 
 type Patient = { id: number; chartNumber: string; name: string };
@@ -45,6 +46,7 @@ export default function VisitCheckPage() {
 
   const [staffUsers, setStaffUsers] = useState<StaffUser[]>([]);
   const [currentUserId, setCurrentUserIdState] = useState<number | null>(null);
+  const [expandedNotePatientId, setExpandedNotePatientId] = useState<number | null>(null);
 
   useEffect(() => {
     setTodayLabel(
@@ -305,17 +307,40 @@ export default function VisitCheckPage() {
                 <th>진료구분</th>
                 <th>예약여부</th>
                 <th>체크한 사람</th>
+                <th>메모</th>
               </tr>
             </thead>
             <tbody>
               {todayVisits.map((v) => (
-                <tr key={v.id}>
-                  <td>{v.patient.name}</td>
-                  <td>{v.treatmentCategory.name}</td>
-                  <td>{v.visitType.name}</td>
-                  <td>{v.isReserved ? "예약함" : "예약안함"}</td>
-                  <td>{v.checkedByUser?.name ?? "-"}</td>
-                </tr>
+                <Fragment key={v.id}>
+                  <tr>
+                    <td>{v.patient.name}</td>
+                    <td>{v.treatmentCategory.name}</td>
+                    <td>{v.visitType.name}</td>
+                    <td>{v.isReserved ? "예약함" : "예약안함"}</td>
+                    <td>{v.checkedByUser?.name ?? "-"}</td>
+                    <td>
+                      <button
+                        type="button"
+                        className={styles.noteToggleButton}
+                        onClick={() =>
+                          setExpandedNotePatientId((cur) =>
+                            cur === v.patient.id ? null : v.patient.id,
+                          )
+                        }
+                      >
+                        {expandedNotePatientId === v.patient.id ? "메모 −" : "메모 +"}
+                      </button>
+                    </td>
+                  </tr>
+                  {expandedNotePatientId === v.patient.id && (
+                    <tr>
+                      <td colSpan={6}>
+                        <PatientNotes patientId={v.patient.id} />
+                      </td>
+                    </tr>
+                  )}
+                </Fragment>
               ))}
             </tbody>
           </table>

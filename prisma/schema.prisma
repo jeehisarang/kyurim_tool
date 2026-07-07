@@ -23,6 +23,7 @@ model Patient {
   prescriptions Prescription[]
   messageLogs   MessageLog[]
   todoTasks     TodoTask[]
+  patientNotes  PatientNote[]
 }
 
 model TreatmentCategory {
@@ -69,6 +70,8 @@ model StaffUser {
   todoTasks      TodoTask[]     @relation("TodoTaskStaff")
   doneTodoTasks  TodoTask[]     @relation("TodoTaskDoneBy")
   messageLogs    MessageLog[]
+  skippedMessageLogs MessageLog[] @relation("MessageLogSkippedBy")
+  patientNotes   PatientNote[]
 }
 
 model Program {
@@ -119,17 +122,30 @@ model TodoTask {
 }
 
 model MessageLog {
-  id             Int       @id @default(autoincrement())
-  patientId      Int
-  patient        Patient   @relation(fields: [patientId], references: [id])
-  messageType    String // WELCOME | MEETING | DAY2 | DAY7 | THIRD_VISIT
-  sentDate       DateTime?
-  staffUserId    Int?
-  staffUser      StaffUser? @relation(fields: [staffUserId], references: [id])
-  aiDraftContent String?
-  createdAt      DateTime  @default(now())
+  id              Int       @id @default(autoincrement())
+  patientId       Int
+  patient         Patient   @relation(fields: [patientId], references: [id])
+  messageType     String // WELCOME | MEETING | DAY2 | DAY7 | THIRD_VISIT
+  sentDate        DateTime?
+  staffUserId     Int?
+  staffUser       StaffUser? @relation(fields: [staffUserId], references: [id])
+  skippedAt       DateTime?
+  skippedByUserId Int?
+  skippedByUser   StaffUser? @relation("MessageLogSkippedBy", fields: [skippedByUserId], references: [id])
+  aiDraftContent  String?
+  createdAt       DateTime  @default(now())
 
   @@unique([patientId, messageType])
+}
+
+model PatientNote {
+  id          Int       @id @default(autoincrement())
+  patientId   Int
+  patient     Patient   @relation(fields: [patientId], references: [id])
+  content     String
+  staffUserId Int
+  staffUser   StaffUser @relation(fields: [staffUserId], references: [id])
+  createdAt   DateTime  @default(now())
 }
 
 model Goal {

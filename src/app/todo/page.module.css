@@ -93,6 +93,33 @@
   background: var(--color-celadon-dark);
 }
 
+.actionsCell {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.skipButton {
+  border: 1px solid var(--color-seal);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--color-seal);
+  padding: 6px 12px;
+  font-size: 13px;
+  font-family: var(--font-body);
+  cursor: pointer;
+}
+
+.skipButton:hover {
+  background: rgba(179, 60, 46, 0.1);
+}
+
+.skippedLabel {
+  color: var(--color-seal);
+  font-size: 13px;
+  font-weight: 500;
+}
+
 .doneLabel {
   color: var(--color-celadon-dark);
   font-size: 13px;

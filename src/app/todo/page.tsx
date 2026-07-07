@@ -20,8 +20,12 @@ type TodoTask = {
   staffUser: StaffUser | null;
   isDone: boolean;
   doneByUser: StaffUser | null;
+  skippedAt: string | null;
+  skippedByUser: StaffUser | null;
 };
 type WeeklySummary = { weekDone: number; weekTotal: number };
+
+const SKIPPABLE_TASK_TYPES = ["DAY7"];
 
 const TASK_TYPE_LABEL: Record<string, string> = {
   NEXT_DOSE: "다음 처방일",
@@ -88,7 +92,7 @@ export default function TodoPage() {
       .then(setWeeklySummary);
   }, [refreshKey]);
 
-  async function handleCheck(task: TodoTask) {
+  async function handleCheck(task: TodoTask, action: "DONE" | "SKIPPED" = "DONE") {
     const doneByUserId = getCurrentUserId();
     if (!doneByUserId) {
       alert("상단에서 현재 사용자를 먼저 선택하세요.");
@@ -98,10 +102,10 @@ export default function TodoPage() {
     await fetch(`/api/todo-tasks/${task.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ doneByUserId }),
+      body: JSON.stringify({ doneByUserId, action }),
     });
 
-    setStampTaskId(task.id);
+    if (action === "DONE") setStampTaskId(task.id);
     setRefreshKey((k) => k + 1);
   }
 
@@ -145,16 +149,31 @@ export default function TodoPage() {
               <td>
                 {task.isDone ? (
                   <span className={styles.doneLabel}>완료 ({task.doneByUser?.name ?? "-"})</span>
+                ) : task.skippedAt ? (
+                  <span className={styles.skippedLabel}>
+                    보류됨 ({task.skippedByUser?.name ?? "-"})
+                  </span>
                 ) : (
-                  <span className={styles.submitWrap}>
-                    <button
-                      className={styles.checkButton}
-                      type="button"
-                      onClick={() => handleCheck(task)}
-                    >
-                      체크
-                    </button>
-                    {stampTaskId === task.id && <SealStamp key={task.id} />}
+                  <span className={styles.actionsCell}>
+                    <span className={styles.submitWrap}>
+                      <button
+                        className={styles.checkButton}
+                        type="button"
+                        onClick={() => handleCheck(task)}
+                      >
+                        체크
+                      </button>
+                      {stampTaskId === task.id && <SealStamp key={task.id} />}
+                    </span>
+                    {task.category === "TALK" && SKIPPABLE_TASK_TYPES.includes(task.taskType) && (
+                      <button
+                        className={styles.skipButton}
+                        type="button"
+                        onClick={() => handleCheck(task, "SKIPPED")}
+                      >
+                        보류
+                      </button>
+                    )}
                   </span>
                 )}
               </td>

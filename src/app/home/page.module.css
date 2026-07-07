@@ -200,6 +200,12 @@
   font-weight: 500;
 }
 
+.skippedLabel {
+  color: var(--color-seal);
+  font-size: 13px;
+  font-weight: 500;
+}
+
 .categoryBadgePrescription,
 .categoryBadgeTalk {
   display: inline-block;

@@ -159,6 +159,61 @@
   opacity: 0.5;
 }
 
+.skippedBadge {
+  font-size: 12px;
+  color: var(--color-seal);
+  font-weight: 500;
+}
+
+.notesBlock {
+  margin-bottom: 10px;
+  padding: 10px;
+  background: var(--color-hanji-card);
+  border-radius: 4px;
+}
+
+.generationOptions {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.keywordInput {
+  flex: 1;
+  border: 1px solid rgba(110, 148, 140, 0.4);
+  border-radius: 4px;
+  background: var(--color-hanji-card);
+  color: var(--color-ink);
+  padding: 6px 10px;
+  font-size: 13px;
+  font-family: var(--font-body);
+}
+
+.progressSelect {
+  border: 1px solid rgba(110, 148, 140, 0.4);
+  border-radius: 4px;
+  background: var(--color-hanji-card);
+  color: var(--color-ink);
+  padding: 6px 8px;
+  font-size: 13px;
+  font-family: var(--font-body);
+}
+
+.skipButton {
+  border: 1px solid var(--color-seal);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--color-seal);
+  padding: 6px 14px;
+  font-size: 13px;
+  font-family: var(--font-body);
+  cursor: pointer;
+}
+
+.skipButton:hover {
+  background: rgba(179, 60, 46, 0.1);
+}
+
 .messageTextarea {
   width: 100%;
   resize: vertical;

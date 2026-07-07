@@ -1,17 +1,23 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { generateMessageDraft } from "@/lib/ai-message";
+import { generateMessageDraft, type ProgressLevel } from "@/lib/ai-message";
 
 const AI_MESSAGE_TYPES = ["DAY2", "DAY7", "THIRD_VISIT"] as const;
 type AiMessageType = (typeof AI_MESSAGE_TYPES)[number];
+
+const PROGRESS_LEVELS = ["HIGH", "MID", "LOW"] as const;
 
 function isAiMessageType(value: unknown): value is AiMessageType {
   return AI_MESSAGE_TYPES.includes(value as AiMessageType);
 }
 
+function isProgressLevel(value: unknown): value is ProgressLevel {
+  return PROGRESS_LEVELS.includes(value as ProgressLevel);
+}
+
 export async function POST(request: Request) {
   const body = await request.json();
-  const { patientId, messageType } = body;
+  const { patientId, messageType, extraKeywords, progressLevel } = body;
 
   if (!patientId || !isAiMessageType(messageType)) {
     return NextResponse.json(
@@ -25,12 +31,18 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "환자를 찾을 수 없습니다." }, { status: 404 });
   }
 
-  const visits = await prisma.visit.findMany({
-    where: { patientId: Number(patientId) },
-    include: { treatmentCategory: true, visitType: true },
-    orderBy: { visitDate: "desc" },
-    take: 5,
-  });
+  const [visits, notes] = await Promise.all([
+    prisma.visit.findMany({
+      where: { patientId: Number(patientId) },
+      include: { treatmentCategory: true, visitType: true },
+      orderBy: { visitDate: "desc" },
+      take: 5,
+    }),
+    prisma.patientNote.findMany({
+      where: { patientId: Number(patientId) },
+      orderBy: { createdAt: "desc" },
+    }),
+  ]);
 
   try {
     const content = await generateMessageDraft(messageType, {
@@ -41,6 +53,10 @@ export async function POST(request: Request) {
         treatmentCategory: v.treatmentCategory.name,
         visitType: v.visitType.name,
       })),
+      notes: notes.map((n) => ({ content: n.content, createdAt: n.createdAt })),
+      extraKeywords: typeof extraKeywords === "string" ? extraKeywords : undefined,
+      progressLevel:
+        messageType === "THIRD_VISIT" && isProgressLevel(progressLevel) ? progressLevel : undefined,
     });
 
     return NextResponse.json({ content });

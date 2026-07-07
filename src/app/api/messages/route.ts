@@ -13,7 +13,7 @@ export async function GET(request: Request) {
 
   const logs = await prisma.messageLog.findMany({
     where: { patientId },
-    include: { staffUser: true },
+    include: { staffUser: true, skippedByUser: true },
   });
   const byType = new Map(logs.map((log) => [log.messageType, log]));
 
@@ -23,6 +23,8 @@ export async function GET(request: Request) {
       messageType,
       sentDate: log?.sentDate ?? null,
       staffUser: log?.staffUser ?? null,
+      skippedAt: log?.sentDate ? null : (log?.skippedAt ?? null),
+      skippedByUser: log?.sentDate ? null : (log?.skippedByUser ?? null),
       aiDraftContent: log?.aiDraftContent ?? null,
     };
   });
