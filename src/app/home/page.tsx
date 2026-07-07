@@ -3,7 +3,9 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import styles from "./page.module.css";
-import { TALK_MESSAGE_TYPE_LABEL } from "@/lib/message-templates";
+import { TALK_MESSAGE_TYPE_LABEL, TRIAL_TASK_TYPE_LABEL } from "@/lib/message-templates";
+import CategoryBadge from "@/components/CategoryBadge";
+import VisitTypeTag from "@/components/VisitTypeTag";
 
 type Patient = { id: number; chartNumber: string; name: string };
 type TreatmentCategory = { id: number; name: string };
@@ -33,12 +35,11 @@ type TodoTask = {
   skippedAt: string | null;
   skippedByUser: StaffUser | null;
 };
-type WeeklySummary = { weekDone: number; weekTotal: number };
-
 const TASK_TYPE_LABEL: Record<string, string> = {
   NEXT_DOSE: "다음 처방일",
   FOLLOW_UP: "후속조치",
   ...TALK_MESSAGE_TYPE_LABEL,
+  ...TRIAL_TASK_TYPE_LABEL,
 };
 
 const CATEGORY_LABEL: Record<TodoCategory, string> = {
@@ -87,8 +88,8 @@ function isSameDate(a: Date, b: Date): boolean {
   );
 }
 
-function isOverdueTask(task: TodoTask): boolean {
-  return startOfDay(new Date(task.dueDate)) < startOfDay(new Date());
+function isOverdueTask(task: TodoTask, referenceDate: Date): boolean {
+  return startOfDay(new Date(task.dueDate)) < startOfDay(referenceDate);
 }
 
 function toDateParam(date: Date): string {
@@ -126,18 +127,11 @@ export default function HomePage() {
   const [monthly, setMonthly] = useState<MonthlyDailyStats | null>(null);
   const [selectedVisits, setSelectedVisits] = useState<VisitRecord[] | null>(null);
   const [todoTasks, setTodoTasks] = useState<TodoTask[] | null>(null);
-  const [weeklySummary, setWeeklySummary] = useState<WeeklySummary | null>(null);
 
   useEffect(() => {
     fetch("/api/dashboard/daily")
       .then((res) => res.json())
       .then(setMonthly);
-    fetch("/api/todo-tasks")
-      .then((res) => res.json())
-      .then(setTodoTasks);
-    fetch("/api/todo-tasks/summary")
-      .then((res) => res.json())
-      .then(setWeeklySummary);
   }, []);
 
   useEffect(() => {
@@ -145,6 +139,13 @@ export default function HomePage() {
     fetch(`/api/visits?date=${toDateParam(selectedDate)}`)
       .then((res) => res.json())
       .then(setSelectedVisits);
+  }, [selectedDate]);
+
+  useEffect(() => {
+    setTodoTasks(null);
+    fetch(`/api/todo-tasks?date=${toDateParam(selectedDate)}`)
+      .then((res) => res.json())
+      .then(setTodoTasks);
   }, [selectedDate]);
 
   const selectedVisitCount = selectedVisits?.length ?? 0;
@@ -161,11 +162,18 @@ export default function HomePage() {
   const leadingBlanks = monthly ? new Date(monthly.year, monthly.month - 1, 1).getDay() : 0;
 
   const todoPreview = todoTasks
-    ? [...todoTasks.filter((t) => !isOverdueTask(t)), ...todoTasks.filter(isOverdueTask)].slice(
-        0,
-        TODO_PREVIEW_COUNT,
-      )
+    ? [
+        ...todoTasks.filter((t) => !isOverdueTask(t, selectedDate)),
+        ...todoTasks.filter((t) => isOverdueTask(t, selectedDate)),
+      ].slice(0, TODO_PREVIEW_COUNT)
     : [];
+
+  const todoDoneCount = todoTasks?.filter((t) => t.isDone).length ?? 0;
+  const todoTotalCount = todoTasks?.length ?? 0;
+  const isTodoPreviewToday = isSameDate(selectedDate, startOfDay(new Date()));
+  const todoPreviewTitle = isTodoPreviewToday
+    ? "오늘 할 일 미리보기"
+    : `${selectedDate.getMonth() + 1}월 ${selectedDate.getDate()}일 할 일 미리보기`;
 
   function selectDay(day: number) {
     if (!monthly) return;
@@ -301,8 +309,12 @@ export default function HomePage() {
                     <tr key={v.id}>
                       <td className={styles.mono}>{v.patient.chartNumber}</td>
                       <td>{v.patient.name}</td>
-                      <td>{v.treatmentCategory.name}</td>
-                      <td>{v.visitType.name}</td>
+                      <td>
+                        <CategoryBadge id={v.treatmentCategory.id} name={v.treatmentCategory.name} />
+                      </td>
+                      <td>
+                        <VisitTypeTag name={v.visitType.name} />
+                      </td>
                       <td>{v.isReserved ? "예약함" : "예약안함"}</td>
                       <td>{v.checkedByUser?.name ?? "-"}</td>
                     </tr>
@@ -313,38 +325,29 @@ export default function HomePage() {
           </div>
 
           <div className={styles.section}>
-            <div className={styles.sectionTitle}>오늘 할 일 미리보기</div>
-
-            {weeklySummary &&
-              (weeklySummary.weekTotal === 0 ? (
-                <p className={styles.muted}>이번주 예정된 작업이 없습니다.</p>
-              ) : (
-                <>
-                  <div className={styles.weeklyHeader}>
-                    <span>이번주 처리 현황</span>
-                    <span className={styles.weeklyValue}>
-                      {weeklySummary.weekDone}/{weeklySummary.weekTotal}건
-                    </span>
-                  </div>
-                  <div className={styles.progressTrack}>
-                    <div
-                      className={styles.progressFill}
-                      style={{
-                        width: `${Math.min(
-                          100,
-                          (weeklySummary.weekDone / weeklySummary.weekTotal) * 100,
-                        )}%`,
-                      }}
-                    />
-                  </div>
-                </>
-              ))}
+            <div className={styles.sectionTitle}>{todoPreviewTitle}</div>
 
             {todoTasks !== null && todoTasks.length === 0 && (
-              <p className={styles.muted}>오늘 처리할 항목이 없습니다.</p>
+              <p className={styles.muted}>처리할 항목이 없습니다.</p>
             )}
             {todoTasks && todoTasks.length > 0 && (
-              <table className={styles.table}>
+              <>
+                <div className={styles.weeklyHeader}>
+                  <span>처리 현황</span>
+                  <span className={styles.weeklyValue}>
+                    {todoDoneCount}/{todoTotalCount}건
+                  </span>
+                </div>
+                <div className={styles.progressTrack}>
+                  <div
+                    className={styles.progressFill}
+                    style={{
+                      width: `${Math.min(100, (todoDoneCount / todoTotalCount) * 100)}%`,
+                    }}
+                  />
+                </div>
+
+                <table className={styles.table}>
                 <thead>
                   <tr>
                     <th>구분</th>
@@ -387,10 +390,11 @@ export default function HomePage() {
                     </tr>
                   ))}
                 </tbody>
-              </table>
+                </table>
+              </>
             )}
 
-            <Link href="/todo" className={styles.moreLink}>
+            <Link href={`/todo?date=${toDateParam(selectedDate)}`} className={styles.moreLink}>
               더보기 →
             </Link>
           </div>

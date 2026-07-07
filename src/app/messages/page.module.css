@@ -134,6 +134,11 @@
   background: var(--color-hanji-bg);
 }
 
+.messageCardHighlight {
+  border-color: var(--color-celadon);
+  box-shadow: 0 0 0 2px rgba(110, 148, 140, 0.3);
+}
+
 .messageHeader {
   display: flex;
   align-items: center;

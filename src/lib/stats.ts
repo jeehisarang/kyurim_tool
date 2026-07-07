@@ -231,27 +231,80 @@ export async function computeTodoWeeklySummary(): Promise<TodoWeeklySummary> {
     weekStart.getDate() + 7,
   );
 
-  const [weekTotal, weekDonePrescription, talkTodos, talkLogsDoneThisWeek] = await Promise.all([
-    prisma.todoTask.count({
-      where: { createdAt: { gte: weekStart, lt: weekEnd } },
-    }),
-    prisma.todoTask.count({
-      where: { prescriptionId: { not: null }, isDone: true, doneAt: { gte: weekStart, lt: weekEnd } },
-    }),
-    prisma.todoTask.findMany({
-      where: { patientId: { not: null }, taskType: { in: TALK_TASK_TYPES } },
-      select: { patientId: true, taskType: true },
-    }),
-    prisma.messageLog.findMany({
-      where: { messageType: { in: TALK_TASK_TYPES }, sentDate: { gte: weekStart, lt: weekEnd } },
-      select: { patientId: true, messageType: true },
-    }),
-  ]);
+  const [weekTotal, weekDonePrescription, talkTodos, talkLogsDoneThisWeek, weekDoneProgramEvent] =
+    await Promise.all([
+      prisma.todoTask.count({
+        where: { createdAt: { gte: weekStart, lt: weekEnd } },
+      }),
+      prisma.todoTask.count({
+        where: { prescriptionId: { not: null }, isDone: true, doneAt: { gte: weekStart, lt: weekEnd } },
+      }),
+      prisma.todoTask.findMany({
+        where: { patientId: { not: null }, taskType: { in: TALK_TASK_TYPES } },
+        select: { patientId: true, taskType: true },
+      }),
+      prisma.messageLog.findMany({
+        where: { messageType: { in: TALK_TASK_TYPES }, sentDate: { gte: weekStart, lt: weekEnd } },
+        select: { patientId: true, messageType: true },
+      }),
+      // 프로그램 이벤트(예: 킬팻캡슐 3일체험 TRIAL_*)는 prescriptionId를 가지지만 톡류라
+      // TodoTask.isDone이 아니라 ProgramEventLog.sentDate로 완료를 판단해야 한다.
+      prisma.programEventLog.count({
+        where: { sentDate: { gte: weekStart, lt: weekEnd } },
+      }),
+    ]);
 
   const talkTodoKeys = new Set(talkTodos.map((t) => `${t.patientId}:${t.taskType}`));
   const weekDoneTalk = talkLogsDoneThisWeek.filter((log) =>
     talkTodoKeys.has(`${log.patientId}:${log.messageType}`),
   ).length;
 
-  return { weekDone: weekDonePrescription + weekDoneTalk, weekTotal };
+  return { weekDone: weekDonePrescription + weekDoneTalk + weekDoneProgramEvent, weekTotal };
+}
+
+export type ProgramActiveCount = {
+  programId: number;
+  programName: string;
+  activePatientCount: number;
+};
+
+export type PrescriptionStats = {
+  perProgram: ProgramActiveCount[];
+  newThisMonth: number;
+};
+
+/** 치료처방 리스트 화면 상단 요약 카드용: 프로그램별 진행 중 환자 수 + 이번달 신규 등록 수. */
+export async function computePrescriptionStats(): Promise<PrescriptionStats> {
+  const today = startOfDay(new Date());
+  const year = today.getFullYear();
+  const month = today.getMonth();
+  const monthStart = new Date(year, month, 1);
+  const monthEnd = new Date(year, month + 1, 1);
+
+  const [activePrescriptions, newThisMonth] = await Promise.all([
+    prisma.prescription.findMany({
+      where: { status: "ACTIVE" },
+      select: { patientId: true, program: { select: { id: true, name: true } } },
+    }),
+    prisma.prescription.count({
+      where: { createdAt: { gte: monthStart, lt: monthEnd } },
+    }),
+  ]);
+
+  const byProgram = new Map<number, { name: string; patientIds: Set<number> }>();
+  for (const p of activePrescriptions) {
+    const entry = byProgram.get(p.program.id) ?? { name: p.program.name, patientIds: new Set<number>() };
+    entry.patientIds.add(p.patientId);
+    byProgram.set(p.program.id, entry);
+  }
+
+  const perProgram = [...byProgram.entries()]
+    .map(([programId, { name, patientIds }]) => ({
+      programId,
+      programName: name,
+      activePatientCount: patientIds.size,
+    }))
+    .sort((a, b) => b.activePatientCount - a.activePatientCount);
+
+  return { perProgram, newThisMonth };
 }

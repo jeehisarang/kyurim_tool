@@ -4,6 +4,8 @@ import { Fragment, useEffect, useState } from "react";
 import styles from "./page.module.css";
 import SealStamp from "@/components/SealStamp";
 import PatientNotes from "@/components/PatientNotes";
+import CategoryBadge from "@/components/CategoryBadge";
+import VisitTypeTag from "@/components/VisitTypeTag";
 import { getCurrentUserId } from "@/lib/currentUser";
 
 type Patient = { id: number; chartNumber: string; name: string };
@@ -315,8 +317,12 @@ export default function VisitCheckPage() {
                 <Fragment key={v.id}>
                   <tr>
                     <td>{v.patient.name}</td>
-                    <td>{v.treatmentCategory.name}</td>
-                    <td>{v.visitType.name}</td>
+                    <td>
+                      <CategoryBadge id={v.treatmentCategory.id} name={v.treatmentCategory.name} />
+                    </td>
+                    <td>
+                      <VisitTypeTag name={v.visitType.name} />
+                    </td>
                     <td>{v.isReserved ? "예약함" : "예약안함"}</td>
                     <td>{v.checkedByUser?.name ?? "-"}</td>
                     <td>

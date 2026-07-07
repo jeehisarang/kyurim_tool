@@ -14,6 +14,7 @@ import {
 import styles from "./page.module.css";
 import GoalTracker, { type Goal } from "./GoalTracker";
 import { GOAL_METRICS, type MetricKey } from "@/lib/goals";
+import CategoryBadge from "@/components/CategoryBadge";
 
 type CategoryStat = { categoryId: number; categoryName: string; patientCount: number };
 type DashboardStats = {
@@ -222,7 +223,9 @@ export default function DashboardPage() {
               <tbody>
                 {stats.visitsPerCategory.map((c) => (
                   <tr key={c.categoryId}>
-                    <td>{c.categoryName}</td>
+                    <td>
+                      <CategoryBadge id={c.categoryId} name={c.categoryName} />
+                    </td>
                     <td className={styles.mono}>{c.patientCount}명</td>
                   </tr>
                 ))}

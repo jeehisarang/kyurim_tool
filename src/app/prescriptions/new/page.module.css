@@ -12,11 +12,39 @@
   margin-bottom: 6px;
 }
 
+.pageHeader {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.listLink {
+  font-size: 13px;
+  color: var(--color-celadon-dark);
+  font-weight: 500;
+}
+
+.listLink:hover {
+  text-decoration: underline;
+}
+
 .dateLabel {
   font-family: var(--font-mono);
   font-size: 14px;
   color: var(--color-celadon-dark);
   margin-bottom: 32px;
+}
+
+.successBanner {
+  border: 1px solid var(--color-celadon);
+  border-left: 3px solid var(--color-celadon);
+  background: rgba(110, 148, 140, 0.12);
+  color: var(--color-celadon-dark);
+  border-radius: 4px;
+  padding: 10px 14px;
+  font-size: 14px;
+  margin-bottom: 20px;
 }
 
 .section {
@@ -140,6 +168,27 @@
   font-size: 14px;
   font-family: var(--font-body);
   margin-left: 4px;
+}
+
+.surveyLabel {
+  display: block;
+  font-size: 14px;
+  color: var(--color-ink);
+  margin-bottom: 16px;
+}
+
+.surveyTextarea {
+  display: block;
+  width: 100%;
+  resize: vertical;
+  border: 1px solid rgba(110, 148, 140, 0.4);
+  border-radius: 4px;
+  background: var(--color-hanji-bg);
+  color: var(--color-ink);
+  padding: 8px 10px;
+  font-size: 13px;
+  font-family: var(--font-body);
+  margin-top: 6px;
 }
 
 .submitWrap {

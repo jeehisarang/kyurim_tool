@@ -12,11 +12,53 @@
   margin-bottom: 6px;
 }
 
-.dateLabel {
-  font-family: var(--font-mono);
-  font-size: 14px;
+.dateNav {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.dateNavArrow {
+  border: 1px solid rgba(110, 148, 140, 0.4);
+  border-radius: 4px;
+  background: var(--color-hanji-card);
   color: var(--color-celadon-dark);
-  margin-bottom: 32px;
+  width: 32px;
+  height: 32px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.dateNavArrow:hover {
+  background: rgba(110, 148, 140, 0.12);
+}
+
+.dateNavLabel {
+  font-family: var(--font-mono);
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--color-ink);
+  min-width: 220px;
+  text-align: center;
+}
+
+.dateNavTodayButton {
+  border: 1px solid var(--color-celadon);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--color-celadon-dark);
+  padding: 6px 14px;
+  font-size: 13px;
+  font-family: var(--font-body);
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.dateNavTodayButton:hover {
+  background: rgba(110, 148, 140, 0.1);
 }
 
 .section {
@@ -114,6 +156,39 @@
   background: rgba(179, 60, 46, 0.1);
 }
 
+.talkGenerateButton {
+  border: 1px solid var(--color-celadon);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--color-celadon-dark);
+  padding: 6px 12px;
+  font-size: 13px;
+  font-family: var(--font-body);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.talkGenerateButton:hover {
+  background: rgba(110, 148, 140, 0.1);
+}
+
+.patientNameButton {
+  border: none;
+  background: transparent;
+  color: var(--color-ink);
+  font-size: 14px;
+  font-family: var(--font-body);
+  padding: 0;
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-color: rgba(110, 148, 140, 0.4);
+  text-underline-offset: 2px;
+}
+
+.patientNameButton:hover {
+  color: var(--color-celadon-dark);
+}
+
 .skippedLabel {
   color: var(--color-seal);
   font-size: 13px;
@@ -142,6 +217,31 @@
 }
 
 .categoryBadgeTalk {
+  background: rgba(179, 60, 46, 0.12);
+  color: var(--color-seal);
+}
+
+.taskTypeBadgeDose,
+.taskTypeBadgeFollowUp,
+.taskTypeBadgeTalk {
+  display: inline-block;
+  border-radius: 4px;
+  padding: 2px 8px;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.taskTypeBadgeDose {
+  background: rgba(110, 148, 140, 0.15);
+  color: var(--color-celadon-dark);
+}
+
+.taskTypeBadgeFollowUp {
+  border: 1px solid var(--color-celadon-dark);
+  color: var(--color-celadon-dark);
+}
+
+.taskTypeBadgeTalk {
   background: rgba(179, 60, 46, 0.12);
   color: var(--color-seal);
 }

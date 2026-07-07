@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/db";
 
 const PROGRAM_TYPE_SPLIT = "SPLIT";
+const PROGRAM_TYPE_FIXED_SEQUENCE = "FIXED_SEQUENCE";
 const TASK_TYPE_NEXT_DOSE = "NEXT_DOSE";
 const TASK_TYPE_FOLLOW_UP = "FOLLOW_UP";
 const STATUS_ACTIVE = "ACTIVE";
@@ -17,10 +18,44 @@ export async function createPrescription(input: {
   programId: number;
   startDate: Date;
   staffUserId: number;
+  surveyDataJson?: string;
 }) {
   const program = await prisma.program.findUniqueOrThrow({
     where: { id: input.programId },
   });
+
+  // FIXED_SEQUENCE(예: 킬팻캡슐 3일체험): SPLIT/SINGLE처럼 완료해야 다음 할일이 생기는
+  // 체이닝 구조가 아니라, 등록 시점에 정해진 오프셋의 TodoTask 전체를 한번에 만든다.
+  if (program.type === PROGRAM_TYPE_FIXED_SEQUENCE) {
+    const prescription = await prisma.prescription.create({
+      data: {
+        patientId: input.patientId,
+        programId: input.programId,
+        startDate: input.startDate,
+        staffUserId: input.staffUserId,
+        status: STATUS_ACTIVE,
+        currentRound: null,
+        totalRounds: null,
+        surveyDataJson: input.surveyDataJson,
+      },
+    });
+
+    const templates = await prisma.programEventTemplate.findMany({
+      where: { programId: input.programId },
+      orderBy: { sortOrder: "asc" },
+    });
+
+    await prisma.todoTask.createMany({
+      data: templates.map((template) => ({
+        prescriptionId: prescription.id,
+        taskType: template.taskType,
+        dueDate: addDays(input.startDate, template.offsetDays),
+        staffUserId: input.staffUserId,
+      })),
+    });
+
+    return prescription;
+  }
 
   const isSplit = program.type === PROGRAM_TYPE_SPLIT;
   const splitIntervalDays = program.splitIntervalDays ?? 14;

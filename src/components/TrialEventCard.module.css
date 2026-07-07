@@ -1,0 +1,18 @@
+.internalAnalysisLabel {
+  color: var(--color-ink);
+  opacity: 0.6;
+  font-size: 12px;
+  margin-bottom: 4px;
+}
+
+.internalAnalysisTextarea {
+  width: 100%;
+  resize: vertical;
+  border: 1px dashed rgba(110, 148, 140, 0.5);
+  border-radius: 4px;
+  background: var(--color-hanji-bg);
+  color: var(--color-ink);
+  padding: 8px 10px;
+  font-size: 13px;
+  font-family: var(--font-body);
+}

@@ -1,11 +1,17 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import styles from "./page.module.css";
 import SealStamp from "@/components/SealStamp";
 import PatientNotes from "@/components/PatientNotes";
+import TrialEventCard from "@/components/TrialEventCard";
 import { getCurrentUserId } from "@/lib/currentUser";
-import { FIXED_MESSAGE_TEMPLATE, TALK_MESSAGE_TYPE_LABEL } from "@/lib/message-templates";
+import {
+  FIXED_MESSAGE_TEMPLATE,
+  MEETING_TALK_TEMPLATES,
+  TALK_MESSAGE_TYPE_LABEL,
+} from "@/lib/message-templates";
 
 type Patient = { id: number; chartNumber: string; name: string };
 type StaffUser = { id: number; name: string; role: string };
@@ -25,7 +31,7 @@ const PROGRESS_LEVEL_LABEL: Record<ProgressLevel, string> = {
 
 const MESSAGE_TYPE_LABEL: Record<MessageType, string> = {
   WELCOME: "웰컴 메시지",
-  MEETING: "상담예정 안내",
+  MEETING: "만남톡",
   ...TALK_MESSAGE_TYPE_LABEL,
 };
 
@@ -43,6 +49,40 @@ function isAiMessageType(type: MessageType): type is AiMessageType {
 }
 
 export default function MessagesPage() {
+  return (
+    <Suspense fallback={null}>
+      <MessagesPageRouter />
+    </Suspense>
+  );
+}
+
+/**
+ * /todo의 "톡생성 하기"가 프로그램 이벤트(예: 킬팻캡슐 3일체험 TRIAL_*)에서 넘어온 경우
+ * todoTaskId가 실려온다 — 이 경우 기존 patientId 기반 5종 톡 목록 흐름(MessagesPageInner)과는
+ * 완전히 분리된 단일 카드(TrialEventCard)로 라우팅한다.
+ */
+function MessagesPageRouter() {
+  const searchParams = useSearchParams();
+  const todoTaskId = searchParams.get("todoTaskId");
+
+  if (todoTaskId) {
+    return (
+      <div className={styles.container}>
+        <h1 className={styles.pageTitle}>톡생성기</h1>
+        <div className={styles.section}>
+          <div className={styles.sectionTitle}>프로그램 이벤트</div>
+          <TrialEventCard todoTaskId={Number(todoTaskId)} />
+        </div>
+      </div>
+    );
+  }
+
+  return <MessagesPageInner />;
+}
+
+function MessagesPageInner() {
+  const searchParams = useSearchParams();
+
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<Patient[] | null>(null);
   const [searching, setSearching] = useState(false);
@@ -57,6 +97,26 @@ export default function MessagesPage() {
   const [generatingType, setGeneratingType] = useState<MessageType | null>(null);
   const [generateError, setGenerateError] = useState<string | null>(null);
   const [stampType, setStampType] = useState<MessageType | null>(null);
+  const [copiedType, setCopiedType] = useState<MessageType | null>(null);
+  const [skippedFeedbackType, setSkippedFeedbackType] = useState<MessageType | null>(null);
+  const [meetingTemplateIndex, setMeetingTemplateIndex] = useState<0 | 1>(0);
+
+  // "오늘 할 일"의 "톡생성 하기" 버튼에서 넘어온 경우: 환자 + 톡 유형을 미리 선택된 상태로 만든다.
+  const preselectMessageType = searchParams.get("messageType");
+  const highlightType: MessageType | null =
+    preselectMessageType && isAiMessageType(preselectMessageType as MessageType)
+      ? (preselectMessageType as MessageType)
+      : null;
+
+  useEffect(() => {
+    const patientId = searchParams.get("patientId");
+    const chartNumber = searchParams.get("chartNumber");
+    const name = searchParams.get("name");
+    if (patientId && chartNumber && name) {
+      selectPatient({ id: Number(patientId), chartNumber, name });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     if (!selectedPatient) return;
@@ -123,9 +183,8 @@ export default function MessagesPage() {
   }
 
   function contentFor(status: MessageStatus): string {
-    if (!isAiMessageType(status.messageType)) {
-      return FIXED_MESSAGE_TEMPLATE[status.messageType as "WELCOME" | "MEETING"];
-    }
+    if (status.messageType === "WELCOME") return FIXED_MESSAGE_TEMPLATE.WELCOME;
+    if (status.messageType === "MEETING") return MEETING_TALK_TEMPLATES[meetingTemplateIndex];
     return drafts[status.messageType] ?? status.aiDraftContent ?? "";
   }
 
@@ -133,6 +192,10 @@ export default function MessagesPage() {
     const text = contentFor(status);
     if (!text) return;
     await navigator.clipboard.writeText(text);
+    setCopiedType(status.messageType);
+    setTimeout(() => {
+      setCopiedType((prev) => (prev === status.messageType ? null : prev));
+    }, 1500);
   }
 
   async function handleConfirm(status: MessageStatus) {
@@ -176,12 +239,16 @@ export default function MessagesPage() {
       }),
     });
 
+    setSkippedFeedbackType(status.messageType);
+    setTimeout(() => {
+      setSkippedFeedbackType((prev) => (prev === status.messageType ? null : prev));
+    }, 1500);
     refreshStatuses(selectedPatient.id);
   }
 
   return (
     <div className={styles.container}>
-      <h1 className={styles.pageTitle}>문자발송 관리</h1>
+      <h1 className={styles.pageTitle}>톡생성기</h1>
 
       <div className={styles.section}>
         <div className={styles.sectionTitle}>환자 검색</div>
@@ -237,7 +304,14 @@ export default function MessagesPage() {
 
           <div className={styles.messageList}>
             {statuses.map((status) => (
-              <div key={status.messageType} className={styles.messageCard}>
+              <div
+                key={status.messageType}
+                className={
+                  highlightType === status.messageType
+                    ? `${styles.messageCard} ${styles.messageCardHighlight}`
+                    : styles.messageCard
+                }
+              >
                 <div className={styles.messageHeader}>
                   <span className={styles.messageTypeLabel}>
                     {MESSAGE_TYPE_LABEL[status.messageType]}
@@ -300,6 +374,21 @@ export default function MessagesPage() {
                   </div>
                 )}
 
+                {status.messageType === "MEETING" && (
+                  <div className={styles.generationOptions}>
+                    <select
+                      className={styles.progressSelect}
+                      value={meetingTemplateIndex}
+                      onChange={(e) =>
+                        setMeetingTemplateIndex(Number(e.target.value) as 0 | 1)
+                      }
+                    >
+                      <option value={0}>템플릿 1</option>
+                      <option value={1}>템플릿 2</option>
+                    </select>
+                  </div>
+                )}
+
                 <textarea
                   className={styles.messageTextarea}
                   readOnly={!isAiMessageType(status.messageType)}
@@ -332,7 +421,7 @@ export default function MessagesPage() {
                     onClick={() => handleCopy(status)}
                     disabled={!contentFor(status)}
                   >
-                    복사
+                    {copiedType === status.messageType ? "복사됨" : "복사"}
                   </button>
                   <span className={styles.submitWrap}>
                     <button
@@ -352,7 +441,7 @@ export default function MessagesPage() {
                       className={styles.skipButton}
                       onClick={() => handleSkip(status)}
                     >
-                      보류
+                      {skippedFeedbackType === status.messageType ? "보류함" : "보류"}
                     </button>
                   )}
                 </div>

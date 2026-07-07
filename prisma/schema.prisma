@@ -60,71 +60,117 @@ model Visit {
 }
 
 model StaffUser {
-  id             Int            @id @default(autoincrement())
-  name           String         @unique
-  role           String
-  isActive       Boolean        @default(true)
-  createdAt      DateTime       @default(now())
-  visits         Visit[]
-  prescriptions  Prescription[] @relation("PrescriptionStaff")
-  todoTasks      TodoTask[]     @relation("TodoTaskStaff")
-  doneTodoTasks  TodoTask[]     @relation("TodoTaskDoneBy")
-  messageLogs    MessageLog[]
-  skippedMessageLogs MessageLog[] @relation("MessageLogSkippedBy")
-  patientNotes   PatientNote[]
+  id                      Int               @id @default(autoincrement())
+  name                    String            @unique
+  role                    String
+  isActive                Boolean           @default(true)
+  createdAt               DateTime          @default(now())
+  visits                  Visit[]
+  prescriptions           Prescription[]    @relation("PrescriptionStaff")
+  todoTasks               TodoTask[]        @relation("TodoTaskStaff")
+  doneTodoTasks           TodoTask[]        @relation("TodoTaskDoneBy")
+  messageLogs             MessageLog[]
+  skippedMessageLogs      MessageLog[]      @relation("MessageLogSkippedBy")
+  patientNotes            PatientNote[]
+  programEventLogs        ProgramEventLog[] @relation("ProgramEventLogStaff")
+  skippedProgramEventLogs ProgramEventLog[] @relation("ProgramEventLogSkippedBy")
 }
 
 model Program {
-  id                Int      @id @default(autoincrement())
-  name              String   @unique
-  type              String // SPLIT(분할처방) | SINGLE(단회처방)
-  splitIntervalDays Int?     @default(14)
-  totalDurationDays Int?     @default(90)
+  id                Int                    @id @default(autoincrement())
+  name              String                 @unique
+  type              String // SPLIT(분할처방) | SINGLE(단회처방) | FIXED_SEQUENCE(고정 일자별 이벤트, 예: 킬팻캡슐 3일체험)
+  splitIntervalDays Int?                   @default(14)
+  totalDurationDays Int?                   @default(90)
   followUpDays      Int?
-  isActive          Boolean  @default(true)
-  sortOrder         Int      @default(0)
-  createdAt         DateTime @default(now())
+  isActive          Boolean                @default(true)
+  sortOrder         Int                    @default(0)
+  createdAt         DateTime               @default(now())
   prescriptions     Prescription[]
+  eventTemplates    ProgramEventTemplate[]
+}
+
+// FIXED_SEQUENCE 타입 프로그램 전용: 등록 시점(Prescription.startDate) 기준으로
+// 오프셋만큼 떨어진 날짜에 TodoTask를 몇 개 만들지 정의하는 템플릿.
+// 예: 킬팻캡슐 3일체험 = TRIAL_WELCOME(0일) / TRIAL_DAY2(2일) / TRIAL_DEADLINE(3일).
+model ProgramEventTemplate {
+  id             Int      @id @default(autoincrement())
+  programId      Int
+  program        Program  @relation(fields: [programId], references: [id])
+  taskType       String // 예: TRIAL_WELCOME | TRIAL_DAY2 | TRIAL_DEADLINE
+  offsetDays     Int
+  generationType String // FIXED | AI
+  sortOrder      Int      @default(0)
+  createdAt      DateTime @default(now())
+
+  @@unique([programId, taskType])
 }
 
 model Prescription {
-  id           Int        @id @default(autoincrement())
-  patientId    Int
-  patient      Patient    @relation(fields: [patientId], references: [id])
-  programId    Int
-  program      Program    @relation(fields: [programId], references: [id])
-  startDate    DateTime
-  currentRound Int?
-  totalRounds  Int?
-  staffUserId  Int
-  staffUser    StaffUser  @relation("PrescriptionStaff", fields: [staffUserId], references: [id])
-  status       String     @default("ACTIVE") // ACTIVE | COMPLETED | STOPPED
-  createdAt    DateTime   @default(now())
-  updatedAt    DateTime   @updatedAt
-  todoTasks    TodoTask[]
+  id             Int        @id @default(autoincrement())
+  patientId      Int
+  patient        Patient    @relation(fields: [patientId], references: [id])
+  programId      Int
+  program        Program    @relation(fields: [programId], references: [id])
+  startDate      DateTime
+  currentRound   Int?
+  totalRounds    Int?
+  staffUserId    Int
+  staffUser      StaffUser  @relation("PrescriptionStaff", fields: [staffUserId], references: [id])
+  status         String     @default("ACTIVE") // ACTIVE | COMPLETED | STOPPED
+  // FIXED_SEQUENCE 프로그램(예: 킬팻캡슐 3일체험)의 설문 데이터 임시 입력 필드.
+  // 정형 스키마 아님 — 자유 텍스트 또는 느슨한 key-value JSON 문자열로 직원이 수동 입력.
+  // 13-3(구글폼 실시간 연동) 적용 시 이 필드에 파싱된 값을 자동으로 채우는 방식으로
+  // 확장할 예정이라 프롬프트 조립 코드는 그대로 두고 이 필드 채우는 방식만 바뀌면 됨.
+  surveyDataJson String?
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+  todoTasks      TodoTask[]
 }
 
 model TodoTask {
-  id             Int           @id @default(autoincrement())
+  id             Int              @id @default(autoincrement())
   prescriptionId Int?
-  prescription   Prescription? @relation(fields: [prescriptionId], references: [id])
+  prescription   Prescription?    @relation(fields: [prescriptionId], references: [id])
   patientId      Int?
-  patient        Patient?      @relation(fields: [patientId], references: [id])
-  taskType       String // NEXT_DOSE | FOLLOW_UP (처방) | DAY2 | DAY7 | THIRD_VISIT (톡)
+  patient        Patient?         @relation(fields: [patientId], references: [id])
+  taskType       String // NEXT_DOSE | FOLLOW_UP (처방) | DAY2 | DAY7 | THIRD_VISIT | TRIAL_WELCOME | TRIAL_DAY2 | TRIAL_DEADLINE (톡)
   dueDate        DateTime
   staffUserId    Int?
-  staffUser      StaffUser?    @relation("TodoTaskStaff", fields: [staffUserId], references: [id])
-  isDone         Boolean       @default(false)
+  staffUser      StaffUser?       @relation("TodoTaskStaff", fields: [staffUserId], references: [id])
+  isDone         Boolean          @default(false)
   doneByUserId   Int?
-  doneByUser     StaffUser?    @relation("TodoTaskDoneBy", fields: [doneByUserId], references: [id])
+  doneByUser     StaffUser?       @relation("TodoTaskDoneBy", fields: [doneByUserId], references: [id])
   doneAt         DateTime?
-  createdAt      DateTime      @default(now())
+  createdAt      DateTime         @default(now())
+  eventLog       ProgramEventLog?
+}
+
+// FIXED_SEQUENCE 프로그램의 톡류 TodoTask 1건과 1:1 대응하는 발송 로그.
+// MessageLog(@@unique([patientId, messageType]))는 환자당 타입 하나만 허용해서
+// 재등록(예: 3일체험 재신청) 시 유니크 충돌이 나므로 재사용하지 않고 별도 테이블로 분리함 —
+// TodoTask 1건마다 로그가 새로 생기니 재등록해도 충돌이 구조적으로 없음.
+model ProgramEventLog {
+  id               Int        @id @default(autoincrement())
+  todoTaskId       Int        @unique
+  todoTask         TodoTask   @relation(fields: [todoTaskId], references: [id])
+  sentDate         DateTime?
+  staffUserId      Int?
+  staffUser        StaffUser? @relation("ProgramEventLogStaff", fields: [staffUserId], references: [id])
+  skippedAt        DateTime?
+  skippedByUserId  Int?
+  skippedByUser    StaffUser? @relation("ProgramEventLogSkippedBy", fields: [skippedByUserId], references: [id])
+  // 환자발송용 메시지(복사 대상)
+  patientMessage   String?
+  // 원장용 내부분석(타입/처방방향/상담포인트 등) — 복사 버튼 없이 원장만 보는 용도
+  internalAnalysis String?
+  createdAt        DateTime   @default(now())
 }
 
 model MessageLog {
-  id              Int       @id @default(autoincrement())
+  id              Int        @id @default(autoincrement())
   patientId       Int
-  patient         Patient   @relation(fields: [patientId], references: [id])
+  patient         Patient    @relation(fields: [patientId], references: [id])
   messageType     String // WELCOME | MEETING | DAY2 | DAY7 | THIRD_VISIT
   sentDate        DateTime?
   staffUserId     Int?
@@ -133,7 +179,7 @@ model MessageLog {
   skippedByUserId Int?
   skippedByUser   StaffUser? @relation("MessageLogSkippedBy", fields: [skippedByUserId], references: [id])
   aiDraftContent  String?
-  createdAt       DateTime  @default(now())
+  createdAt       DateTime   @default(now())
 
   @@unique([patientId, messageType])
 }

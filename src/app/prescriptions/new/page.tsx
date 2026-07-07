@@ -1,13 +1,21 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import styles from "./page.module.css";
 import SealStamp from "@/components/SealStamp";
 import { getCurrentUserId } from "@/lib/currentUser";
 
 type Patient = { id: number; chartNumber: string; name: string };
-type Program = { id: number; name: string };
+type Program = { id: number; name: string; type: string };
 type StaffUser = { id: number; name: string; role: string };
+
+const PROGRAM_TYPE_FIXED_SEQUENCE = "FIXED_SEQUENCE";
+
+function formatDate(iso: string): string {
+  const d = new Date(iso);
+  return `${d.getFullYear()}.${d.getMonth() + 1}.${d.getDate()}`;
+}
 
 export default function NewPrescriptionPage() {
   const [query, setQuery] = useState("");
@@ -19,10 +27,16 @@ export default function NewPrescriptionPage() {
   const [staffUsers, setStaffUsers] = useState<StaffUser[]>([]);
   const [programId, setProgramId] = useState("");
   const [staffUserId, setStaffUserId] = useState("");
+  const [surveyDataJson, setSurveyDataJson] = useState("");
 
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [stampKey, setStampKey] = useState(0);
+  const [lastRegistered, setLastRegistered] = useState<{
+    patientName: string;
+    programName: string;
+    startDate: string;
+  } | null>(null);
 
   useEffect(() => {
     fetch("/api/programs")
@@ -60,7 +74,11 @@ export default function NewPrescriptionPage() {
   function clearSelectedPatient() {
     setSelectedPatient(null);
     setProgramId("");
+    setSurveyDataJson("");
   }
+
+  const selectedProgram = programs.find((p) => String(p.id) === programId) ?? null;
+  const isTrialSurveyProgram = selectedProgram?.type === PROGRAM_TYPE_FIXED_SEQUENCE;
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -78,6 +96,7 @@ export default function NewPrescriptionPage() {
           patientId: selectedPatient.id,
           programId: Number(programId),
           staffUserId: Number(staffUserId),
+          surveyDataJson: isTrialSurveyProgram ? surveyDataJson : undefined,
         }),
       });
       const data = await res.json();
@@ -85,7 +104,14 @@ export default function NewPrescriptionPage() {
         setSubmitError(data.error ?? "처방 등록에 실패했습니다.");
         return;
       }
-      clearSelectedPatient();
+      // 환자는 그대로 유지 — 같은 환자를 다른 프로그램에 바로 이어서 등록할 수 있게(중복 등록 흐름).
+      setLastRegistered({
+        patientName: selectedPatient.name,
+        programName: selectedProgram?.name ?? "",
+        startDate: data.startDate,
+      });
+      setProgramId("");
+      setSurveyDataJson("");
       setStampKey((k) => k + 1);
     } finally {
       setSubmitting(false);
@@ -94,7 +120,19 @@ export default function NewPrescriptionPage() {
 
   return (
     <div className={styles.container}>
-      <h1 className={styles.pageTitle}>처방 등록</h1>
+      <div className={styles.pageHeader}>
+        <h1 className={styles.pageTitle}>치료처방 등록</h1>
+        <Link href="/prescriptions" className={styles.listLink}>
+          ← 치료처방 목록
+        </Link>
+      </div>
+
+      {lastRegistered && (
+        <div className={styles.successBanner}>
+          ✅ 처방이 등록되었습니다 — <strong>{lastRegistered.patientName}</strong>님 ·{" "}
+          {lastRegistered.programName} ({formatDate(lastRegistered.startDate)} 시작)
+        </div>
+      )}
 
       <div className={styles.section}>
         <div className={styles.sectionTitle}>환자 검색</div>
@@ -171,6 +209,22 @@ export default function NewPrescriptionPage() {
                 </select>
               </label>
             </div>
+
+            {isTrialSurveyProgram && (
+              <label className={styles.surveyLabel}>
+                설문 데이터 (수동 입력, 자유 형식)
+                <textarea
+                  className={styles.surveyTextarea}
+                  rows={4}
+                  placeholder="예: 체중 68kg, 목표 3kg 감량, 야식 자주 먹음 등 — 구글폼 응답을 보고 자유롭게 입력하세요."
+                  value={surveyDataJson}
+                  onChange={(e) => setSurveyDataJson(e.target.value)}
+                />
+              </label>
+            )}
+            {/* 정형 스키마 아님 — 지금은 직원이 구글폼 응답을 보고 수동 입력. 13-3(구글폼 실시간
+                연동) 적용 시 이 값을 자동 파싱 결과로 채우는 방식으로 확장 예정(프롬프트 조립
+                코드는 그대로 두고 이 필드를 채우는 방식만 바뀌면 됨). */}
 
             {submitError && <p className={styles.errorText}>{submitError}</p>}
 

@@ -1,0 +1,12 @@
+.normal {
+  color: var(--color-ink);
+  font-size: 14px;
+  white-space: nowrap;
+}
+
+.emphasized {
+  color: var(--color-celadon-dark);
+  font-weight: 700;
+  font-size: 14px;
+  white-space: nowrap;
+}

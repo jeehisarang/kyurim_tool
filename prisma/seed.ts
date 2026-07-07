@@ -18,10 +18,27 @@ const staffUsers = [
 
 const programs = [
   { name: "킬팻캡슐", type: "SPLIT", splitIntervalDays: 14, totalDurationDays: 90, followUpDays: null },
+  // 13-1: 다이어트(비만치료) 본프로그램은 1개월/3개월 티어로 구분 (체험3일과는 별개, FIXED_SEQUENCE 아님).
+  { name: "킬팻캡슐 1개월", type: "SPLIT", splitIntervalDays: 14, totalDurationDays: 30, followUpDays: null },
+  { name: "킬팻캡슐 3개월", type: "SPLIT", splitIntervalDays: 14, totalDurationDays: 90, followUpDays: null },
   { name: "감비탕", type: "SPLIT", splitIntervalDays: 14, totalDurationDays: 90, followUpDays: null },
   { name: "황제감비탕", type: "SPLIT", splitIntervalDays: 14, totalDurationDays: 90, followUpDays: null },
   { name: "S환", type: "SINGLE", splitIntervalDays: null, totalDurationDays: null, followUpDays: 30 },
   { name: "하비환", type: "SINGLE", splitIntervalDays: null, totalDurationDays: null, followUpDays: 30 },
+  {
+    name: "킬팻캡슐 3일체험",
+    type: "FIXED_SEQUENCE",
+    splitIntervalDays: null,
+    totalDurationDays: null,
+    followUpDays: null,
+  },
+];
+
+// 킬팻캡슐 3일체험(FIXED_SEQUENCE) 전용 이벤트 시퀀스 — 등록일(startDate) 기준 오프셋.
+const trialEventTemplates = [
+  { taskType: "TRIAL_WELCOME", offsetDays: 0, generationType: "FIXED", sortOrder: 0 },
+  { taskType: "TRIAL_DAY2", offsetDays: 2, generationType: "AI", sortOrder: 1 },
+  { taskType: "TRIAL_DEADLINE", offsetDays: 3, generationType: "AI", sortOrder: 2 },
 ];
 
 async function main() {
@@ -54,6 +71,17 @@ async function main() {
       where: { name: program.name },
       update: {},
       create: { ...program, sortOrder: index },
+    });
+  }
+
+  const trialProgram = await prisma.program.findUniqueOrThrow({
+    where: { name: "킬팻캡슐 3일체험" },
+  });
+  for (const template of trialEventTemplates) {
+    await prisma.programEventTemplate.upsert({
+      where: { programId_taskType: { programId: trialProgram.id, taskType: template.taskType } },
+      update: {},
+      create: { ...template, programId: trialProgram.id },
     });
   }
 
