@@ -22,6 +22,7 @@ model Patient {
   visits        Visit[]
   prescriptions Prescription[]
   messageLogs   MessageLog[]
+  todoTasks     TodoTask[]
 }
 
 model TreatmentCategory {
@@ -101,18 +102,20 @@ model Prescription {
 }
 
 model TodoTask {
-  id             Int          @id @default(autoincrement())
-  prescriptionId Int
-  prescription   Prescription @relation(fields: [prescriptionId], references: [id])
-  taskType       String // NEXT_DOSE(다음 처방일) | FOLLOW_UP(후속조치)
+  id             Int           @id @default(autoincrement())
+  prescriptionId Int?
+  prescription   Prescription? @relation(fields: [prescriptionId], references: [id])
+  patientId      Int?
+  patient        Patient?      @relation(fields: [patientId], references: [id])
+  taskType       String // NEXT_DOSE | FOLLOW_UP (처방) | DAY2 | DAY7 | THIRD_VISIT (톡)
   dueDate        DateTime
-  staffUserId    Int
-  staffUser      StaffUser    @relation("TodoTaskStaff", fields: [staffUserId], references: [id])
-  isDone         Boolean      @default(false)
+  staffUserId    Int?
+  staffUser      StaffUser?    @relation("TodoTaskStaff", fields: [staffUserId], references: [id])
+  isDone         Boolean       @default(false)
   doneByUserId   Int?
-  doneByUser     StaffUser?   @relation("TodoTaskDoneBy", fields: [doneByUserId], references: [id])
+  doneByUser     StaffUser?    @relation("TodoTaskDoneBy", fields: [doneByUserId], references: [id])
   doneAt         DateTime?
-  createdAt      DateTime     @default(now())
+  createdAt      DateTime      @default(now())
 }
 
 model MessageLog {

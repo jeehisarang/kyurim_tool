@@ -1,6 +1,6 @@
-import Anthropic from "@anthropic-ai/sdk";
+import OpenAI from "openai";
 
-const MODEL = "claude-sonnet-4-6";
+const MODEL = "gpt-4o-mini";
 
 // 임시 프롬프트 버전 — 추후 실제 문구 톤/정책이 정해지면 이 상수만 교체하면 됨
 const MESSAGE_TYPE_PROMPT: Record<"DAY2" | "DAY7" | "THIRD_VISIT", string> = {
@@ -21,24 +21,33 @@ export type PatientContext = {
   recentVisits: RecentVisit[];
 };
 
-export function assertAnthropicApiKeyConfigured(): void {
-  if (!process.env.ANTHROPIC_API_KEY) {
+export function assertOpenAiApiKeyConfigured(): void {
+  if (!process.env.OPENAI_API_KEY) {
     throw new Error(
-      "ANTHROPIC_API_KEY가 설정되어 있지 않습니다. 프로젝트 루트의 .env 파일에 " +
-        "ANTHROPIC_API_KEY=sk-ant-... 형식으로 추가하세요. " +
-        "API 키는 https://console.anthropic.com/settings/keys 에서 발급받을 수 있습니다.",
+      "OPENAI_API_KEY가 설정되어 있지 않습니다. 프로젝트 루트의 .env 파일에 " +
+        "OPENAI_API_KEY=sk-... 형식으로 추가하세요. " +
+        "API 키는 https://platform.openai.com/api-keys 에서 발급받을 수 있습니다.",
     );
   }
+}
+
+async function generateMessage(prompt: string): Promise<string> {
+  assertOpenAiApiKeyConfigured();
+
+  const client = new OpenAI();
+
+  const response = await client.chat.completions.create({
+    model: MODEL,
+    messages: [{ role: "user", content: prompt }],
+  });
+
+  return response.choices[0]?.message?.content?.trim() ?? "";
 }
 
 export async function generateMessageDraft(
   messageType: "DAY2" | "DAY7" | "THIRD_VISIT",
   patient: PatientContext,
 ): Promise<string> {
-  assertAnthropicApiKeyConfigured();
-
-  const client = new Anthropic();
-
   const visitHistory =
     patient.recentVisits.length > 0
       ? patient.recentVisits
@@ -59,12 +68,5 @@ ${visitHistory}
 
 출력은 카카오톡에 바로 붙여넣을 수 있는 순수 텍스트로만 작성하고, 마크다운 문법(굵게, 목록 기호 등)은 사용하지 마.`;
 
-  const response = await client.messages.create({
-    model: MODEL,
-    max_tokens: 1024,
-    messages: [{ role: "user", content: userMessage }],
-  });
-
-  const textBlock = response.content.find((block) => block.type === "text");
-  return textBlock?.type === "text" ? textBlock.text.trim() : "";
+  return generateMessage(userMessage);
 }

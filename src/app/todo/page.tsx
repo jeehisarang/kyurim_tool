@@ -4,24 +4,34 @@ import { useEffect, useState } from "react";
 import styles from "./page.module.css";
 import SealStamp from "@/components/SealStamp";
 import { getCurrentUserId } from "@/lib/currentUser";
+import { TALK_MESSAGE_TYPE_LABEL } from "@/lib/message-templates";
 
 type StaffUser = { id: number; name: string; role: string };
 type Patient = { id: number; name: string; chartNumber: string };
 type Program = { id: number; name: string };
-type Prescription = { id: number; patient: Patient; program: Program };
+type TodoCategory = "PRESCRIPTION" | "TALK";
 type TodoTask = {
   id: number;
+  category: TodoCategory;
   taskType: string;
   dueDate: string;
+  patient: Patient;
+  program: Program | null;
+  staffUser: StaffUser | null;
   isDone: boolean;
-  prescription: Prescription;
-  staffUser: StaffUser;
   doneByUser: StaffUser | null;
 };
+type WeeklySummary = { weekDone: number; weekTotal: number };
 
 const TASK_TYPE_LABEL: Record<string, string> = {
   NEXT_DOSE: "다음 처방일",
   FOLLOW_UP: "후속조치",
+  ...TALK_MESSAGE_TYPE_LABEL,
+};
+
+const CATEGORY_LABEL: Record<TodoCategory, string> = {
+  PRESCRIPTION: "처방",
+  TALK: "톡",
 };
 
 export default function TodoPage() {
@@ -36,6 +46,7 @@ export default function TodoPage() {
   const [staffUsers, setStaffUsers] = useState<StaffUser[]>([]);
   const [filterStaffId, setFilterStaffId] = useState<string>("");
   const [tasks, setTasks] = useState<TodoTask[] | null>(null);
+  const [weeklySummary, setWeeklySummary] = useState<WeeklySummary | null>(null);
   const [stampTaskId, setStampTaskId] = useState<number | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
 
@@ -51,6 +62,12 @@ export default function TodoPage() {
       .then((res) => res.json())
       .then(setTasks);
   }, [filterStaffId, refreshKey]);
+
+  useEffect(() => {
+    fetch("/api/todo-tasks/summary")
+      .then((res) => res.json())
+      .then(setWeeklySummary);
+  }, [refreshKey]);
 
   async function handleCheck(task: TodoTask) {
     const doneByUserId = getCurrentUserId();
@@ -73,6 +90,34 @@ export default function TodoPage() {
     <div className={styles.container}>
       <h1 className={styles.pageTitle}>오늘 할 일</h1>
       <div className={styles.dateLabel}>{todayLabel || "오늘"}</div>
+
+      {weeklySummary && (
+        <div className={styles.section}>
+          {weeklySummary.weekTotal === 0 ? (
+            <p className={styles.muted}>이번주 예정된 작업이 없습니다.</p>
+          ) : (
+            <>
+              <div className={styles.weeklyHeader}>
+                <span>이번주 처리 현황</span>
+                <span className={styles.weeklyValue}>
+                  {weeklySummary.weekDone}/{weeklySummary.weekTotal}건
+                </span>
+              </div>
+              <div className={styles.progressTrack}>
+                <div
+                  className={styles.progressFill}
+                  style={{
+                    width: `${Math.min(
+                      100,
+                      (weeklySummary.weekDone / weeklySummary.weekTotal) * 100,
+                    )}%`,
+                  }}
+                />
+              </div>
+            </>
+          )}
+        </div>
+      )}
 
       <div className={styles.section}>
         <div className={styles.sectionTitle}>담당자 필터</div>
@@ -99,6 +144,7 @@ export default function TodoPage() {
           <table className={styles.table}>
             <thead>
               <tr>
+                <th>구분</th>
                 <th>환자명</th>
                 <th>프로그램명</th>
                 <th>할일종류</th>
@@ -109,10 +155,21 @@ export default function TodoPage() {
             <tbody>
               {tasks.map((task) => (
                 <tr key={task.id}>
-                  <td>{task.prescription.patient.name}</td>
-                  <td>{task.prescription.program.name}</td>
+                  <td>
+                    <span
+                      className={
+                        task.category === "PRESCRIPTION"
+                          ? styles.categoryBadgePrescription
+                          : styles.categoryBadgeTalk
+                      }
+                    >
+                      {CATEGORY_LABEL[task.category]}
+                    </span>
+                  </td>
+                  <td>{task.patient.name}</td>
+                  <td>{task.program?.name ?? "-"}</td>
                   <td>{TASK_TYPE_LABEL[task.taskType] ?? task.taskType}</td>
-                  <td>{task.staffUser.name}</td>
+                  <td>{task.staffUser?.name ?? "미배정"}</td>
                   <td>
                     {task.isDone ? (
                       <span className={styles.doneLabel}>

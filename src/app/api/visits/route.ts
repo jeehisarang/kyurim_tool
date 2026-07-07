@@ -6,9 +6,19 @@ function startOfToday(): Date {
   return new Date(now.getFullYear(), now.getMonth(), now.getDate());
 }
 
-export async function GET() {
+function parseDateParam(value: string | null): Date {
+  const match = value ? /^(\d{4})-(\d{2})-(\d{2})$/.exec(value) : null;
+  if (!match) return startOfToday();
+  const [, y, m, d] = match;
+  return new Date(Number(y), Number(m) - 1, Number(d));
+}
+
+export async function GET(request: Request) {
+  const { searchParams } = new URL(request.url);
+  const targetDate = parseDateParam(searchParams.get("date"));
+
   const visits = await prisma.visit.findMany({
-    where: { visitDate: startOfToday() },
+    where: { visitDate: targetDate },
     include: { patient: true, treatmentCategory: true, visitType: true, checkedByUser: true },
     orderBy: { createdAt: "desc" },
   });

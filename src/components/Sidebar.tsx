@@ -6,6 +6,7 @@ import styles from "./Sidebar.module.css";
 import CurrentUserSelector from "@/components/CurrentUserSelector";
 
 const MENU_ITEMS = [
+  { label: "홈", href: "/home" },
   { label: "내원체크", href: "/visit-check" },
   { label: "문자발송", href: "/messages" },
   { label: "오늘 할 일", href: "/todo" },

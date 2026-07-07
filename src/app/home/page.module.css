@@ -1,0 +1,262 @@
+.container {
+  max-width: 880px;
+  margin: 0 auto;
+  padding: 32px 16px 64px;
+}
+
+.pageTitle {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 26px;
+  color: var(--color-ink);
+  margin-bottom: 24px;
+}
+
+.dateNav {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.dateNavArrow {
+  border: 1px solid rgba(110, 148, 140, 0.4);
+  border-radius: 4px;
+  background: var(--color-hanji-card);
+  color: var(--color-celadon-dark);
+  width: 32px;
+  height: 32px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.dateNavArrow:hover {
+  background: rgba(110, 148, 140, 0.12);
+}
+
+.dateNavLabel {
+  font-family: var(--font-mono);
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--color-ink);
+  min-width: 220px;
+  text-align: center;
+}
+
+.dateNavTodayButton {
+  border: 1px solid var(--color-celadon);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--color-celadon-dark);
+  padding: 6px 14px;
+  font-size: 13px;
+  font-family: var(--font-body);
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.dateNavTodayButton:hover {
+  background: rgba(110, 148, 140, 0.1);
+}
+
+.cardGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 16px;
+  margin-bottom: 28px;
+}
+
+.statCard {
+  background: var(--color-hanji-card);
+  border: 1px solid rgba(110, 148, 140, 0.35);
+  border-radius: 6px;
+  box-shadow: 0 1px 2px rgba(43, 39, 35, 0.04);
+  padding: 18px 16px;
+  text-align: center;
+}
+
+.statValue {
+  font-family: var(--font-mono);
+  font-size: 28px;
+  font-weight: 500;
+  color: var(--color-celadon-dark);
+  margin-bottom: 6px;
+}
+
+.statLabel {
+  font-size: 13px;
+  color: var(--color-ink);
+  opacity: 0.75;
+}
+
+.section {
+  background: var(--color-hanji-card);
+  border: 1px solid rgba(110, 148, 140, 0.35);
+  border-radius: 6px;
+  box-shadow: 0 1px 2px rgba(43, 39, 35, 0.04);
+  padding: 20px;
+  margin-bottom: 24px;
+}
+
+.sectionTitle {
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--color-celadon-dark);
+  border-left: 3px solid var(--color-celadon);
+  padding-left: 8px;
+  margin-bottom: 16px;
+}
+
+.muted {
+  color: var(--color-ink);
+  opacity: 0.55;
+  font-size: 13px;
+}
+
+.calendarGrid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 6px;
+}
+
+.weekdayLabel {
+  text-align: center;
+  font-size: 12px;
+  color: var(--color-celadon-dark);
+  padding-bottom: 6px;
+  font-weight: 500;
+}
+
+.dayCellBlank {
+  visibility: hidden;
+}
+
+.dayCell {
+  aspect-ratio: 1;
+  border: 1px solid rgba(110, 148, 140, 0.25);
+  border-radius: 4px;
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.dayCellFuture {
+  border-style: dashed;
+  border-color: rgba(110, 148, 140, 0.3);
+  background: transparent;
+}
+
+.dayCellToday {
+  border: 2px solid var(--color-seal);
+}
+
+.dayCellSelected {
+  box-shadow: 0 0 0 2px var(--color-celadon-dark) inset;
+}
+
+.dayNumber {
+  font-size: 11px;
+  color: var(--color-ink);
+  opacity: 0.6;
+}
+
+.dayValue {
+  font-family: var(--font-mono);
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--color-ink);
+  margin-top: auto;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.table th,
+.table td {
+  text-align: left;
+  padding: 10px 8px;
+  border-bottom: 1px solid rgba(110, 148, 140, 0.2);
+  font-size: 14px;
+}
+
+.table th {
+  color: var(--color-celadon-dark);
+  font-weight: 500;
+}
+
+.mono {
+  font-family: var(--font-mono);
+}
+
+.doneLabel {
+  color: var(--color-celadon-dark);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.categoryBadgePrescription,
+.categoryBadgeTalk {
+  display: inline-block;
+  border-radius: 4px;
+  padding: 2px 8px;
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.categoryBadgePrescription {
+  background: rgba(110, 148, 140, 0.15);
+  color: var(--color-celadon-dark);
+}
+
+.categoryBadgeTalk {
+  background: rgba(179, 60, 46, 0.12);
+  color: var(--color-seal);
+}
+
+.weeklyHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 14px;
+  margin-bottom: 8px;
+}
+
+.weeklyValue {
+  font-family: var(--font-mono);
+  color: var(--color-celadon-dark);
+}
+
+.progressTrack {
+  width: 100%;
+  height: 8px;
+  background: rgba(110, 148, 140, 0.15);
+  border-radius: 4px;
+  overflow: hidden;
+  margin-bottom: 16px;
+}
+
+.progressFill {
+  height: 100%;
+  background: var(--color-celadon);
+  border-radius: 4px;
+  transition: width 0.2s ease;
+}
+
+.moreLink {
+  display: inline-block;
+  margin-top: 14px;
+  font-size: 13px;
+  color: var(--color-celadon-dark);
+  font-weight: 500;
+}
+
+.moreLink:hover {
+  text-decoration: underline;
+}

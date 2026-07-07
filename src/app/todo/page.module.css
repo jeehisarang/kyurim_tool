@@ -98,3 +98,51 @@
   font-size: 13px;
   font-weight: 500;
 }
+
+.categoryBadgePrescription,
+.categoryBadgeTalk {
+  display: inline-block;
+  border-radius: 4px;
+  padding: 2px 8px;
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.categoryBadgePrescription {
+  background: rgba(110, 148, 140, 0.15);
+  color: var(--color-celadon-dark);
+}
+
+.categoryBadgeTalk {
+  background: rgba(179, 60, 46, 0.12);
+  color: var(--color-seal);
+}
+
+.weeklyHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 14px;
+  margin-bottom: 8px;
+}
+
+.weeklyValue {
+  font-family: var(--font-mono);
+  color: var(--color-celadon-dark);
+}
+
+.progressTrack {
+  width: 100%;
+  height: 8px;
+  background: rgba(110, 148, 140, 0.15);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.progressFill {
+  height: 100%;
+  background: var(--color-celadon);
+  border-radius: 4px;
+  transition: width 0.2s ease;
+}

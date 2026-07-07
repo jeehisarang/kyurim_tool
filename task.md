@@ -1,51 +1,61 @@
-# 작업 지시: 핵심기능③ 문자발송(알림톡) 관리 + AI 문구생성
+# 작업 지시: 톡 할일 통합 + 용어 통일 (2일톡/3회톡/7일톡)
 
 ## 배경
-사이드바 공통 레이아웃은 이미 완성되어 있음 (Sidebar.tsx). 
-이번 작업은 그 틀 안에 "문자발송" 메뉴와 화면을 새로 추가하는 것.
+- 현재 `TodoTask`는 처방주기(핵심⑧)만 사용 중 (NEXT_DOSE, FOLLOW_UP)
+- 문자발송(핵심③)의 2일차톡/7일차톡/3회차톡도 "오늘 할 일"에 같이 노출되어야 함
+  (요구사항 9-2: "직관적 노출 + 담당자 지정 + 체크 여부 상호 확인")
+- 발송 여부의 유일한 진실 원천은 기존 `MessageLog` — TodoTask 쪽에 별도 완료 상태를
+  새로 만들지 않고, MessageLog를 그대로 참조/갱신하는 방식으로 통합할 것
 
-## 0단계: 사이드바에 메뉴 추가
-- src/components/Sidebar.tsx에 메뉴 항목 추가: "문자발송" → /messages
-- 위치: "내원체크"와 "오늘 할 일" 사이 (또는 자연스러운 순서로)
+## 0. 먼저 할 일: 계획만 제시
+스키마 변경(TodoTask 모델 확장 또는 관련 필드 추가)이 포함되므로, 실제 파일 생성 전에
+변경할 스키마 구조와 API 설계를 먼저 요약해서 제시해줘. 승인 후 진행.
 
-## 1단계: 스키마 (먼저 계획만 제시, 승인 후 진행)
+## 1. 용어 통일 (UI 라벨만 변경, 내부 enum 값은 유지)
+- "2일차톡" → "2일톡"
+- "7일차톡" → "7일톡"
+- "3회차톡" → "3회톡"
+- 웰컴톡/만남톡은 변경 없음
+- `/messages` 화면, `/todo` 화면 등 사용자에게 보이는 모든 문구 일괄 교체
+- DB의 enum 식별자(DAY2, DAY7, THIRD_VISIT 등)는 그대로 둠 — 표시 라벨만 매핑 테이블로 분리
 
-### MessageLog (문자발송 이력)
-- id, patientId (FK → Patient)
-- messageType: WELCOME | MEETING | DAY2 | DAY7 | THIRD_VISIT
-- sentDate: DateTime, nullable (발송 확인 전엔 null)
-- staffUserId (FK → StaffUser, nullable): 발송 확인한 사람
-- aiDraftContent: String, nullable (AI가 생성했던 문구 기록, WELCOME/MEETING은 항상 null)
-- 환자당 messageType별로 유니크 (한 환자, 한 유형당 1행)
+## 2. 톡 할일 자동생성 로직 추가
+기존 처방주기 자동생성(`src/lib/prescriptions.ts`)과 같은 패턴으로,
+`src/lib/talk-todos.ts` (가칭) 신설:
 
-### Patient에 필드 추가 (없으면 추가, 있으면 재사용)
-- memo: String, nullable (AI 문구 생성에 쓸 환자 메모)
+- **2일톡 대상**: 초진/재초진으로 내원한 다음날, 해당 환자의 2일톡 MessageLog가
+  아직 발송확인 안 된 경우 → TodoTask 생성
+- **7일톡 대상**: 마지막 내원일로부터 7일 경과, 그 사이 재방문 없음, 7일톡
+  MessageLog 미발송확인 → TodoTask 생성
+- **3회톡 대상**: 누적 내원 3회째 달성한 환자, 3회톡 MessageLog 미발송확인 → TodoTask 생성
+- 이미 MessageLog가 발송확인된 건은 TodoTask를 생성하지 않음 (중복 방지)
+- 이미 생성된 미완료 TodoTask가 있으면 재생성하지 않음
 
-## 2단계: AI 문구생성 (공용 함수, src/lib/ai-message.ts)
-- 입력: 환자 정보(이름, 메모, 최근 내원이력), messageType(DAY2 | DAY7 | THIRD_VISIT)
-- Anthropic API(claude-sonnet-4-6) 호출해서 문구 생성
-- 프롬프트는 임시 버전으로 구현하되, 파일 상단에 상수로 분리해서 추후 쉽게 교체 가능하게 할 것
-  - DAY2: "첫 내원 다음날 점심에 보내는 안부/독려 메시지, 짧고 다정한 톤"
-  - DAY7: "7일간 미내원한 환자에게 보내는 재방문 유도 메시지, 부담스럽지 않은 톤"
-  - THIRD_VISIT: "3회 내원 완료를 축하하고 향후 치료 방향을 안내하는 메시지"
-- 출력: 순수 텍스트 (카카오톡 붙여넣기용, 마크다운 금지)
-- Anthropic API 키가 환경변수에 없으면 어떻게 설정해야 하는지 명확히 보고할 것
+## 3. TodoTask 모델/표시 구조
+- 처방 할일과 톡 할일을 같은 `/todo` 목록에서 보여주되, **구분 배지** 표시
+  - 처방 → "처방" 배지
+  - 톡 → "톡" 배지 (+ 2일톡/7일톡/3회톡 중 어떤 종류인지 표시)
+- 담당자 필터, SealStamp 체크 연출 등 기존 UX 그대로 유지
 
-## 3단계: 화면 /messages (문자발송 관리)
-- 기존 사이드바 레이아웃 안에 자연스럽게 들어가도록 구성 (기존 디자인 토큰 재사용)
-- 환자 목록(검색 가능) + 5종 알림톡 유형별 상태(발송함/안함) 표시
-- WELCOME, MEETING: 고정 템플릿 텍스트 표시 + "복사" 버튼 + "발송확인" 버튼(별도)
-- DAY2, DAY7, THIRD_VISIT: "문구 생성" 버튼 → AI 호출 결과 표시 
-  + "복사" 버튼(복사만) + "발송확인" 버튼(별도, 클릭 시 sentDate/staffUserId 저장)
-- "복사"와 "발송확인"은 반드시 분리된 버튼
-- 현재 사용자(사이드바 하단 CurrentUserSelector) 값을 발송확인 시 staffUserId로 사용
+## 4. 체크 동작 = MessageLog와 완전히 동기화 (핵심)
+- `/todo`에서 톡 항목을 체크하면 → 새로운 완료 상태를 따로 저장하지 않고,
+  기존 `/api/messages/confirm` 로직을 그대로 호출해 MessageLog를 발송확인 처리
+- `/todo` 목록에서 톡 항목의 완료 여부는 항상 MessageLog를 조회해서 판단
+  (TodoTask 자체에 독립된 완료 플래그를 두지 않음)
+- 반대로 `/messages`에서 발송확인 누르면 `/todo` 쪽도 자동으로 완료로 보임
+  (같은 데이터 소스를 보고 있으므로 별도 동기화 코드 불필요)
+- 즉: TodoTask(톡)는 "언제 이 톡을 보내야 하는지 알려주는 알림" 역할만 하고,
+  "보냈는지 여부"의 진실은 항상 MessageLog
 
-## 4단계: API
-- GET /api/messages?patientId= : 환자의 5종 알림톡 상태 조회
-- POST /api/messages/generate : { patientId, messageType } → AI 문구 생성 반환 (DB저장 없음, 미리보기)
-- POST /api/messages/confirm : { patientId, messageType, staffUserId, aiDraftContent? } → 발송확인 저장
+## 5. 검증 요청
+- 임동건(가상환자, 7/6 초진/급여치료)처럼 조건에 맞는 환자를 데모 시드 데이터에서
+  찾아 2일톡 TodoTask가 실제로 7/7 할일에 뜨는지 확인
+- `/todo`에서 체크 → `/messages`에서 해당 환자 2일톡 상태가 발송확인으로 바뀌는지 확인
+- `/messages`에서 먼저 발송확인 → `/todo`에서 해당 할일이 사라지는지(또는 완료 표시) 확인
+- `npm run build` 통과 확인
 
-## 작업 방식
-- 스키마 변경 전 계획만 먼저 제시 → 승인 후 진행
-- 완료 후 npm run build로 검증
-- 기존 기능(내원체크, 처방등록, 오늘할일)은 절대 건드리지 않음
+## 6. 커밋
+이번 작업 완료 후 다른 작업 넘어가기 전에 반드시:
+git add . && git commit -m "톡 할일 통합 + 용어 통일(2일톡/7일톡/3회톡)" && git push
+(로컬에 미커밋 변경사항이 계속 누적되고 있으니 이번엔 미루지 말 것)
+

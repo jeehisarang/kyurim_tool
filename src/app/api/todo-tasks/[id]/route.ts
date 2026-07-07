@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { completeTodoTask } from "@/lib/prescriptions";
+import { confirmMessage } from "@/lib/messages";
+import { TODO_TASK_INCLUDE, normalizeTodoTask } from "@/lib/todo-tasks";
 
 export async function PATCH(
   request: Request,
@@ -17,16 +19,23 @@ export async function PATCH(
     );
   }
 
-  await completeTodoTask(Number(id), doneByUserId);
+  const task = await prisma.todoTask.findUniqueOrThrow({ where: { id: Number(id) } });
 
-  const task = await prisma.todoTask.findUniqueOrThrow({
+  let talkLog = null;
+  if (task.prescriptionId) {
+    await completeTodoTask(task.id, doneByUserId);
+  } else if (task.patientId) {
+    talkLog = await confirmMessage({
+      patientId: task.patientId,
+      messageType: task.taskType,
+      staffUserId: doneByUserId,
+    });
+  }
+
+  const updated = await prisma.todoTask.findUniqueOrThrow({
     where: { id: Number(id) },
-    include: {
-      prescription: { include: { patient: true, program: true } },
-      staffUser: true,
-      doneByUser: true,
-    },
+    include: TODO_TASK_INCLUDE,
   });
 
-  return NextResponse.json(task);
+  return NextResponse.json(normalizeTodoTask(updated, talkLog));
 }

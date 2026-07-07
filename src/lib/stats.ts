@@ -24,6 +24,7 @@ export type CategoryPatientCount = {
 export type DashboardStats = {
   totalPatients: number;
   visitsPerCategory: CategoryPatientCount[];
+  todayVisitCount: number;
   todayReservationRate: number;
   last7DaysAvgReservationRate: number;
   last7DaysAvgVisitsPerDay: number;
@@ -126,6 +127,7 @@ export async function computeDashboardStats(): Promise<DashboardStats> {
   return {
     totalPatients,
     visitsPerCategory,
+    todayVisitCount: todayVisits.length,
     todayReservationRate,
     last7DaysAvgReservationRate,
     last7DaysAvgVisitsPerDay,
@@ -133,4 +135,123 @@ export async function computeDashboardStats(): Promise<DashboardStats> {
     sevenDayRevisitRate,
     threeVisitFirstVisitRate,
   };
+}
+
+export type DailyStat = {
+  date: string; // YYYY-MM-DD
+  day: number;
+  visitCount: number;
+  reservationRate: number | null; // null = 해당 날짜에 내원 기록 없음
+};
+
+export type MonthlyDailyStats = {
+  year: number;
+  month: number; // 1-12
+  daysInMonth: number;
+  daily: DailyStat[];
+  monthTotalVisits: number;
+  monthAvgReservationRate: number;
+};
+
+/** 이번 달 1일~말일까지의 일별 내원수/예약율 및 월 누적 지표. */
+export async function computeMonthlyDailyStats(): Promise<MonthlyDailyStats> {
+  const today = startOfDay(new Date());
+  const year = today.getFullYear();
+  const month = today.getMonth(); // 0-based
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const monthStart = new Date(year, month, 1);
+  const monthEnd = new Date(year, month + 1, 1);
+
+  const monthVisits = await prisma.visit.findMany({
+    where: { visitDate: { gte: monthStart, lt: monthEnd } },
+  });
+
+  const byDay = new Map<number, { total: number; reserved: number }>();
+  for (const visit of monthVisits) {
+    const day = visit.visitDate.getDate();
+    const entry = byDay.get(day) ?? { total: 0, reserved: 0 };
+    entry.total += 1;
+    if (visit.isReserved) entry.reserved += 1;
+    byDay.set(day, entry);
+  }
+
+  const daily: DailyStat[] = [];
+  for (let day = 1; day <= daysInMonth; day++) {
+    const entry = byDay.get(day);
+    const dateObj = new Date(year, month, day);
+    daily.push({
+      date: `${dateObj.getFullYear()}-${String(dateObj.getMonth() + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`,
+      day,
+      visitCount: entry?.total ?? 0,
+      reservationRate: entry && entry.total > 0 ? entry.reserved / entry.total : null,
+    });
+  }
+
+  const daysWithVisits = daily.filter((d) => d.reservationRate !== null);
+  const monthAvgReservationRate =
+    daysWithVisits.length === 0
+      ? 0
+      : daysWithVisits.reduce((sum, d) => sum + (d.reservationRate ?? 0), 0) /
+        daysWithVisits.length;
+
+  return {
+    year,
+    month: month + 1,
+    daysInMonth,
+    daily,
+    monthTotalVisits: monthVisits.length,
+    monthAvgReservationRate,
+  };
+}
+
+function startOfWeekMonday(date: Date): Date {
+  const day = startOfDay(date);
+  const weekday = day.getDay(); // 0=일 ... 6=토
+  const diffToMonday = weekday === 0 ? -6 : 1 - weekday;
+  return new Date(day.getFullYear(), day.getMonth(), day.getDate() + diffToMonday);
+}
+
+export type TodoWeeklySummary = {
+  weekDone: number;
+  weekTotal: number;
+};
+
+const TALK_TASK_TYPES = ["DAY2", "DAY7", "THIRD_VISIT"];
+
+/**
+ * 이번 주(월~일) 기준 생성된/완료된 TodoTask 건수.
+ * 톡 할일은 TodoTask.isDone을 쓰지 않으므로(완료 여부의 진실 원천은 MessageLog),
+ * 톡 항목의 완료는 해당 (patientId, taskType)에 대응하는 MessageLog의 sentDate로 판단한다.
+ */
+export async function computeTodoWeeklySummary(): Promise<TodoWeeklySummary> {
+  const weekStart = startOfWeekMonday(new Date());
+  const weekEnd = new Date(
+    weekStart.getFullYear(),
+    weekStart.getMonth(),
+    weekStart.getDate() + 7,
+  );
+
+  const [weekTotal, weekDonePrescription, talkTodos, talkLogsDoneThisWeek] = await Promise.all([
+    prisma.todoTask.count({
+      where: { createdAt: { gte: weekStart, lt: weekEnd } },
+    }),
+    prisma.todoTask.count({
+      where: { prescriptionId: { not: null }, isDone: true, doneAt: { gte: weekStart, lt: weekEnd } },
+    }),
+    prisma.todoTask.findMany({
+      where: { patientId: { not: null }, taskType: { in: TALK_TASK_TYPES } },
+      select: { patientId: true, taskType: true },
+    }),
+    prisma.messageLog.findMany({
+      where: { messageType: { in: TALK_TASK_TYPES }, sentDate: { gte: weekStart, lt: weekEnd } },
+      select: { patientId: true, messageType: true },
+    }),
+  ]);
+
+  const talkTodoKeys = new Set(talkTodos.map((t) => `${t.patientId}:${t.taskType}`));
+  const weekDoneTalk = talkLogsDoneThisWeek.filter((log) =>
+    talkTodoKeys.has(`${log.patientId}:${log.messageType}`),
+  ).length;
+
+  return { weekDone: weekDonePrescription + weekDoneTalk, weekTotal };
 }

@@ -69,6 +69,9 @@ export async function completeTodoTask(taskId: number, doneByUserId: number) {
   });
 
   const { prescription } = task;
+  if (!prescription) {
+    throw new Error(`TodoTask ${taskId}에 연결된 처방이 없습니다.`);
+  }
   const { program } = prescription;
 
   if (task.taskType === TASK_TYPE_NEXT_DOSE && prescription.currentRound && prescription.totalRounds) {

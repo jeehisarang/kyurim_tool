@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import styles from "./page.module.css";
 import SealStamp from "@/components/SealStamp";
 import { getCurrentUserId } from "@/lib/currentUser";
-import { FIXED_MESSAGE_TEMPLATE } from "@/lib/message-templates";
+import { FIXED_MESSAGE_TEMPLATE, TALK_MESSAGE_TYPE_LABEL } from "@/lib/message-templates";
 
 type Patient = { id: number; chartNumber: string; name: string };
 type StaffUser = { id: number; name: string; role: string };
@@ -16,9 +16,7 @@ type MessageType = "WELCOME" | "MEETING" | AiMessageType;
 const MESSAGE_TYPE_LABEL: Record<MessageType, string> = {
   WELCOME: "웰컴 메시지",
   MEETING: "상담예정 안내",
-  DAY2: "2일차 안부",
-  DAY7: "7일 미내원 안내",
-  THIRD_VISIT: "3회 내원 축하",
+  ...TALK_MESSAGE_TYPE_LABEL,
 };
 
 type MessageStatus = {
