@@ -85,6 +85,10 @@ function isSameDate(a: Date, b: Date): boolean {
   );
 }
 
+function isOverdueTask(task: TodoTask): boolean {
+  return startOfDay(new Date(task.dueDate)) < startOfDay(new Date());
+}
+
 function toDateParam(date: Date): string {
   const y = date.getFullYear();
   const m = String(date.getMonth() + 1).padStart(2, "0");
@@ -153,6 +157,13 @@ export default function HomePage() {
   const todayDayOfMonth = today.getDate();
 
   const leadingBlanks = monthly ? new Date(monthly.year, monthly.month - 1, 1).getDay() : 0;
+
+  const todoPreview = todoTasks
+    ? [...todoTasks.filter((t) => !isOverdueTask(t)), ...todoTasks.filter(isOverdueTask)].slice(
+        0,
+        TODO_PREVIEW_COUNT,
+      )
+    : [];
 
   function selectDay(day: number) {
     if (!monthly) return;
@@ -342,7 +353,7 @@ export default function HomePage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {todoTasks.slice(0, TODO_PREVIEW_COUNT).map((task) => (
+                  {todoPreview.map((task) => (
                     <tr key={task.id}>
                       <td>
                         <span

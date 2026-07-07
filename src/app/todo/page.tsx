@@ -34,6 +34,25 @@ const CATEGORY_LABEL: Record<TodoCategory, string> = {
   TALK: "톡",
 };
 
+function startOfDay(date: Date): Date {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+}
+
+function diffDays(a: Date, b: Date): number {
+  const DAY_MS = 24 * 60 * 60 * 1000;
+  return Math.round((startOfDay(a).getTime() - startOfDay(b).getTime()) / DAY_MS);
+}
+
+function isOverdue(task: TodoTask): boolean {
+  return startOfDay(new Date(task.dueDate)) < startOfDay(new Date());
+}
+
+function overdueLabel(task: TodoTask): string {
+  const due = startOfDay(new Date(task.dueDate));
+  const days = diffDays(new Date(), due);
+  return `${due.getMonth() + 1}/${due.getDate()} 마감, ${days}일 지남`;
+}
+
 export default function TodoPage() {
   const [todayLabel] = useState(() =>
     new Intl.DateTimeFormat("ko-KR", {
@@ -86,6 +105,69 @@ export default function TodoPage() {
     setRefreshKey((k) => k + 1);
   }
 
+  function renderTaskTable(list: TodoTask[], { showDueBadge }: { showDueBadge: boolean }) {
+    return (
+      <table className={styles.table}>
+        <thead>
+          <tr>
+            <th>구분</th>
+            <th>환자명</th>
+            <th>프로그램명</th>
+            <th>할일종류</th>
+            {showDueBadge && <th>마감</th>}
+            <th>담당자</th>
+            <th>완료여부</th>
+          </tr>
+        </thead>
+        <tbody>
+          {list.map((task) => (
+            <tr key={task.id}>
+              <td>
+                <span
+                  className={
+                    task.category === "PRESCRIPTION"
+                      ? styles.categoryBadgePrescription
+                      : styles.categoryBadgeTalk
+                  }
+                >
+                  {CATEGORY_LABEL[task.category]}
+                </span>
+              </td>
+              <td>{task.patient.name}</td>
+              <td>{task.program?.name ?? "-"}</td>
+              <td>{TASK_TYPE_LABEL[task.taskType] ?? task.taskType}</td>
+              {showDueBadge && (
+                <td>
+                  <span className={styles.overdueBadge}>{overdueLabel(task)}</span>
+                </td>
+              )}
+              <td>{task.staffUser?.name ?? "미배정"}</td>
+              <td>
+                {task.isDone ? (
+                  <span className={styles.doneLabel}>완료 ({task.doneByUser?.name ?? "-"})</span>
+                ) : (
+                  <span className={styles.submitWrap}>
+                    <button
+                      className={styles.checkButton}
+                      type="button"
+                      onClick={() => handleCheck(task)}
+                    >
+                      체크
+                    </button>
+                    {stampTaskId === task.id && <SealStamp key={task.id} />}
+                  </span>
+                )}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    );
+  }
+
+  const overdueTasks = tasks?.filter(isOverdue) ?? [];
+  const todayTasks = tasks?.filter((t) => !isOverdue(t)) ?? [];
+
   return (
     <div className={styles.container}>
       <h1 className={styles.pageTitle}>오늘 할 일</h1>
@@ -98,7 +180,9 @@ export default function TodoPage() {
           ) : (
             <>
               <div className={styles.weeklyHeader}>
-                <span>이번주 처리 현황</span>
+                <span>
+                  이번주 처리 현황 <span className={styles.weeklySubLabel}>(밀린 일 포함)</span>
+                </span>
                 <span className={styles.weeklyValue}>
                   {weeklySummary.weekDone}/{weeklySummary.weekTotal}건
                 </span>
@@ -136,63 +220,19 @@ export default function TodoPage() {
       </div>
 
       <div className={styles.section}>
-        <div className={styles.sectionTitle}>할 일 목록 ({tasks?.length ?? 0}건)</div>
-        {tasks !== null && tasks.length === 0 && (
+        <div className={styles.sectionTitle}>📌 밀린 할 일 ({overdueTasks.length}건)</div>
+        {tasks !== null && overdueTasks.length === 0 && (
+          <p className={styles.muted}>밀린 할 일이 없습니다.</p>
+        )}
+        {overdueTasks.length > 0 && renderTaskTable(overdueTasks, { showDueBadge: true })}
+      </div>
+
+      <div className={styles.section}>
+        <div className={styles.sectionTitle}>📅 오늘 할 일 ({todayTasks.length}건)</div>
+        {tasks !== null && todayTasks.length === 0 && (
           <p className={styles.muted}>오늘 처리할 항목이 없습니다.</p>
         )}
-        {tasks && tasks.length > 0 && (
-          <table className={styles.table}>
-            <thead>
-              <tr>
-                <th>구분</th>
-                <th>환자명</th>
-                <th>프로그램명</th>
-                <th>할일종류</th>
-                <th>담당자</th>
-                <th>완료여부</th>
-              </tr>
-            </thead>
-            <tbody>
-              {tasks.map((task) => (
-                <tr key={task.id}>
-                  <td>
-                    <span
-                      className={
-                        task.category === "PRESCRIPTION"
-                          ? styles.categoryBadgePrescription
-                          : styles.categoryBadgeTalk
-                      }
-                    >
-                      {CATEGORY_LABEL[task.category]}
-                    </span>
-                  </td>
-                  <td>{task.patient.name}</td>
-                  <td>{task.program?.name ?? "-"}</td>
-                  <td>{TASK_TYPE_LABEL[task.taskType] ?? task.taskType}</td>
-                  <td>{task.staffUser?.name ?? "미배정"}</td>
-                  <td>
-                    {task.isDone ? (
-                      <span className={styles.doneLabel}>
-                        완료 ({task.doneByUser?.name ?? "-"})
-                      </span>
-                    ) : (
-                      <span className={styles.submitWrap}>
-                        <button
-                          className={styles.checkButton}
-                          type="button"
-                          onClick={() => handleCheck(task)}
-                        >
-                          체크
-                        </button>
-                        {stampTaskId === task.id && <SealStamp key={task.id} />}
-                      </span>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
+        {todayTasks.length > 0 && renderTaskTable(todayTasks, { showDueBadge: false })}
       </div>
     </div>
   );
