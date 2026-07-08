@@ -115,6 +115,32 @@
   font-size: 13px;
 }
 
+.errorBox {
+  text-align: center;
+  padding: 24px 16px;
+  background: rgba(179, 60, 46, 0.08);
+  border: 1px solid rgba(179, 60, 46, 0.3);
+  border-radius: 6px;
+  color: var(--color-seal);
+  font-size: 14px;
+}
+
+.errorBox button {
+  margin-top: 10px;
+  border: 1px solid var(--color-seal);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--color-seal);
+  padding: 6px 16px;
+  font-size: 13px;
+  font-family: var(--font-body);
+  cursor: pointer;
+}
+
+.errorBox button:hover {
+  background: rgba(179, 60, 46, 0.12);
+}
+
 .calendarGrid {
   display: grid;
   grid-template-columns: repeat(7, 1fr);

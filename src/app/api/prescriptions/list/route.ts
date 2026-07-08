@@ -14,6 +14,7 @@ export async function GET() {
     include: {
       patient: true,
       program: true,
+      staffUser: true,
       todoTasks: { orderBy: { dueDate: "desc" }, take: 1 },
     },
     orderBy: { startDate: "desc" },
@@ -53,6 +54,8 @@ export async function GET() {
       completedEventCount: eventCounts?.done ?? null,
       totalEventCount: eventCounts?.total ?? null,
       latestTaskDueDate: p.todoTasks[0]?.dueDate ?? null,
+      staffUserId: p.staffUserId,
+      staffUserName: p.staffUser.name,
     };
   });
 

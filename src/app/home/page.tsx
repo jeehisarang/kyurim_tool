@@ -117,26 +117,44 @@ function HomePageInner() {
   const [historyPatient, setHistoryPatient] = useState<Patient | null>(null);
   const [calendarExpanded, setCalendarExpanded] = useState(false);
   const [showResolved, setShowResolved] = useState(false);
+  const [loadError, setLoadError] = useState(false);
+  const [retryKey, setRetryKey] = useState(0);
 
+  // 요청이 실패하면(네트워크 순단, 서버 재시작 타이밍 등) 화면이 "불러오는 중"에서
+  // 영원히 멈추지 않도록 반드시 에러 상태로 빠져나가게 한다 — 실사용 중 발견된 문제:
+  // 에러 처리가 없으면 실패한 fetch 하나 때문에 새로고침 전까지 화면이 복구되지 않았다.
   useEffect(() => {
+    setLoadError(false);
     fetch("/api/dashboard/daily")
-      .then((res) => res.json())
-      .then(setMonthly);
-  }, []);
+      .then((res) => {
+        if (!res.ok) throw new Error("dashboard/daily 응답 실패");
+        return res.json();
+      })
+      .then(setMonthly)
+      .catch(() => setLoadError(true));
+  }, [retryKey]);
 
   useEffect(() => {
     setSelectedVisits(null);
     fetch(`/api/visits?date=${toDateParam(selectedDate)}`)
-      .then((res) => res.json())
-      .then(setSelectedVisits);
-  }, [selectedDate]);
+      .then((res) => {
+        if (!res.ok) throw new Error("visits 응답 실패");
+        return res.json();
+      })
+      .then(setSelectedVisits)
+      .catch(() => setLoadError(true));
+  }, [selectedDate, retryKey]);
 
   useEffect(() => {
     setTodoTasks(null);
     fetch(`/api/todo-tasks?date=${toDateParam(selectedDate)}`)
-      .then((res) => res.json())
-      .then(setTodoTasks);
-  }, [selectedDate, refreshKey]);
+      .then((res) => {
+        if (!res.ok) throw new Error("todo-tasks 응답 실패");
+        return res.json();
+      })
+      .then(setTodoTasks)
+      .catch(() => setLoadError(true));
+  }, [selectedDate, refreshKey, retryKey]);
 
   // 날짜를 옮기면 "완료된 항목 보기" 펼침 상태를 초기화한다 (체크 후 재조회 때는 유지 —
   // 방금 완료 처리한 걸 보고 있는 도중에 패널이 갑자기 접히면 안 됨).
@@ -249,7 +267,14 @@ function HomePageInner() {
         </button>
       </div>
 
-      {!monthly ? (
+      {loadError && !monthly ? (
+        <div className={styles.errorBox}>
+          <p>화면을 불러오지 못했습니다. 네트워크 상태를 확인하고 다시 시도해 주세요.</p>
+          <button type="button" onClick={() => setRetryKey((k) => k + 1)}>
+            다시 시도
+          </button>
+        </div>
+      ) : !monthly ? (
         <p className={styles.muted}>불러오는 중...</p>
       ) : (
         <>

@@ -44,3 +44,24 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
   return NextResponse.json(patient);
 }
+
+/**
+ * 신규 등록 직후, 아직 내원 체크가 하나도 없는 환자만 되돌리기(취소) 목적으로 삭제
+ * 가능하다. 실수로 잘못 입력한 차트번호/이름을 확인 없이 저장부터 해버린 경우를 위한
+ * 구제 경로 — Visit이 하나라도 있으면(=실사용 기록이 생겼으면) 거부한다.
+ */
+export async function DELETE(_request: Request, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  const patientId = Number(id);
+
+  const visitCount = await prisma.visit.count({ where: { patientId } });
+  if (visitCount > 0) {
+    return NextResponse.json(
+      { error: "이미 내원 기록이 있는 환자는 삭제할 수 없습니다." },
+      { status: 409 },
+    );
+  }
+
+  await prisma.patient.delete({ where: { id: patientId } });
+  return NextResponse.json({ success: true });
+}

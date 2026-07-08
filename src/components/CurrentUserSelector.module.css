@@ -29,3 +29,18 @@
   font-size: 12px;
   color: var(--color-seal);
 }
+
+.retryButton {
+  border: 1px solid var(--color-seal);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--color-seal);
+  padding: 5px 10px;
+  font-size: 12px;
+  font-family: var(--font-body);
+  cursor: pointer;
+}
+
+.retryButton:hover {
+  background: rgba(179, 60, 46, 0.1);
+}

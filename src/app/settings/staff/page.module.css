@@ -1,0 +1,171 @@
+.container {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 32px 16px 64px;
+}
+
+.pageTitle {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 26px;
+  color: var(--color-ink);
+  margin-bottom: 6px;
+}
+
+.muted {
+  color: var(--color-ink);
+  opacity: 0.55;
+  font-size: 13px;
+  margin-bottom: 24px;
+}
+
+.section {
+  background: var(--color-hanji-card);
+  border: 1px solid rgba(110, 148, 140, 0.35);
+  border-radius: 6px;
+  box-shadow: 0 1px 2px rgba(43, 39, 35, 0.04);
+  padding: 20px;
+  margin-bottom: 24px;
+}
+
+.sectionTitle {
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--color-celadon-dark);
+  border-left: 3px solid var(--color-celadon);
+  padding-left: 8px;
+  margin-bottom: 16px;
+}
+
+.row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.row input,
+.row select {
+  border: 1px solid rgba(110, 148, 140, 0.4);
+  border-radius: 4px;
+  background: var(--color-hanji-bg);
+  color: var(--color-ink);
+  padding: 6px 10px;
+  font-size: 14px;
+  font-family: var(--font-body);
+}
+
+.row button {
+  border: none;
+  border-radius: 4px;
+  background: var(--color-celadon);
+  color: var(--color-hanji-card);
+  padding: 6px 14px;
+  font-size: 14px;
+  font-family: var(--font-body);
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.row button:hover {
+  background: var(--color-celadon-dark);
+}
+
+.errorText {
+  color: var(--color-seal);
+  font-size: 13px;
+  margin: 4px 0 0;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.table th,
+.table td {
+  text-align: left;
+  padding: 10px 8px;
+  border-bottom: 1px solid rgba(110, 148, 140, 0.2);
+  font-size: 14px;
+}
+
+.table th {
+  color: var(--color-celadon-dark);
+  font-weight: 500;
+}
+
+.inactiveRow {
+  opacity: 0.55;
+}
+
+.inlineInput {
+  border: 1px solid rgba(110, 148, 140, 0.4);
+  border-radius: 4px;
+  background: var(--color-hanji-bg);
+  color: var(--color-ink);
+  padding: 6px 10px;
+  font-size: 14px;
+  font-family: var(--font-body);
+}
+
+.statusActive {
+  color: var(--color-celadon-dark);
+  font-weight: 500;
+}
+
+.statusInactive {
+  color: var(--color-seal);
+  font-weight: 500;
+}
+
+.rowActions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.editButton {
+  border: 1px solid var(--color-celadon);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--color-celadon-dark);
+  padding: 5px 12px;
+  font-size: 13px;
+  font-family: var(--font-body);
+  cursor: pointer;
+}
+
+.editButton:hover {
+  background: rgba(110, 148, 140, 0.1);
+}
+
+.deactivateButton {
+  border: 1px solid var(--color-seal);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--color-seal);
+  padding: 5px 12px;
+  font-size: 13px;
+  font-family: var(--font-body);
+  cursor: pointer;
+}
+
+.deactivateButton:hover {
+  background: rgba(179, 60, 46, 0.1);
+}
+
+.activateButton {
+  border: 1px solid var(--color-celadon);
+  border-radius: 4px;
+  background: rgba(110, 148, 140, 0.15);
+  color: var(--color-celadon-dark);
+  padding: 5px 12px;
+  font-size: 13px;
+  font-family: var(--font-body);
+  cursor: pointer;
+}
+
+.activateButton:hover {
+  background: rgba(110, 148, 140, 0.25);
+}

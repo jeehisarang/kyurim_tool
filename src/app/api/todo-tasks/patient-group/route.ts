@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import {
   TODO_TASK_INCLUDE,
   normalizeTodoTask,
+  hasResolvedPatient,
   findMessageLogsByPatientAndType,
   findProgramEventLogsByTodoTaskIds,
 } from "@/lib/todo-tasks";
@@ -52,16 +53,18 @@ export async function GET(request: Request) {
   const programEventTaskIds = tasks.filter((t) => t.patientId === null).map((t) => t.id);
   const logByTaskId = await findProgramEventLogsByTodoTaskIds(programEventTaskIds);
 
-  const candidates = tasks.map((task) => {
-    const eventLog = task.patientId
-      ? (logByPatientKey.get(`${task.patientId}:${task.taskType}`) ?? null)
-      : (logByTaskId.get(task.id) ?? null);
-    const normalized = normalizeTodoTask(task, eventLog);
-    return {
+  const candidates = tasks
+    .map((task) => {
+      const eventLog = task.patientId
+        ? (logByPatientKey.get(`${task.patientId}:${task.taskType}`) ?? null)
+        : (logByTaskId.get(task.id) ?? null);
+      return normalizeTodoTask(task, eventLog);
+    })
+    .filter(hasResolvedPatient)
+    .map((normalized) => ({
       ...normalized,
       sourceLabel: normalized.program?.name ?? "내원기반",
-    };
-  });
+    }));
 
   return NextResponse.json(candidates);
 }

@@ -16,17 +16,20 @@ const staffUsers = [
   { name: "최실장", role: "직원" },
 ];
 
+// 화면 표기명(Program.name)은 원내 축약 표현("킬캡")을 쓴다 — 환자 발송용 AI 메시지는
+// 이 값을 참조하지 않고 src/lib/ai-message.ts에 "킬팻캡슐"이라는 정식 명칭이 별도로
+// 하드코딩되어 있으므로, 여기서 표기명을 바꿔도 발송 문구에는 영향이 없다.
 const programs = [
   { name: "킬팻캡슐", type: "SPLIT", splitIntervalDays: 14, totalDurationDays: 90, followUpDays: null },
   // 13-1: 다이어트(비만치료) 본프로그램은 1개월/3개월 티어로 구분 (체험3일과는 별개, FIXED_SEQUENCE 아님).
-  { name: "킬팻캡슐 1개월", type: "SPLIT", splitIntervalDays: 14, totalDurationDays: 30, followUpDays: null },
-  { name: "킬팻캡슐 3개월", type: "SPLIT", splitIntervalDays: 14, totalDurationDays: 90, followUpDays: null },
+  { name: "킬캡1개월", type: "SPLIT", splitIntervalDays: 14, totalDurationDays: 30, followUpDays: null },
+  { name: "킬캡3개월", type: "SPLIT", splitIntervalDays: 14, totalDurationDays: 90, followUpDays: null },
   { name: "감비탕", type: "SPLIT", splitIntervalDays: 14, totalDurationDays: 90, followUpDays: null },
   { name: "황제감비탕", type: "SPLIT", splitIntervalDays: 14, totalDurationDays: 90, followUpDays: null },
   { name: "S환", type: "SINGLE", splitIntervalDays: null, totalDurationDays: null, followUpDays: 30 },
   { name: "하비환", type: "SINGLE", splitIntervalDays: null, totalDurationDays: null, followUpDays: 30 },
   {
-    name: "킬팻캡슐 3일체험",
+    name: "킬캡3체험",
     type: "FIXED_SEQUENCE",
     splitIntervalDays: null,
     totalDurationDays: null,
@@ -34,7 +37,7 @@ const programs = [
   },
 ];
 
-// 킬팻캡슐 3일체험(FIXED_SEQUENCE) 전용 이벤트 시퀀스 — 등록일(startDate) 기준 오프셋.
+// 킬캡3체험(FIXED_SEQUENCE) 전용 이벤트 시퀀스 — 등록일(startDate) 기준 오프셋.
 const trialEventTemplates = [
   { taskType: "TRIAL_WELCOME", offsetDays: 0, generationType: "AI", sortOrder: 0 },
   { taskType: "TRIAL_DAY2", offsetDays: 2, generationType: "AI", sortOrder: 1 },
@@ -75,7 +78,7 @@ async function main() {
   }
 
   const trialProgram = await prisma.program.findUniqueOrThrow({
-    where: { name: "킬팻캡슐 3일체험" },
+    where: { name: "킬캡3체험" },
   });
   for (const template of trialEventTemplates) {
     await prisma.programEventTemplate.upsert({

@@ -80,22 +80,40 @@ export default function DashboardPage() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [goals, setGoals] = useState<Goal[] | null>(null);
   const [daily, setDaily] = useState<DailyStat[] | null>(null);
+  const [loadError, setLoadError] = useState(false);
+  const [retryKey, setRetryKey] = useState(0);
 
   const refreshGoals = useCallback(() => {
     fetch("/api/goals")
-      .then((res) => res.json())
-      .then(setGoals);
+      .then((res) => {
+        if (!res.ok) throw new Error("goals 응답 실패");
+        return res.json();
+      })
+      .then(setGoals)
+      .catch(() => setLoadError(true));
   }, []);
 
+  // 요청이 실패하면(네트워크 순단, 서버 재시작 타이밍 등) "불러오는 중"에서 영원히
+  // 멈추지 않도록 반드시 에러 상태로 빠져나가게 한다 — 실사용 중 발견된 문제: 에러
+  // 처리가 없으면 실패한 fetch 하나 때문에 새로고침 전까지 화면이 복구되지 않았다.
   useEffect(() => {
+    setLoadError(false);
     fetch("/api/dashboard")
-      .then((res) => res.json())
-      .then(setStats);
+      .then((res) => {
+        if (!res.ok) throw new Error("dashboard 응답 실패");
+        return res.json();
+      })
+      .then(setStats)
+      .catch(() => setLoadError(true));
     fetch("/api/dashboard/daily")
-      .then((res) => res.json())
-      .then((data) => setDaily(data.daily));
+      .then((res) => {
+        if (!res.ok) throw new Error("dashboard/daily 응답 실패");
+        return res.json();
+      })
+      .then((data) => setDaily(data.daily))
+      .catch(() => setLoadError(true));
     refreshGoals();
-  }, [refreshGoals]);
+  }, [refreshGoals, retryKey]);
 
   function goalFor(key: MetricKey): Goal | null {
     return goals?.find((g) => g.metricKey === key) ?? null;
@@ -118,7 +136,14 @@ export default function DashboardPage() {
     <div className={styles.container}>
       <h1 className={styles.pageTitle}>통계 대시보드</h1>
 
-      {!stats ? (
+      {loadError && !stats ? (
+        <div className={styles.errorBox}>
+          <p>화면을 불러오지 못했습니다. 네트워크 상태를 확인하고 다시 시도해 주세요.</p>
+          <button type="button" onClick={() => setRetryKey((k) => k + 1)}>
+            다시 시도
+          </button>
+        </div>
+      ) : !stats ? (
         <p className={styles.muted}>불러오는 중...</p>
       ) : (
         <>

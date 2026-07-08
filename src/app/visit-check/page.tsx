@@ -85,6 +85,9 @@ function VisitCheckPageInner() {
   const [newName, setNewName] = useState("");
   const [newPatientError, setNewPatientError] = useState<string | null>(null);
   const [duplicatePatient, setDuplicatePatient] = useState<Patient | null>(null);
+  // 이번 세션에서 신규 등록 폼으로 방금 만든 환자인지 — "다른 환자 선택" 시 아직
+  // Visit이 하나도 없다면 되돌리기(삭제) 확인창을 띄울지 판단하는 데 쓴다.
+  const [isFreshlyRegisteredPatient, setIsFreshlyRegisteredPatient] = useState(false);
 
   const [patientEditOpen, setPatientEditOpen] = useState(false);
   const [editChartNumber, setEditChartNumber] = useState("");
@@ -152,12 +155,13 @@ function VisitCheckPageInner() {
     }
   }
 
-  function selectPatient(patient: Patient) {
+  function selectPatient(patient: Patient, options?: { freshlyRegistered?: boolean }) {
     setSelectedPatient(patient);
     setResults(null);
     setQuery("");
     setShowNewPatientForm(false);
     setPatientEditOpen(false);
+    setIsFreshlyRegisteredPatient(options?.freshlyRegistered ?? false);
   }
 
   function clearSelectedPatient() {
@@ -165,6 +169,36 @@ function VisitCheckPageInner() {
     setCategoryId("");
     setVisitTypeId("");
     setPatientEditOpen(false);
+    setIsFreshlyRegisteredPatient(false);
+  }
+
+  function handleCancelNewPatientForm() {
+    setShowNewPatientForm(false);
+    setNewChartNumber("");
+    setNewName("");
+    setNewPatientError(null);
+    setDuplicatePatient(null);
+  }
+
+  /**
+   * "다른 환자 선택" — 방금 신규 등록 폼으로 만든 환자이고 아직 내원 체크가 하나도
+   * 없다면, 되돌아가기 전에 그 환자를 지울지 확인한다. 확인 여부와 무관하게 검색
+   * 화면으로는 돌아간다 — 확인창은 삭제 여부만 가른다.
+   */
+  async function handleDeselectPatient() {
+    if (isFreshlyRegisteredPatient && selectedPatient) {
+      const shouldDelete = window.confirm(
+        "방금 등록한 환자 정보를 취소할까요?\n\n확인을 누르면 방금 등록한 환자 정보가 삭제됩니다.",
+      );
+      if (shouldDelete) {
+        const res = await fetch(`/api/patients/${selectedPatient.id}`, { method: "DELETE" });
+        if (!res.ok) {
+          const data = await res.json();
+          alert(data.error ?? "환자 삭제에 실패했습니다. 정보만 해제합니다.");
+        }
+      }
+    }
+    clearSelectedPatient();
   }
 
   async function handleCreatePatient(e: React.FormEvent) {
@@ -187,7 +221,7 @@ function VisitCheckPageInner() {
     }
     setNewChartNumber("");
     setNewName("");
-    selectPatient(data);
+    selectPatient(data, { freshlyRegistered: true });
   }
 
   function handleUseDuplicatePatient() {
@@ -422,6 +456,9 @@ function VisitCheckPageInner() {
                   onChange={(e) => setNewName(e.target.value)}
                 />
                 <button type="submit">등록</button>
+                <button type="button" onClick={handleCancelNewPatientForm}>
+                  취소
+                </button>
               </form>
             )}
             {newPatientError && <p className={styles.errorText}>{newPatientError}</p>}
@@ -462,7 +499,7 @@ function VisitCheckPageInner() {
             <button type="button" onClick={openPatientEdit}>
               정보 수정
             </button>
-            <button type="button" onClick={clearSelectedPatient}>
+            <button type="button" onClick={handleDeselectPatient}>
               다른 환자 선택
             </button>
           </div>

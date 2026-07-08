@@ -4,6 +4,7 @@ import { generateTalkTodos } from "@/lib/talk-todos";
 import {
   TODO_TASK_INCLUDE,
   normalizeTodoTask,
+  hasResolvedPatient,
   findMessageLogsByPatientAndType,
   findProgramEventLogsByTodoTaskIds,
 } from "@/lib/todo-tasks";
@@ -55,12 +56,14 @@ export async function GET(request: Request) {
     .map((t) => t.id);
   const logByTaskId = await findProgramEventLogsByTodoTaskIds(programEventTaskIds);
 
-  const normalized = tasks.map((task) => {
-    const eventLog = task.patientId
-      ? (logByPatientKey.get(`${task.patientId}:${task.taskType}`) ?? null)
-      : (logByTaskId.get(task.id) ?? null);
-    return normalizeTodoTask(task, eventLog);
-  });
+  const normalized = tasks
+    .map((task) => {
+      const eventLog = task.patientId
+        ? (logByPatientKey.get(`${task.patientId}:${task.taskType}`) ?? null)
+        : (logByTaskId.get(task.id) ?? null);
+      return normalizeTodoTask(task, eventLog);
+    })
+    .filter(hasResolvedPatient);
 
   return NextResponse.json(normalized);
 }

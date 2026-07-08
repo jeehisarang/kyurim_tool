@@ -72,6 +72,21 @@ export function normalizeTodoTask(task: RawTodoTask, eventLog: EventLogLite) {
   };
 }
 
+/**
+ * 메시지형 TodoTask인데 patientId/prescriptionId가 둘 다 없거나 prescription이
+ * 가리키는 환자가 없어서 patient를 끝내 못 찾은 경우(고아 행 — 정상 흐름에서는
+ * 생기지 않지만, 과거 데이터 정리 실수 등으로 남을 수 있음) API 응답에서 제외한다.
+ * 프론트(TodoTaskTable.buildTaskRows)는 patient가 항상 있다고 가정하고 그룹핑하므로,
+ * 여기서 걸러내지 않으면 화면 전체가 크래시한다.
+ */
+export function hasResolvedPatient(task: ReturnType<typeof normalizeTodoTask>): boolean {
+  if (task.patient === null) {
+    console.warn(`TodoTask ${task.id}: patient를 찾을 수 없어 목록에서 제외합니다(고아 행).`);
+    return false;
+  }
+  return true;
+}
+
 export async function findMessageLogsByPatientAndType(
   patientIds: number[],
   messageTypes: readonly string[],

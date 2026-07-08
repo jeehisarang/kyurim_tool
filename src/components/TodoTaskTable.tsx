@@ -3,6 +3,7 @@
 import styles from "./TodoTaskTable.module.css";
 import SealStamp from "@/components/SealStamp";
 import CategoryBadge from "@/components/CategoryBadge";
+import { getProgramCategory, PROGRAM_CATEGORY_ICON } from "@/lib/program-categories";
 
 export type StaffUser = { id: number; name: string; role: string };
 export type Patient = { id: number; name: string; chartNumber: string };
@@ -44,6 +45,18 @@ function taskTypeBadgeClass(taskType: string): string {
   return styles.taskTypeBadgeDose;
 }
 
+function ProgramBadge({ id, name }: { id: number; name: string }) {
+  const category = getProgramCategory(name);
+  return (
+    <CategoryBadge
+      id={id}
+      name={name}
+      categoryKey={category ?? undefined}
+      icon={category ? PROGRAM_CATEGORY_ICON[category] : undefined}
+    />
+  );
+}
+
 function startOfDay(date: Date): Date {
   return new Date(date.getFullYear(), date.getMonth(), date.getDate());
 }
@@ -81,6 +94,12 @@ export function buildTaskRows(list: TodoTask[]): TaskRow[] {
   for (const task of list) {
     if (task.category !== "TALK") {
       rows.push({ kind: "single", task });
+      continue;
+    }
+    // API가 정상 필터링하면 나오지 않아야 하지만(고아 TodoTask 방어), patient 없이
+    // 들어오면 그룹핑 키를 만들 수 없어 통째로 죽는 대신 그 항목만 건너뛴다.
+    if (!task.patient) {
+      console.warn(`TodoTask ${task.id}: patient 정보가 없어 화면에서 제외합니다.`);
       continue;
     }
     const key = String(task.patient.id);
@@ -218,7 +237,7 @@ export default function TodoTaskTable({
                 </button>
               </td>
               <td>
-                {task.program ? <CategoryBadge id={task.program.id} name={task.program.name} /> : "-"}
+                {task.program ? <ProgramBadge id={task.program.id} name={task.program.name} /> : "-"}
               </td>
               <td>
                 <span className={taskTypeBadgeClass(task.taskType)}>

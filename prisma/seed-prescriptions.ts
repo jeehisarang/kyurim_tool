@@ -1,6 +1,6 @@
 /**
  * 치료처방(Prescription) 가상 시드 — seed-demo.ts로 만든 환자 60명 중 일부를 골라
- * 킬팻캡슐 3일체험/1개월/3개월, 감비탕/황제감비탕, 환약(S환/하비환) 처방을 다양한 진행 상태로 채운다.
+ * 킬캡3체험/킬캡1개월/킬캡3개월, 감비탕/황제감비탕, 환약(S환/하비환) 처방을 다양한 진행 상태로 채운다.
  * 신규 치료처방 리스트/통계 화면(/prescriptions)이 실데이터 입력 전에도 확인 가능하도록 하는 목적.
  *
  * 실행: npx tsx prisma/seed-prescriptions.ts  (또는 npm run db:seed-prescriptions)
@@ -36,7 +36,7 @@ async function advanceRounds(prescriptionId: number, times: number, staffUserId:
   }
 }
 
-/** FIXED_SEQUENCE(킬팻캡슐 3일체험) 이벤트를 dueDate 순으로 count개만큼 발송확인 처리. */
+/** FIXED_SEQUENCE(킬캡3체험) 이벤트를 dueDate 순으로 count개만큼 발송확인 처리. */
 async function completeTrialEvents(prescriptionId: number, count: number, staffUserId: number) {
   const tasks = await prisma.todoTask.findMany({
     where: { prescriptionId },
@@ -87,8 +87,8 @@ async function main() {
 
   let createdCount = 0;
 
-  // --- 1. 킬팻캡슐 3일체험: 6명 (등록만 2명 / 웰컴만 발송 2명 / 마감까지 완료 2명) ---
-  const trialProgram = programByName.get("킬팻캡슐 3일체험")!;
+  // --- 1. 킬캡3체험: 6명 (등록만 2명 / 웰컴만 발송 2명 / 마감까지 완료 2명) ---
+  const trialProgram = programByName.get("킬캡3체험")!;
   const trialPatients = takePatients(6);
   for (const [i, patient] of trialPatients.entries()) {
     const staff = pickStaff();
@@ -104,8 +104,8 @@ async function main() {
     if (completedEvents > 0) await completeTrialEvents(prescription.id, completedEvents, staff.id);
   }
 
-  // --- 2. 킬팻캡슐 1개월: 4명, 서로 다른 차수 ---
-  const oneMonthProgram = programByName.get("킬팻캡슐 1개월")!;
+  // --- 2. 킬캡1개월: 4명, 서로 다른 차수 ---
+  const oneMonthProgram = programByName.get("킬캡1개월")!;
   const oneMonthPatients = takePatients(4);
   const oneMonthRounds = [0, 1, 2, 3]; // 진행 라운드 수(0=1차 그대로)
   for (const [i, patient] of oneMonthPatients.entries()) {
@@ -120,8 +120,8 @@ async function main() {
     await advanceRounds(prescription.id, oneMonthRounds[i], staff.id);
   }
 
-  // --- 3. 킬팻캡슐 3개월: 4명, 서로 다른 차수(더 넓게 분산) ---
-  const threeMonthProgram = programByName.get("킬팻캡슐 3개월")!;
+  // --- 3. 킬캡3개월: 4명, 서로 다른 차수(더 넓게 분산) ---
+  const threeMonthProgram = programByName.get("킬캡3개월")!;
   const threeMonthPatients = takePatients(4);
   const threeMonthRounds = [0, 2, 4, 6];
   for (const [i, patient] of threeMonthPatients.entries()) {

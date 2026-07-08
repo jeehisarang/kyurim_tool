@@ -1,4 +1,9 @@
 import { prisma } from "@/lib/db";
+import {
+  getProgramCategory,
+  PROGRAM_CATEGORY_ORDER,
+  type ProgramCategoryKey,
+} from "@/lib/program-categories";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -269,12 +274,24 @@ export type ProgramActiveCount = {
   activePatientCount: number;
 };
 
+export type CategoryActiveCount = {
+  category: ProgramCategoryKey;
+  activePatientCount: number;
+  programs: ProgramActiveCount[];
+};
+
 export type PrescriptionStats = {
   perProgram: ProgramActiveCount[];
+  perCategory: CategoryActiveCount[];
   newThisMonth: number;
 };
 
-/** 치료처방 리스트 화면 상단 요약 카드용: 프로그램별 진행 중 환자 수 + 이번달 신규 등록 수. */
+/**
+ * 치료처방 리스트 화면 상단 요약 카드용: 카테고리(탕약/환/킬팻캡슐)별 + 프로그램별
+ * 진행 중 환자 수 + 이번달 신규 등록 수. 카테고리 합산은 프로그램별 합을 그대로
+ * 더하는 게 아니라 환자 단위로 다시 집계한다 — 한 환자가 같은 카테고리의 서로 다른
+ * 프로그램을 동시에 진행 중이어도 중복 카운트되지 않도록 하기 위함.
+ */
 export async function computePrescriptionStats(): Promise<PrescriptionStats> {
   const today = startOfDay(new Date());
   const year = today.getFullYear();
@@ -293,10 +310,18 @@ export async function computePrescriptionStats(): Promise<PrescriptionStats> {
   ]);
 
   const byProgram = new Map<number, { name: string; patientIds: Set<number> }>();
+  const byCategory = new Map<ProgramCategoryKey, Set<number>>();
   for (const p of activePrescriptions) {
     const entry = byProgram.get(p.program.id) ?? { name: p.program.name, patientIds: new Set<number>() };
     entry.patientIds.add(p.patientId);
     byProgram.set(p.program.id, entry);
+
+    const category = getProgramCategory(p.program.name);
+    if (category) {
+      const set = byCategory.get(category) ?? new Set<number>();
+      set.add(p.patientId);
+      byCategory.set(category, set);
+    }
   }
 
   const perProgram = [...byProgram.entries()]
@@ -307,5 +332,13 @@ export async function computePrescriptionStats(): Promise<PrescriptionStats> {
     }))
     .sort((a, b) => b.activePatientCount - a.activePatientCount);
 
-  return { perProgram, newThisMonth };
+  const perCategory: CategoryActiveCount[] = PROGRAM_CATEGORY_ORDER.filter((c) => byCategory.has(c)).map(
+    (category) => ({
+      category,
+      activePatientCount: byCategory.get(category)!.size,
+      programs: perProgram.filter((p) => getProgramCategory(p.programName) === category),
+    }),
+  );
+
+  return { perProgram, perCategory, newThisMonth };
 }
