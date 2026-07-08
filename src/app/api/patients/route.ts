@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { isValidChartNumber, CHART_NUMBER_FORMAT_ERROR } from "@/lib/patients";
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -32,10 +33,17 @@ export async function POST(request: Request) {
     );
   }
 
+  if (!isValidChartNumber(chartNumber)) {
+    return NextResponse.json({ error: CHART_NUMBER_FORMAT_ERROR }, { status: 400 });
+  }
+
   const existing = await prisma.patient.findUnique({ where: { chartNumber } });
   if (existing) {
     return NextResponse.json(
-      { error: "이미 등록된 차트번호입니다." },
+      {
+        error: `이미 등록된 환자입니다: ${existing.name} (${existing.chartNumber})`,
+        existingPatient: { id: existing.id, chartNumber: existing.chartNumber, name: existing.name },
+      },
       { status: 409 },
     );
   }

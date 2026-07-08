@@ -36,7 +36,7 @@ const programs = [
 
 // 킬팻캡슐 3일체험(FIXED_SEQUENCE) 전용 이벤트 시퀀스 — 등록일(startDate) 기준 오프셋.
 const trialEventTemplates = [
-  { taskType: "TRIAL_WELCOME", offsetDays: 0, generationType: "FIXED", sortOrder: 0 },
+  { taskType: "TRIAL_WELCOME", offsetDays: 0, generationType: "AI", sortOrder: 0 },
   { taskType: "TRIAL_DAY2", offsetDays: 2, generationType: "AI", sortOrder: 1 },
   { taskType: "TRIAL_DEADLINE", offsetDays: 3, generationType: "AI", sortOrder: 2 },
 ];

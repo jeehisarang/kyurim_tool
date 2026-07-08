@@ -33,7 +33,7 @@ export async function POST(request: Request) {
 
   const [visits, notes] = await Promise.all([
     prisma.visit.findMany({
-      where: { patientId: Number(patientId) },
+      where: { patientId: Number(patientId), isActive: true },
       include: { treatmentCategory: true, visitType: true },
       orderBy: { visitDate: "desc" },
       take: 5,

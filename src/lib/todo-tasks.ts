@@ -21,6 +21,9 @@ export type EventLogLite = {
   staffUser: StaffUserLite | null;
   skippedAt: Date | null;
   skippedByUser: StaffUserLite | null;
+  aiDraftContent?: string | null;
+  patientMessage?: string | null;
+  internalAnalysis?: string | null;
 } | null;
 
 /**
@@ -47,6 +50,10 @@ export function normalizeTodoTask(task: RawTodoTask, eventLog: EventLogLite) {
       doneByUser: eventLog?.staffUser ?? null,
       skippedAt: isDone ? null : (eventLog?.skippedAt ?? null),
       skippedByUser: isDone ? null : (eventLog?.skippedByUser ?? null),
+      // 자가치유형 톡은 aiDraftContent, 프로그램 이벤트는 patientMessage에 초안이 저장되므로
+      // 소비 측(톡 관리 화면)에서 하나의 필드로 다루도록 통일해 넘긴다.
+      draftContent: eventLog?.aiDraftContent ?? eventLog?.patientMessage ?? null,
+      internalAnalysis: eventLog?.internalAnalysis ?? null,
     };
   }
 

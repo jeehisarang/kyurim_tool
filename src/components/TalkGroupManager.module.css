@@ -1,0 +1,99 @@
+.checklist {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 16px;
+}
+
+.checklistItem {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 8px;
+  border-bottom: 1px solid rgba(110, 148, 140, 0.2);
+}
+
+.checklistItemResolved {
+  opacity: 0.55;
+}
+
+.checklistLeft {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+  color: var(--color-ink);
+}
+
+.sourceBadge {
+  display: inline-block;
+  border-radius: 4px;
+  padding: 2px 8px;
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+  background: rgba(110, 148, 140, 0.15);
+  color: var(--color-celadon-dark);
+}
+
+.checklistRight {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.checkButton {
+  border: none;
+  border-radius: 4px;
+  background: var(--color-celadon);
+  color: var(--color-hanji-card);
+  padding: 6px 14px;
+  font-size: 13px;
+  font-family: var(--font-body);
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.checkButton:hover {
+  background: var(--color-celadon-dark);
+}
+
+.skipButton {
+  border: 1px solid var(--color-seal);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--color-seal);
+  padding: 6px 12px;
+  font-size: 13px;
+  font-family: var(--font-body);
+  cursor: pointer;
+}
+
+.skipButton:hover {
+  background: rgba(179, 60, 46, 0.1);
+}
+
+.generateAllButton {
+  border: none;
+  border-radius: 4px;
+  background: var(--color-celadon);
+  color: var(--color-hanji-card);
+  padding: 8px 16px;
+  font-size: 14px;
+  font-family: var(--font-body);
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+  margin-bottom: 20px;
+}
+
+.generateAllButton:hover:not(:disabled) {
+  background: var(--color-celadon-dark);
+}
+
+.generateAllButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

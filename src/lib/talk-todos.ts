@@ -32,6 +32,7 @@ export async function generateTalkTodos(): Promise<{ created: number }> {
     prisma.patient.findMany({
       include: {
         visits: {
+          where: { isActive: true },
           include: { visitType: true },
           orderBy: [{ visitDate: "asc" }, { createdAt: "asc" }],
         },

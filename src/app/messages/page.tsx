@@ -6,6 +6,7 @@ import styles from "./page.module.css";
 import SealStamp from "@/components/SealStamp";
 import PatientNotes from "@/components/PatientNotes";
 import TrialEventCard from "@/components/TrialEventCard";
+import TalkGroupManager from "@/components/TalkGroupManager";
 import { getCurrentUserId } from "@/lib/currentUser";
 import {
   FIXED_MESSAGE_TEMPLATE,
@@ -57,13 +58,29 @@ export default function MessagesPage() {
 }
 
 /**
- * /todo의 "톡생성 하기"가 프로그램 이벤트(예: 킬팻캡슐 3일체험 TRIAL_*)에서 넘어온 경우
- * todoTaskId가 실려온다 — 이 경우 기존 patientId 기반 5종 톡 목록 흐름(MessagesPageInner)과는
- * 완전히 분리된 단일 카드(TrialEventCard)로 라우팅한다.
+ * /todo의 "톡 관리"에서 넘어온 경우 patientId+date(talkGroup=1)가 실려온다 — 이 경우
+ * 내원기반/프로그램기반 톡 후보를 우선순위 없이 모두 모은 체크리스트(TalkGroupManager)로
+ * 라우팅한다. 기존 patientId 기반 5종 톡 목록 흐름(MessagesPageInner, 사이드바에서 진입)과는
+ * 완전히 분리되어 있다.
+ * todoTaskId 단독 라우팅(TrialEventCard)은 이전 버전과의 직접 링크 호환을 위해 남겨둔다.
  */
 function MessagesPageRouter() {
   const searchParams = useSearchParams();
   const todoTaskId = searchParams.get("todoTaskId");
+  const talkGroupPatientId = searchParams.get("talkGroup") === "1" ? searchParams.get("patientId") : null;
+  const talkGroupDate = searchParams.get("date");
+
+  if (talkGroupPatientId && talkGroupDate) {
+    return (
+      <div className={styles.container}>
+        <h1 className={styles.pageTitle}>톡생성기</h1>
+        <div className={styles.section}>
+          <div className={styles.sectionTitle}>환자별 톡 관리</div>
+          <TalkGroupManager patientId={Number(talkGroupPatientId)} date={talkGroupDate} />
+        </div>
+      </div>
+    );
+  }
 
   if (todoTaskId) {
     return (

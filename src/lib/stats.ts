@@ -41,6 +41,7 @@ export async function computeDashboardStats(): Promise<DashboardStats> {
       orderBy: { sortOrder: "asc" },
     }),
     prisma.visit.findMany({
+      where: { isActive: true },
       include: { treatmentCategory: true, visitType: true },
       orderBy: [{ visitDate: "asc" }, { createdAt: "asc" }],
     }),
@@ -163,7 +164,7 @@ export async function computeMonthlyDailyStats(): Promise<MonthlyDailyStats> {
   const monthEnd = new Date(year, month + 1, 1);
 
   const monthVisits = await prisma.visit.findMany({
-    where: { visitDate: { gte: monthStart, lt: monthEnd } },
+    where: { visitDate: { gte: monthStart, lt: monthEnd }, isActive: true },
   });
 
   const byDay = new Map<number, { total: number; reserved: number }>();

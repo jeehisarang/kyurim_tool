@@ -7,7 +7,6 @@ import SealStamp from "@/components/SealStamp";
 import PatientHistoryModal from "@/components/PatientHistoryModal";
 import CategoryBadge from "@/components/CategoryBadge";
 import { getCurrentUserId } from "@/lib/currentUser";
-import { TALK_MESSAGE_TYPE_LABEL, TRIAL_TASK_TYPE_LABEL } from "@/lib/message-templates";
 
 type StaffUser = { id: number; name: string; role: string };
 type Patient = { id: number; name: string; chartNumber: string };
@@ -28,32 +27,20 @@ type TodoTask = {
 };
 type WeeklySummary = { weekDone: number; weekTotal: number };
 
-const SKIPPABLE_TASK_TYPES = ["DAY7"];
-
+// 톡 성격 TodoTask는 이제 항상 그룹행("톡 후보 N건")으로만 표시되므로, 여기서는
+// 개별 줄로 남는 처방류(NEXT_DOSE/FOLLOW_UP) 라벨만 필요하다.
 const TASK_TYPE_LABEL: Record<string, string> = {
   NEXT_DOSE: "다음 처방일",
   FOLLOW_UP: "후속조치",
-  ...TALK_MESSAGE_TYPE_LABEL,
-  ...TRIAL_TASK_TYPE_LABEL,
 };
 
 const TASK_TYPE_ICON: Record<string, string> = {
   NEXT_DOSE: "💊",
   FOLLOW_UP: "📋",
-  DAY2: "💬",
-  DAY7: "💬",
-  THIRD_VISIT: "💬",
-  TRIAL_WELCOME: "🧪",
-  TRIAL_DAY2: "🧪",
-  TRIAL_DEADLINE: "🧪",
 };
 
-const TALK_TASK_TYPES = ["DAY2", "DAY7", "THIRD_VISIT", "TRIAL_WELCOME", "TRIAL_DAY2", "TRIAL_DEADLINE"];
-
 function taskTypeBadgeClass(taskType: string): string {
-  if (taskType === "NEXT_DOSE") return styles.taskTypeBadgeDose;
   if (taskType === "FOLLOW_UP") return styles.taskTypeBadgeFollowUp;
-  if (TALK_TASK_TYPES.includes(taskType)) return styles.taskTypeBadgeTalk;
   return styles.taskTypeBadgeDose;
 }
 
@@ -114,6 +101,56 @@ function formatFullLabel(date: Date): string {
   return `${date.getFullYear()}년 ${date.getMonth() + 1}월 ${date.getDate()}일 (${WEEKDAY_FULL_LABELS[date.getDay()]})`;
 }
 
+type TalkGroup = {
+  key: string;
+  patient: Patient;
+  programLabels: string[];
+  tasks: TodoTask[];
+};
+
+type TaskRow = { kind: "single"; task: TodoTask } | { kind: "group"; group: TalkGroup };
+
+/**
+ * 같은 환자 + 톡 성격(taskType이 톡 관련인 것 = category "TALK")의 TodoTask는 한 줄로 묶는다.
+ * 톡이 아닌 항목(처방류)은 지금처럼 개별 줄 그대로 유지 — 그룹핑 대상이 아니다.
+ * 우선순위 계산/억제는 하지 않고 있는 그대로 묶어서 보여주기만 한다.
+ */
+function buildTaskRows(list: TodoTask[]): TaskRow[] {
+  const rows: TaskRow[] = [];
+  const groups = new Map<string, TalkGroup>();
+
+  for (const task of list) {
+    if (task.category !== "TALK") {
+      rows.push({ kind: "single", task });
+      continue;
+    }
+    const key = String(task.patient.id);
+    let group = groups.get(key);
+    if (!group) {
+      group = { key, patient: task.patient, programLabels: [], tasks: [] };
+      groups.set(key, group);
+      rows.push({ kind: "group", group });
+    }
+    group.tasks.push(task);
+    if (task.program && !group.programLabels.includes(task.program.name)) {
+      group.programLabels.push(task.program.name);
+    }
+  }
+
+  return rows;
+}
+
+function earliestTask(tasks: TodoTask[]): TodoTask {
+  return tasks.reduce((a, b) => (new Date(a.dueDate) < new Date(b.dueDate) ? a : b));
+}
+
+function staffLabel(tasks: TodoTask[]): string {
+  const names = Array.from(
+    new Set(tasks.map((t) => t.staffUser?.name).filter((n): n is string => Boolean(n))),
+  );
+  return names.length > 0 ? names.join(", ") : "미배정";
+}
+
 export default function TodoPage() {
   return (
     <Suspense fallback={null}>
@@ -132,7 +169,6 @@ function TodoPageInner() {
   const [stampTaskId, setStampTaskId] = useState<number | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
   const [historyPatient, setHistoryPatient] = useState<Patient | null>(null);
-  const [skippingTaskId, setSkippingTaskId] = useState<number | null>(null);
   const router = useRouter();
 
   useEffect(() => {
@@ -155,36 +191,30 @@ function TodoPageInner() {
       .then(setWeeklySummary);
   }, [refreshKey]);
 
-  async function handleCheck(task: TodoTask, action: "DONE" | "SKIPPED" = "DONE") {
+  async function handleCheck(task: TodoTask) {
     const doneByUserId = getCurrentUserId();
     if (!doneByUserId) {
       alert("상단에서 현재 사용자를 먼저 선택하세요.");
       return;
     }
 
-    if (action === "SKIPPED") setSkippingTaskId(task.id);
-
     await fetch(`/api/todo-tasks/${task.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ doneByUserId, action }),
+      body: JSON.stringify({ doneByUserId, action: "DONE" }),
     });
 
-    if (action === "DONE") setStampTaskId(task.id);
+    setStampTaskId(task.id);
     setRefreshKey((k) => k + 1);
   }
 
-  function handleGenerateTalk(task: TodoTask) {
-    // program이 있으면 프로그램 이벤트(예: 킬팻캡슐 3일체험 TRIAL_*) — todoTaskId로 단일 카드 라우팅.
-    if (task.program) {
-      router.push(`/messages?todoTaskId=${task.id}`);
-      return;
-    }
+  // 톡 후보가 1건이든 여러 건이든(내원기반+프로그램기반 섞여 있어도) 항상 "톡 관리"
+  // 통합 체크리스트로 보낸다 — 우선순위 판단은 담당자가 그 화면에서 직접 한다.
+  function handleManageTalk(patientId: number) {
     const params = new URLSearchParams({
-      patientId: String(task.patient.id),
-      chartNumber: task.patient.chartNumber,
-      name: task.patient.name,
-      messageType: task.taskType,
+      talkGroup: "1",
+      patientId: String(patientId),
+      date: toDateParam(selectedDate),
     });
     router.push(`/messages?${params.toString()}`);
   }
@@ -193,6 +223,7 @@ function TodoPageInner() {
     list: TodoTask[],
     { showDueBadge, referenceDate }: { showDueBadge: boolean; referenceDate: Date },
   ) {
+    const rows = buildTaskRows(list);
     return (
       <table className={styles.table}>
         <thead>
@@ -207,51 +238,89 @@ function TodoPageInner() {
           </tr>
         </thead>
         <tbody>
-          {list.map((task) => (
-            <tr key={task.id}>
-              <td>
-                <span
-                  className={
-                    task.category === "PRESCRIPTION"
-                      ? styles.categoryBadgePrescription
-                      : styles.categoryBadgeTalk
-                  }
-                >
-                  {CATEGORY_LABEL[task.category]}
-                </span>
-              </td>
-              <td>
-                <button
-                  type="button"
-                  className={styles.patientNameButton}
-                  onClick={() => setHistoryPatient(task.patient)}
-                >
-                  {task.patient.name}
-                </button>
-              </td>
-              <td>
-                {task.program ? <CategoryBadge id={task.program.id} name={task.program.name} /> : "-"}
-              </td>
-              <td>
-                <span className={taskTypeBadgeClass(task.taskType)}>
-                  {TASK_TYPE_ICON[task.taskType] ?? ""} {TASK_TYPE_LABEL[task.taskType] ?? task.taskType}
-                </span>
-              </td>
-              {showDueBadge && (
+          {rows.map((row) => {
+            if (row.kind === "group") {
+              const { group } = row;
+              const unresolvedCount = group.tasks.filter((t) => !t.isDone && !t.skippedAt).length;
+              return (
+                <tr key={`group-${group.key}`}>
+                  <td>
+                    <span className={styles.categoryBadgeTalk}>{CATEGORY_LABEL.TALK}</span>
+                  </td>
+                  <td>
+                    <button
+                      type="button"
+                      className={styles.patientNameButton}
+                      onClick={() => setHistoryPatient(group.patient)}
+                    >
+                      {group.patient.name}
+                    </button>
+                  </td>
+                  <td>{group.programLabels.length > 0 ? group.programLabels.join(", ") : "-"}</td>
+                  <td>
+                    <span className={styles.taskTypeBadgeTalk}>💬 톡 후보 {group.tasks.length}건</span>
+                  </td>
+                  {showDueBadge && (
+                    <td>
+                      <span className={styles.overdueBadge}>
+                        {overdueLabel(earliestTask(group.tasks), referenceDate)}
+                      </span>
+                    </td>
+                  )}
+                  <td>{staffLabel(group.tasks)}</td>
+                  <td>
+                    <span className={styles.actionsCell}>
+                      {unresolvedCount === 0 ? (
+                        <span className={styles.doneLabel}>완료</span>
+                      ) : (
+                        <span className={styles.muted}>미완료 {unresolvedCount}건</span>
+                      )}
+                      <button
+                        className={styles.talkGenerateButton}
+                        type="button"
+                        onClick={() => handleManageTalk(group.patient.id)}
+                      >
+                        톡 관리
+                      </button>
+                    </span>
+                  </td>
+                </tr>
+              );
+            }
+
+            const task = row.task;
+            return (
+              <tr key={task.id}>
                 <td>
-                  <span className={styles.overdueBadge}>{overdueLabel(task, referenceDate)}</span>
+                  <span className={styles.categoryBadgePrescription}>{CATEGORY_LABEL.PRESCRIPTION}</span>
                 </td>
-              )}
-              <td>{task.staffUser?.name ?? "미배정"}</td>
-              <td>
-                {task.isDone ? (
-                  <span className={styles.doneLabel}>완료 ({task.doneByUser?.name ?? "-"})</span>
-                ) : task.skippedAt ? (
-                  <span className={styles.skippedLabel}>
-                    보류됨 ({task.skippedByUser?.name ?? "-"})
+                <td>
+                  <button
+                    type="button"
+                    className={styles.patientNameButton}
+                    onClick={() => setHistoryPatient(task.patient)}
+                  >
+                    {task.patient.name}
+                  </button>
+                </td>
+                <td>
+                  {task.program ? <CategoryBadge id={task.program.id} name={task.program.name} /> : "-"}
+                </td>
+                <td>
+                  <span className={taskTypeBadgeClass(task.taskType)}>
+                    {TASK_TYPE_ICON[task.taskType] ?? ""} {TASK_TYPE_LABEL[task.taskType] ?? task.taskType}
                   </span>
-                ) : (
-                  <span className={styles.actionsCell}>
+                </td>
+                {showDueBadge && (
+                  <td>
+                    <span className={styles.overdueBadge}>{overdueLabel(task, referenceDate)}</span>
+                  </td>
+                )}
+                <td>{task.staffUser?.name ?? "미배정"}</td>
+                <td>
+                  {task.isDone ? (
+                    <span className={styles.doneLabel}>완료 ({task.doneByUser?.name ?? "-"})</span>
+                  ) : (
                     <span className={styles.submitWrap}>
                       <button
                         className={styles.checkButton}
@@ -262,29 +331,11 @@ function TodoPageInner() {
                       </button>
                       {stampTaskId === task.id && <SealStamp key={task.id} />}
                     </span>
-                    {task.category === "TALK" && SKIPPABLE_TASK_TYPES.includes(task.taskType) && (
-                      <button
-                        className={styles.skipButton}
-                        type="button"
-                        onClick={() => handleCheck(task, "SKIPPED")}
-                      >
-                        {skippingTaskId === task.id ? "보류함" : "보류"}
-                      </button>
-                    )}
-                    {task.category === "TALK" && (
-                      <button
-                        className={styles.talkGenerateButton}
-                        type="button"
-                        onClick={() => handleGenerateTalk(task)}
-                      >
-                        톡생성 하기
-                      </button>
-                    )}
-                  </span>
-                )}
-              </td>
-            </tr>
-          ))}
+                  )}
+                </td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     );
