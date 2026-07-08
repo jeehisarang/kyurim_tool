@@ -94,7 +94,6 @@ function VisitCheckPageInner() {
 
   const [categoryId, setCategoryId] = useState<string>("");
   const [visitTypeId, setVisitTypeId] = useState<string>("");
-  const [isReserved, setIsReserved] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [stampKey, setStampKey] = useState(0);
@@ -106,9 +105,9 @@ function VisitCheckPageInner() {
   const [editingVisitId, setEditingVisitId] = useState<number | null>(null);
   const [editVisitCategoryId, setEditVisitCategoryId] = useState("");
   const [editVisitTypeId, setEditVisitTypeId] = useState("");
-  const [editVisitIsReserved, setEditVisitIsReserved] = useState(false);
   const [editVisitSaving, setEditVisitSaving] = useState(false);
   const [editVisitError, setEditVisitError] = useState<string | null>(null);
+  const [togglingReservedId, setTogglingReservedId] = useState<number | null>(null);
 
   useEffect(() => {
     setCurrentUserIdState(getCurrentUserId());
@@ -165,7 +164,6 @@ function VisitCheckPageInner() {
     setSelectedPatient(null);
     setCategoryId("");
     setVisitTypeId("");
-    setIsReserved(false);
     setPatientEditOpen(false);
   }
 
@@ -251,7 +249,9 @@ function VisitCheckPageInner() {
           patientId: selectedPatient.id,
           treatmentCategoryId: Number(categoryId),
           visitTypeId: Number(visitTypeId),
-          isReserved,
+          // 예약여부는 접수 시점이 아니라 진료 종료 후 목록에서 별도로 체크한다 —
+          // 접수 시점엔 항상 예약안함(false)으로 저장.
+          isReserved: false,
           checkedByUserId: getCurrentUserId(),
           visitDate: toDateParam(selectedDate),
         }),
@@ -273,7 +273,6 @@ function VisitCheckPageInner() {
     setEditingVisitId(v.id);
     setEditVisitCategoryId(String(v.treatmentCategory.id));
     setEditVisitTypeId(String(v.visitType.id));
-    setEditVisitIsReserved(v.isReserved);
     setEditVisitError(null);
   }
 
@@ -292,7 +291,6 @@ function VisitCheckPageInner() {
         body: JSON.stringify({
           treatmentCategoryId: Number(editVisitCategoryId),
           visitTypeId: Number(editVisitTypeId),
-          isReserved: editVisitIsReserved,
         }),
       });
       const data = await res.json();
@@ -304,6 +302,22 @@ function VisitCheckPageInner() {
       setEditingVisitId(null);
     } finally {
       setEditVisitSaving(false);
+    }
+  }
+
+  async function handleToggleReserved(v: VisitRecord) {
+    setTogglingReservedId(v.id);
+    try {
+      const res = await fetch(`/api/visits/${v.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isReserved: !v.isReserved }),
+      });
+      const data = await res.json();
+      if (!res.ok) return;
+      setVisits((prev) => prev.map((item) => (item.id === v.id ? data : item)));
+    } finally {
+      setTogglingReservedId(null);
     }
   }
 
@@ -510,15 +524,6 @@ function VisitCheckPageInner() {
                   ))}
                 </select>
               </label>
-
-              <label>
-                <input
-                  type="checkbox"
-                  checked={isReserved}
-                  onChange={(e) => setIsReserved(e.target.checked)}
-                />{" "}
-                예약함
-              </label>
             </div>
 
             {submitError && <p className={styles.errorText}>{submitError}</p>}
@@ -565,7 +570,16 @@ function VisitCheckPageInner() {
                     <td>
                       <VisitTypeTag name={v.visitType.name} />
                     </td>
-                    <td>{v.isReserved ? "예약함" : "예약안함"}</td>
+                    <td>
+                      <button
+                        type="button"
+                        className={v.isReserved ? styles.reservedButtonOn : styles.reservedButtonOff}
+                        onClick={() => handleToggleReserved(v)}
+                        disabled={togglingReservedId === v.id}
+                      >
+                        {v.isReserved ? "예약함" : "예약안함"}
+                      </button>
+                    </td>
                     <td>{v.checkedByUser?.name ?? "-"}</td>
                     <td>
                       <button
@@ -632,14 +646,6 @@ function VisitCheckPageInner() {
                               </option>
                             ))}
                           </select>
-                          <label>
-                            <input
-                              type="checkbox"
-                              checked={editVisitIsReserved}
-                              onChange={(e) => setEditVisitIsReserved(e.target.checked)}
-                            />{" "}
-                            예약함
-                          </label>
                           <button
                             type="button"
                             className={styles.editButton}

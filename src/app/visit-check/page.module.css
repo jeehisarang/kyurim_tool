@@ -358,3 +358,37 @@
 .noteToggleButton:hover {
   background: rgba(110, 148, 140, 0.1);
 }
+
+/* 예약여부는 접수 시점이 아닌 진료 종료 후 체크하는 항목 — 기존 시트의 색상 관습(초록/빨강)과
+   일치하게, 기본(예약안함)은 빨강 계열, 예약함은 초록 계열로 구분한다. */
+.reservedButtonOff,
+.reservedButtonOn {
+  border: 1px solid transparent;
+  border-radius: 4px;
+  padding: 3px 10px;
+  font-size: 12px;
+  font-family: var(--font-body);
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.reservedButtonOff {
+  border-color: var(--color-seal);
+  background: rgba(179, 60, 46, 0.08);
+  color: var(--color-seal);
+}
+
+.reservedButtonOff:hover {
+  background: rgba(179, 60, 46, 0.16);
+}
+
+.reservedButtonOn {
+  border-color: var(--color-celadon);
+  background: rgba(110, 148, 140, 0.15);
+  color: var(--color-celadon-dark);
+}
+
+.reservedButtonOn:hover {
+  background: rgba(110, 148, 140, 0.25);
+}

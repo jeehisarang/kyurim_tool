@@ -29,12 +29,7 @@ export async function POST(request: Request) {
   const body = await request.json();
   const { patientId, treatmentCategoryId, visitTypeId, isReserved, checkedByUserId, visitDate } = body;
 
-  if (
-    !patientId ||
-    !treatmentCategoryId ||
-    !visitTypeId ||
-    typeof isReserved !== "boolean"
-  ) {
+  if (!patientId || !treatmentCategoryId || !visitTypeId) {
     return NextResponse.json(
       { error: "필수 항목이 누락되었습니다." },
       { status: 400 },
@@ -46,12 +41,14 @@ export async function POST(request: Request) {
   const normalizedVisitDate =
     typeof visitDate === "string" ? parseDateParam(visitDate) : startOfToday();
 
+  // 예약여부는 접수 시점이 아니라 진료 종료 후 목록에서 별도로 체크하는 값이라, 접수 시점엔
+  // 항상 예약안함(false)으로 저장한다 — 값이 안 넘어와도 기본값 false를 보장.
   const visit = await prisma.visit.create({
     data: {
       patientId: Number(patientId),
       treatmentCategoryId: Number(treatmentCategoryId),
       visitTypeId: Number(visitTypeId),
-      isReserved,
+      isReserved: isReserved === true,
       visitDate: normalizedVisitDate,
       checkedByUserId: typeof checkedByUserId === "number" ? checkedByUserId : null,
     },

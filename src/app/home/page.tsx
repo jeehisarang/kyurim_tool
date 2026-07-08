@@ -1,13 +1,21 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import Link from "next/link";
+import { Suspense, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import styles from "./page.module.css";
-import { TALK_MESSAGE_TYPE_LABEL, TRIAL_TASK_TYPE_LABEL } from "@/lib/message-templates";
 import CategoryBadge from "@/components/CategoryBadge";
 import VisitTypeTag from "@/components/VisitTypeTag";
+import NavTiles from "@/components/NavTiles";
+import PatientHistoryModal from "@/components/PatientHistoryModal";
+import TodoTaskTable, {
+  buildTaskRows,
+  isRowResolved,
+  splitByDateScope,
+  type Patient,
+  type TodoTask,
+} from "@/components/TodoTaskTable";
+import { getCurrentUserId } from "@/lib/currentUser";
 
-type Patient = { id: number; chartNumber: string; name: string };
 type TreatmentCategory = { id: number; name: string };
 type VisitType = { id: number; name: string };
 type StaffUser = { id: number; name: string; role: string };
@@ -19,35 +27,6 @@ type VisitRecord = {
   visitType: VisitType;
   checkedByUser: StaffUser | null;
 };
-
-type Program = { id: number; name: string };
-type TodoCategory = "PRESCRIPTION" | "TALK";
-type TodoTask = {
-  id: number;
-  category: TodoCategory;
-  taskType: string;
-  dueDate: string;
-  patient: Patient;
-  program: Program | null;
-  staffUser: StaffUser | null;
-  isDone: boolean;
-  doneByUser: StaffUser | null;
-  skippedAt: string | null;
-  skippedByUser: StaffUser | null;
-};
-const TASK_TYPE_LABEL: Record<string, string> = {
-  NEXT_DOSE: "다음 처방일",
-  FOLLOW_UP: "후속조치",
-  ...TALK_MESSAGE_TYPE_LABEL,
-  ...TRIAL_TASK_TYPE_LABEL,
-};
-
-const CATEGORY_LABEL: Record<TodoCategory, string> = {
-  PRESCRIPTION: "처방",
-  TALK: "톡",
-};
-
-const TODO_PREVIEW_COUNT = 5;
 
 type DailyStat = {
   date: string;
@@ -67,6 +46,7 @@ type MonthlyDailyStats = {
 
 const WEEKDAY_LABELS = ["일", "월", "화", "수", "목", "금", "토"];
 const WEEKDAY_FULL_LABELS = ["일요일", "월요일", "화요일", "수요일", "목요일", "금요일", "토요일"];
+const CALENDAR_STRIP_DAYS = 14;
 
 function formatPercent(rate: number): string {
   return `${(rate * 100).toFixed(1)}%`;
@@ -86,10 +66,6 @@ function isSameDate(a: Date, b: Date): boolean {
     a.getMonth() === b.getMonth() &&
     a.getDate() === b.getDate()
   );
-}
-
-function isOverdueTask(task: TodoTask, referenceDate: Date): boolean {
-  return startOfDay(new Date(task.dueDate)) < startOfDay(referenceDate);
 }
 
 function toDateParam(date: Date): string {
@@ -123,10 +99,24 @@ function cellBackground(d: DailyStat): string | undefined {
 }
 
 export default function HomePage() {
+  return (
+    <Suspense fallback={null}>
+      <HomePageInner />
+    </Suspense>
+  );
+}
+
+function HomePageInner() {
+  const router = useRouter();
   const [selectedDate, setSelectedDate] = useState(() => startOfDay(new Date()));
   const [monthly, setMonthly] = useState<MonthlyDailyStats | null>(null);
   const [selectedVisits, setSelectedVisits] = useState<VisitRecord[] | null>(null);
   const [todoTasks, setTodoTasks] = useState<TodoTask[] | null>(null);
+  const [refreshKey, setRefreshKey] = useState(0);
+  const [stampTaskId, setStampTaskId] = useState<number | null>(null);
+  const [historyPatient, setHistoryPatient] = useState<Patient | null>(null);
+  const [calendarExpanded, setCalendarExpanded] = useState(false);
+  const [showResolved, setShowResolved] = useState(false);
 
   useEffect(() => {
     fetch("/api/dashboard/daily")
@@ -146,7 +136,40 @@ export default function HomePage() {
     fetch(`/api/todo-tasks?date=${toDateParam(selectedDate)}`)
       .then((res) => res.json())
       .then(setTodoTasks);
+  }, [selectedDate, refreshKey]);
+
+  // 날짜를 옮기면 "완료된 항목 보기" 펼침 상태를 초기화한다 (체크 후 재조회 때는 유지 —
+  // 방금 완료 처리한 걸 보고 있는 도중에 패널이 갑자기 접히면 안 됨).
+  useEffect(() => {
+    setShowResolved(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedDate]);
+
+  async function handleCheck(task: TodoTask) {
+    const doneByUserId = getCurrentUserId();
+    if (!doneByUserId) {
+      alert("상단에서 현재 사용자를 먼저 선택하세요.");
+      return;
+    }
+
+    await fetch(`/api/todo-tasks/${task.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ doneByUserId, action: "DONE" }),
+    });
+
+    setStampTaskId(task.id);
+    setRefreshKey((k) => k + 1);
+  }
+
+  function handleManageTalk(patientId: number) {
+    const params = new URLSearchParams({
+      talkGroup: "1",
+      patientId: String(patientId),
+      date: toDateParam(selectedDate),
+    });
+    router.push(`/messages?${params.toString()}`);
+  }
 
   const selectedVisitCount = selectedVisits?.length ?? 0;
   const selectedReservationRate =
@@ -161,19 +184,34 @@ export default function HomePage() {
 
   const leadingBlanks = monthly ? new Date(monthly.year, monthly.month - 1, 1).getDay() : 0;
 
-  const todoPreview = todoTasks
-    ? [
-        ...todoTasks.filter((t) => !isOverdueTask(t, selectedDate)),
-        ...todoTasks.filter((t) => isOverdueTask(t, selectedDate)),
-      ].slice(0, TODO_PREVIEW_COUNT)
+  // 접힌 상태에서는 오늘까지 발생한(미래 아닌) 날짜 중 최근 것만 최대 14일 보여준다.
+  // 새 API 없이 이번달 daily 데이터 범위 안에서만 구성 — 월초라면 그만큼 적게 표시된다.
+  const stripDays = monthly
+    ? monthly.daily.filter((d) => !(isCurrentMonth && d.day > todayDayOfMonth)).slice(-CALENDAR_STRIP_DAYS)
     : [];
 
-  const todoDoneCount = todoTasks?.filter((t) => t.isDone).length ?? 0;
-  const todoTotalCount = todoTasks?.length ?? 0;
-  const isTodoPreviewToday = isSameDate(selectedDate, startOfDay(new Date()));
-  const todoPreviewTitle = isTodoPreviewToday
-    ? "오늘 할 일 미리보기"
-    : `${selectedDate.getMonth() + 1}월 ${selectedDate.getDate()}일 할 일 미리보기`;
+  // /todo와 동일한 스코프(밀린 할 일 중 미완료만 + 선택 날짜의 할 일)로 좁힌다 — 원본
+  // /api/todo-tasks 응답은 완료 여부와 무관하게 dueDate < 선택일 전부를 반환하므로,
+  // 그대로 쓰면 과거에 이미 완료된 건까지 섞여 나온다(실사용 버그로 확인됨).
+  const { overdueUnresolved, dueOnDate } = splitByDateScope(todoTasks ?? [], selectedDate);
+  const scopedTodoTasks = [...overdueUnresolved, ...dueOnDate];
+  const todoDoneCount = scopedTodoTasks.filter((t) => t.isDone).length;
+  const todoTotalCount = scopedTodoTasks.length;
+
+  // 완료된 항목(행 기준 — 톡 그룹은 그룹 내 전부 완료/보류일 때만 완료로 침)은 기본적으로
+  // 접어두고, "완료된 항목 보기" 토글로만 펼친다. 미완료 항목은 항상 노출한다.
+  const todoRows = buildTaskRows(scopedTodoTasks);
+  const unresolvedRows = todoRows.filter((row) => !isRowResolved(row));
+  const resolvedRows = todoRows.filter((row) => isRowResolved(row));
+  const rowTasks = (row: (typeof todoRows)[number]) =>
+    row.kind === "single" ? [row.task] : row.group.tasks;
+  const unresolvedTasks = unresolvedRows.flatMap(rowTasks);
+  const resolvedTasks = resolvedRows.flatMap(rowTasks);
+
+  const isToday = isSameDate(selectedDate, startOfDay(new Date()));
+  const todoSectionTitle = isToday
+    ? "오늘 할 일"
+    : `${selectedDate.getMonth() + 1}월 ${selectedDate.getDate()}일 할 일`;
 
   function selectDay(day: number) {
     if (!monthly) return;
@@ -233,55 +271,158 @@ export default function HomePage() {
 
           <div className={styles.section}>
             <div className={styles.sectionTitle}>
-              이번달 흐름 ({monthly.year}.{String(monthly.month).padStart(2, "0")})
+              {todoSectionTitle} ({todoTotalCount}건)
             </div>
 
-            <div className={styles.calendarGrid}>
-              {WEEKDAY_LABELS.map((label) => (
-                <div key={label} className={styles.weekdayLabel}>
-                  {label}
+            {todoTasks !== null && todoRows.length === 0 && (
+              <p className={styles.muted}>처리할 항목이 없습니다.</p>
+            )}
+            {todoRows.length > 0 && (
+              <>
+                <div className={styles.weeklyHeader}>
+                  <span>
+                    오늘 할 일 처리 현황: {todoTotalCount}건 중 {todoDoneCount}건 완료
+                  </span>
                 </div>
-              ))}
+                <div className={styles.progressTrack}>
+                  <div
+                    className={styles.progressFill}
+                    style={{
+                      width: `${Math.min(100, (todoDoneCount / todoTotalCount) * 100)}%`,
+                    }}
+                  />
+                </div>
 
-              {Array.from({ length: leadingBlanks }).map((_, i) => (
-                <div key={`blank-${i}`} className={styles.dayCellBlank} />
-              ))}
+                {unresolvedRows.length === 0 ? (
+                  <p className={styles.allDoneBanner}>오늘 할 일을 모두 처리했습니다 🎉</p>
+                ) : (
+                  <TodoTaskTable
+                    tasks={unresolvedTasks}
+                    referenceDate={selectedDate}
+                    showDueBadge
+                    stampTaskId={stampTaskId}
+                    onCheck={handleCheck}
+                    onManageTalk={handleManageTalk}
+                    onPatientClick={setHistoryPatient}
+                  />
+                )}
 
-              {monthly.daily.map((d) => {
-                const isFuture = isCurrentMonth ? d.day > todayDayOfMonth : true;
-                const isToday = isCurrentMonth && d.day === todayDayOfMonth;
-                const isSelected =
-                  monthly.year === selectedDate.getFullYear() &&
-                  monthly.month === selectedDate.getMonth() + 1 &&
-                  d.day === selectedDate.getDate();
+                {resolvedRows.length > 0 && (
+                  <>
+                    <button
+                      type="button"
+                      className={styles.resolvedToggleButton}
+                      onClick={() => setShowResolved((v) => !v)}
+                    >
+                      {showResolved ? "완료된 항목 접기" : `완료된 항목 보기 (${resolvedRows.length}건)`}
+                    </button>
+                    {showResolved && (
+                      <TodoTaskTable
+                        tasks={resolvedTasks}
+                        referenceDate={selectedDate}
+                        showDueBadge
+                        stampTaskId={stampTaskId}
+                        onCheck={handleCheck}
+                        onManageTalk={handleManageTalk}
+                        onPatientClick={setHistoryPatient}
+                      />
+                    )}
+                  </>
+                )}
+              </>
+            )}
+          </div>
 
-                if (isFuture) {
+          <div className={styles.section}>
+            <div className={styles.sectionTitle}>바로가기</div>
+            <NavTiles />
+          </div>
+
+          <div className={styles.section}>
+            <div className={styles.sectionTitleRow}>
+              <div className={styles.sectionTitle}>
+                이번달 흐름 ({monthly.year}.{String(monthly.month).padStart(2, "0")})
+              </div>
+              <button
+                type="button"
+                className={styles.calendarToggleButton}
+                onClick={() => setCalendarExpanded((v) => !v)}
+              >
+                {calendarExpanded ? "접기" : "펼쳐보기"}
+              </button>
+            </div>
+
+            {!calendarExpanded && (
+              <div className={styles.miniStrip}>
+                {stripDays.map((d) => {
+                  const isToday = isCurrentMonth && d.day === todayDayOfMonth;
+                  const isSelected =
+                    monthly.year === selectedDate.getFullYear() &&
+                    monthly.month === selectedDate.getMonth() + 1 &&
+                    d.day === selectedDate.getDate();
                   return (
                     <div
                       key={d.date}
-                      className={`${styles.dayCell} ${styles.dayCellFuture} ${isSelected ? styles.dayCellSelected : ""}`}
+                      className={`${styles.miniCell} ${isToday ? styles.miniCellToday : ""} ${isSelected ? styles.miniCellSelected : ""}`}
+                      style={{ background: cellBackground(d) }}
+                      onClick={() => selectDay(d.day)}
+                      title={`${d.day}일 · ${d.visitCount}건`}
+                    >
+                      <span className={styles.miniCellDay}>{d.day}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {calendarExpanded && (
+              <div className={styles.calendarGrid}>
+                {WEEKDAY_LABELS.map((label) => (
+                  <div key={label} className={styles.weekdayLabel}>
+                    {label}
+                  </div>
+                ))}
+
+                {Array.from({ length: leadingBlanks }).map((_, i) => (
+                  <div key={`blank-${i}`} className={styles.dayCellBlank} />
+                ))}
+
+                {monthly.daily.map((d) => {
+                  const isFuture = isCurrentMonth ? d.day > todayDayOfMonth : true;
+                  const isToday = isCurrentMonth && d.day === todayDayOfMonth;
+                  const isSelected =
+                    monthly.year === selectedDate.getFullYear() &&
+                    monthly.month === selectedDate.getMonth() + 1 &&
+                    d.day === selectedDate.getDate();
+
+                  if (isFuture) {
+                    return (
+                      <div
+                        key={d.date}
+                        className={`${styles.dayCell} ${styles.dayCellFuture} ${isSelected ? styles.dayCellSelected : ""}`}
+                        onClick={() => selectDay(d.day)}
+                      >
+                        <span className={styles.dayNumber}>{d.day}</span>
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div
+                      key={d.date}
+                      className={`${styles.dayCell} ${isToday ? styles.dayCellToday : ""} ${isSelected ? styles.dayCellSelected : ""}`}
+                      style={{ background: cellBackground(d) }}
                       onClick={() => selectDay(d.day)}
                     >
                       <span className={styles.dayNumber}>{d.day}</span>
+                      <span className={styles.dayValue}>
+                        {d.visitCount > 0 ? `${d.visitCount}건` : "-"}
+                      </span>
                     </div>
                   );
-                }
-
-                return (
-                  <div
-                    key={d.date}
-                    className={`${styles.dayCell} ${isToday ? styles.dayCellToday : ""} ${isSelected ? styles.dayCellSelected : ""}`}
-                    style={{ background: cellBackground(d) }}
-                    onClick={() => selectDay(d.day)}
-                  >
-                    <span className={styles.dayNumber}>{d.day}</span>
-                    <span className={styles.dayValue}>
-                      {d.visitCount > 0 ? `${d.visitCount}건` : "-"}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
+                })}
+              </div>
+            )}
           </div>
 
           <div className={styles.section}>
@@ -323,82 +464,15 @@ export default function HomePage() {
               </table>
             )}
           </div>
-
-          <div className={styles.section}>
-            <div className={styles.sectionTitle}>{todoPreviewTitle}</div>
-
-            {todoTasks !== null && todoTasks.length === 0 && (
-              <p className={styles.muted}>처리할 항목이 없습니다.</p>
-            )}
-            {todoTasks && todoTasks.length > 0 && (
-              <>
-                <div className={styles.weeklyHeader}>
-                  <span>처리 현황</span>
-                  <span className={styles.weeklyValue}>
-                    {todoDoneCount}/{todoTotalCount}건
-                  </span>
-                </div>
-                <div className={styles.progressTrack}>
-                  <div
-                    className={styles.progressFill}
-                    style={{
-                      width: `${Math.min(100, (todoDoneCount / todoTotalCount) * 100)}%`,
-                    }}
-                  />
-                </div>
-
-                <table className={styles.table}>
-                <thead>
-                  <tr>
-                    <th>구분</th>
-                    <th>환자명</th>
-                    <th>할일종류</th>
-                    <th>담당자</th>
-                    <th>완료여부</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {todoPreview.map((task) => (
-                    <tr key={task.id}>
-                      <td>
-                        <span
-                          className={
-                            task.category === "PRESCRIPTION"
-                              ? styles.categoryBadgePrescription
-                              : styles.categoryBadgeTalk
-                          }
-                        >
-                          {CATEGORY_LABEL[task.category]}
-                        </span>
-                      </td>
-                      <td>{task.patient.name}</td>
-                      <td>{TASK_TYPE_LABEL[task.taskType] ?? task.taskType}</td>
-                      <td>{task.staffUser?.name ?? "미배정"}</td>
-                      <td>
-                        {task.isDone ? (
-                          <span className={styles.doneLabel}>
-                            완료 ({task.doneByUser?.name ?? "-"})
-                          </span>
-                        ) : task.skippedAt ? (
-                          <span className={styles.skippedLabel}>
-                            보류됨 ({task.skippedByUser?.name ?? "-"})
-                          </span>
-                        ) : (
-                          "미완료"
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-                </table>
-              </>
-            )}
-
-            <Link href={`/todo?date=${toDateParam(selectedDate)}`} className={styles.moreLink}>
-              더보기 →
-            </Link>
-          </div>
         </>
+      )}
+
+      {historyPatient && (
+        <PatientHistoryModal
+          patientId={historyPatient.id}
+          patientName={historyPatient.name}
+          onClose={() => setHistoryPatient(null)}
+        />
       )}
     </div>
   );
