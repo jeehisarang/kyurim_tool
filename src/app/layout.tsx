@@ -1,9 +1,6 @@
 import type { Metadata } from "next";
 import { Noto_Serif_KR, Noto_Sans_KR, IBM_Plex_Mono } from "next/font/google";
-import Sidebar from "@/components/Sidebar";
-import CurrentUserBadge from "@/components/CurrentUserBadge";
-import { CurrentUserProvider } from "@/lib/CurrentUserContext";
-import styles from "./layout.module.css";
+import AppShell from "@/components/AppShell";
 import "./globals.css";
 
 const notoSerifKR = Noto_Serif_KR({
@@ -40,15 +37,7 @@ export default function RootLayout({
       className={`${notoSerifKR.variable} ${notoSansKR.variable} ${ibmPlexMono.variable}`}
     >
       <body>
-        <CurrentUserProvider>
-          <div className={styles.shell}>
-            <Sidebar />
-            <main className={styles.main}>
-              <CurrentUserBadge />
-              {children}
-            </main>
-          </div>
-        </CurrentUserProvider>
+        <AppShell>{children}</AppShell>
       </body>
     </html>
   );

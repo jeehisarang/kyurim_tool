@@ -4,11 +4,41 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import styles from "./page.module.css";
 import SealStamp from "@/components/SealStamp";
+import NewPatientForm from "@/components/NewPatientForm";
+import ProgramBadge from "@/components/ProgramBadge";
 import { getCurrentUserId } from "@/lib/currentUser";
 import SurveyResponsePickerModal, {
   type SurveyResponseCache,
 } from "@/components/SurveyResponsePickerModal";
 import { formatSurveyResponseText } from "@/lib/survey-response-format";
+import {
+  getProgramBadgeInfo,
+  getProgramCategory,
+  PROGRAM_CATEGORY_GROUP_LABEL,
+  PROGRAM_CATEGORY_ICON,
+  PROGRAM_CATEGORY_ORDER,
+} from "@/lib/program-categories";
+
+// <option>은 HTML/굵기 표현이 안 되므로 "[아이콘] 대분류 · 기간" 형식을 평문으로 구성한다.
+function programOptionLabel(program: Program): string {
+  const category = getProgramCategory(program.name);
+  const icon = category ? PROGRAM_CATEGORY_ICON[category] : null;
+  const badgeInfo = getProgramBadgeInfo(program.name);
+  const label = badgeInfo ? `${badgeInfo.family} · ${badgeInfo.period}` : program.name;
+  return icon ? `${icon} ${label}` : label;
+}
+
+// 등록 폼 드롭다운은 탕약 → 환약 → 킬팻캡슐 순서를 고정한다(PROGRAM_CATEGORY_ORDER).
+// 어느 카테고리에도 매핑되지 않은 프로그램(현재는 없음)은 방어적으로 마지막 "기타" 그룹에 둔다.
+function groupProgramsByCategory(programs: Program[]): { label: string; programs: Program[] }[] {
+  const groups = PROGRAM_CATEGORY_ORDER.map((key) => ({
+    label: PROGRAM_CATEGORY_GROUP_LABEL[key],
+    programs: programs.filter((p) => getProgramCategory(p.name) === key),
+  }));
+  const uncategorized = programs.filter((p) => getProgramCategory(p.name) === null);
+  if (uncategorized.length > 0) groups.push({ label: "기타", programs: uncategorized });
+  return groups.filter((g) => g.programs.length > 0);
+}
 
 type Patient = { id: number; chartNumber: string; name: string };
 type Program = { id: number; name: string; type: string };
@@ -21,6 +51,15 @@ function formatDate(iso: string): string {
   return `${d.getFullYear()}.${d.getMonth() + 1}.${d.getDate()}`;
 }
 
+function toDateParam(date: Date): string {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
+const TODAY_PARAM = toDateParam(new Date());
+
 export default function NewPrescriptionPage() {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<Patient[] | null>(null);
@@ -31,6 +70,8 @@ export default function NewPrescriptionPage() {
   const [staffUsers, setStaffUsers] = useState<StaffUser[]>([]);
   const [programId, setProgramId] = useState("");
   const [staffUserId, setStaffUserId] = useState("");
+  // 처방 시작일(소급 입력 가능) — 기본값 오늘, 미래 날짜는 선택 불가.
+  const [startDate, setStartDate] = useState(TODAY_PARAM);
   const [surveyDataJson, setSurveyDataJson] = useState("");
   const [surveyResponseCacheId, setSurveyResponseCacheId] = useState<number | null>(null);
   const [showSurveyPicker, setShowSurveyPicker] = useState(false);
@@ -40,6 +81,7 @@ export default function NewPrescriptionPage() {
   const [stampKey, setStampKey] = useState(0);
   const [lastRegistered, setLastRegistered] = useState<{
     patientName: string;
+    programId: number;
     programName: string;
     startDate: string;
   } | null>(null);
@@ -80,6 +122,7 @@ export default function NewPrescriptionPage() {
   function clearSelectedPatient() {
     setSelectedPatient(null);
     setProgramId("");
+    setStartDate(TODAY_PARAM);
     setSurveyDataJson("");
     setSurveyResponseCacheId(null);
   }
@@ -100,6 +143,10 @@ export default function NewPrescriptionPage() {
       setSubmitError("환자, 프로그램, 담당자를 모두 선택하세요.");
       return;
     }
+    if (startDate > TODAY_PARAM) {
+      setSubmitError("시작일은 미래 날짜를 선택할 수 없습니다.");
+      return;
+    }
     setSubmitting(true);
     try {
       const res = await fetch("/api/prescriptions", {
@@ -109,6 +156,7 @@ export default function NewPrescriptionPage() {
           patientId: selectedPatient.id,
           programId: Number(programId),
           staffUserId: Number(staffUserId),
+          startDate,
           surveyDataJson: isTrialSurveyProgram ? surveyDataJson : undefined,
           surveyResponseCacheId: isTrialSurveyProgram ? surveyResponseCacheId ?? undefined : undefined,
         }),
@@ -121,10 +169,12 @@ export default function NewPrescriptionPage() {
       // 환자는 그대로 유지 — 같은 환자를 다른 프로그램에 바로 이어서 등록할 수 있게(중복 등록 흐름).
       setLastRegistered({
         patientName: selectedPatient.name,
+        programId: selectedProgram?.id ?? 0,
         programName: selectedProgram?.name ?? "",
         startDate: data.startDate,
       });
       setProgramId("");
+      setStartDate(TODAY_PARAM);
       setSurveyDataJson("");
       setSurveyResponseCacheId(null);
       setStampKey((k) => k + 1);
@@ -145,7 +195,8 @@ export default function NewPrescriptionPage() {
       {lastRegistered && (
         <div className={styles.successBanner}>
           ✅ 처방이 등록되었습니다 — <strong>{lastRegistered.patientName}</strong>님 ·{" "}
-          {lastRegistered.programName} ({formatDate(lastRegistered.startDate)} 시작)
+          <ProgramBadge id={lastRegistered.programId} name={lastRegistered.programName} /> (
+          {formatDate(lastRegistered.startDate)} 시작)
         </div>
       )}
 
@@ -179,6 +230,8 @@ export default function NewPrescriptionPage() {
             {results !== null && results.length === 0 && (
               <p className={styles.muted}>검색 결과가 없습니다.</p>
             )}
+
+            <NewPatientForm onCreated={selectPatient} />
           </>
         )}
 
@@ -204,10 +257,14 @@ export default function NewPrescriptionPage() {
                 프로그램{" "}
                 <select value={programId} onChange={(e) => setProgramId(e.target.value)}>
                   <option value="">선택</option>
-                  {programs.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.name}
-                    </option>
+                  {groupProgramsByCategory(programs).map((group) => (
+                    <optgroup key={group.label} label={group.label}>
+                      {group.programs.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {programOptionLabel(p)}
+                        </option>
+                      ))}
+                    </optgroup>
                   ))}
                 </select>
               </label>
@@ -222,6 +279,16 @@ export default function NewPrescriptionPage() {
                     </option>
                   ))}
                 </select>
+              </label>
+
+              <label>
+                시작일{" "}
+                <input
+                  type="date"
+                  value={startDate}
+                  max={TODAY_PARAM}
+                  onChange={(e) => setStartDate(e.target.value)}
+                />
               </label>
             </div>
 

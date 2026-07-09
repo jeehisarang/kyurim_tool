@@ -1,0 +1,69 @@
+.page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-hanji-bg);
+  padding: 48px 24px;
+}
+
+.card {
+  width: 100%;
+  max-width: 640px;
+  background: var(--color-hanji-card);
+  border: 1px solid rgba(110, 148, 140, 0.35);
+  border-radius: 12px;
+  box-shadow: 0 4px 16px rgba(43, 39, 35, 0.08);
+  padding: 48px 44px;
+}
+
+.title {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 34px;
+  color: var(--color-ink);
+  text-align: center;
+  margin-bottom: 8px;
+}
+
+.subtitle {
+  text-align: center;
+  font-size: 17px;
+  color: var(--color-celadon-dark);
+  margin-bottom: 36px;
+}
+
+.footerRow {
+  display: flex;
+  justify-content: center;
+  margin-top: 44px;
+}
+
+.closeButton {
+  border: 1px solid rgba(110, 148, 140, 0.3);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--color-ink);
+  opacity: 0.5;
+  padding: 5px 14px;
+  font-size: 12px;
+  font-family: var(--font-body);
+  cursor: pointer;
+}
+
+.closeButton:hover {
+  opacity: 0.9;
+  background: rgba(110, 148, 140, 0.1);
+}
+
+.loadingText,
+.errorText {
+  text-align: center;
+  font-size: 18px;
+  color: var(--color-ink);
+  opacity: 0.6;
+}
+
+.errorText {
+  color: var(--color-seal);
+}

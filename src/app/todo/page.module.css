@@ -128,3 +128,105 @@
   border-radius: 4px;
   transition: width 0.2s ease;
 }
+
+.newWorkButton {
+  border: 1px solid var(--color-celadon);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--color-celadon-dark);
+  padding: 8px 16px;
+  font-size: 14px;
+  font-family: var(--font-body);
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.newWorkButton:hover {
+  background: rgba(110, 148, 140, 0.1);
+}
+
+.workFormGrid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px 16px;
+  margin-bottom: 16px;
+}
+
+.workFormFieldWide {
+  grid-column: 1 / -1;
+}
+
+.workFormGrid label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+  color: var(--color-ink);
+}
+
+.workFormGrid input,
+.workFormGrid select {
+  border: 1px solid rgba(110, 148, 140, 0.4);
+  border-radius: 4px;
+  background: var(--color-hanji-bg);
+  color: var(--color-ink);
+  padding: 6px 10px;
+  font-size: 14px;
+  font-family: var(--font-body);
+}
+
+.workFormTextarea {
+  border: 1px solid rgba(110, 148, 140, 0.4);
+  border-radius: 4px;
+  background: var(--color-hanji-bg);
+  color: var(--color-ink);
+  padding: 6px 10px;
+  font-size: 14px;
+  font-family: var(--font-body);
+  resize: vertical;
+}
+
+.workFormActions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.submitButton {
+  border: none;
+  border-radius: 6px;
+  background: var(--color-celadon);
+  color: var(--color-hanji-card);
+  padding: 9px 20px;
+  font-size: 14px;
+  font-family: var(--font-body);
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.submitButton:hover {
+  background: var(--color-celadon-dark);
+}
+
+.resolvedToggleButton {
+  display: block;
+  margin-top: 14px;
+  border: 1px solid rgba(110, 148, 140, 0.4);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--color-celadon-dark);
+  padding: 6px 14px;
+  font-size: 13px;
+  font-family: var(--font-body);
+  cursor: pointer;
+}
+
+.resolvedToggleButton:hover {
+  background: rgba(110, 148, 140, 0.1);
+}
+
+.errorText {
+  color: var(--color-seal);
+  font-size: 13px;
+  margin: 4px 0 12px;
+}

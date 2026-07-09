@@ -77,3 +77,48 @@
   border-left-width: 3px;
   color: var(--color-celadon-dark);
 }
+
+/* 탕약/킬팻캡슐 카테고리 안에서 기간이 짧을수록 연하게, 길수록 진하게 3단계로만 구분 —
+   위 categoryTang/categoryCapsule과 동일 색 계열 안에서 배경 명도만 다르다. */
+.tangTier1 {
+  background: rgba(110, 148, 140, 0.12);
+  border-left-color: var(--color-celadon-dark);
+  color: var(--color-celadon-dark);
+}
+
+.tangTier2 {
+  background: rgba(110, 148, 140, 0.22);
+  border-left-color: var(--color-celadon-dark);
+  color: var(--color-celadon-dark);
+}
+
+.tangTier3 {
+  background: rgba(110, 148, 140, 0.34);
+  border-left-color: var(--color-celadon-dark);
+  color: var(--color-celadon-dark);
+}
+
+.capsuleTier1 {
+  background: rgba(110, 148, 140, 0.18);
+  border: 1px solid var(--color-celadon-dark);
+  border-left-width: 3px;
+  color: var(--color-celadon-dark);
+}
+
+.capsuleTier2 {
+  background: rgba(110, 148, 140, 0.26);
+  border: 1px solid var(--color-celadon-dark);
+  border-left-width: 3px;
+  color: var(--color-celadon-dark);
+}
+
+.capsuleTier3 {
+  background: rgba(110, 148, 140, 0.34);
+  border: 1px solid var(--color-celadon-dark);
+  border-left-width: 3px;
+  color: var(--color-celadon-dark);
+}
+
+.period {
+  font-weight: 700;
+}

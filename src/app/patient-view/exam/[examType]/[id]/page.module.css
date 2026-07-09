@@ -1,0 +1,49 @@
+.resultGrid {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.resultRow {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid rgba(110, 148, 140, 0.2);
+}
+
+.resultRow:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.resultLabel {
+  font-size: 18px;
+  color: var(--color-ink);
+  opacity: 0.75;
+}
+
+.resultValue {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 30px;
+  color: var(--color-celadon-dark);
+}
+
+.resultNote {
+  font-size: 16px;
+  color: var(--color-ink);
+  opacity: 0.8;
+}
+
+.messageBox {
+  margin-top: 8px;
+  padding: 20px 24px;
+  background: rgba(110, 148, 140, 0.12);
+  border-radius: 8px;
+  text-align: center;
+  font-size: 20px;
+  font-weight: 500;
+  color: var(--color-celadon-dark);
+}

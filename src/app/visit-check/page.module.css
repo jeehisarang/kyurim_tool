@@ -392,3 +392,19 @@
 .reservedButtonOn:hover {
   background: rgba(110, 148, 140, 0.25);
 }
+
+.patientNameLink {
+  color: var(--color-ink);
+  text-decoration: underline;
+  text-decoration-color: rgba(110, 148, 140, 0.4);
+  text-underline-offset: 2px;
+}
+
+.patientNameLink:hover {
+  color: var(--color-celadon-dark);
+}
+
+.inlineBadge {
+  display: inline-block;
+  margin-left: 6px;
+}

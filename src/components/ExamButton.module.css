@@ -1,0 +1,15 @@
+.examButton {
+  display: inline-block;
+  border: 1px solid var(--color-celadon);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--color-celadon-dark);
+  padding: 5px 12px;
+  font-size: 13px;
+  font-family: var(--font-body);
+  cursor: pointer;
+}
+
+.examButton:hover {
+  background: rgba(110, 148, 140, 0.1);
+}

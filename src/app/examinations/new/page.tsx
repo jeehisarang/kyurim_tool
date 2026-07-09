@@ -1,20 +1,34 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import styles from "./page.module.css";
+import NewPatientForm from "@/components/NewPatientForm";
 import { getCurrentUserId } from "@/lib/currentUser";
 import {
-  calcSmi,
+  computeSmi,
+  computeBmi,
   judgeSmi,
   calcGripAvg,
   judgeGrip,
+  computeGripAge,
+  computeGripAgeTrend,
+  GRIP_AGE_OUT_OF_RANGE_LABEL,
   type Gender,
   type SmiJudgement,
   type GripJudgement,
+  type GripAgeOutOfRange,
+  type GripAgeTrend,
 } from "@/lib/exam-thresholds";
 
-type Patient = { id: number; chartNumber: string; name: string };
+type Patient = {
+  id: number;
+  chartNumber: string;
+  name: string;
+  height: number | null;
+  gender: Gender | null;
+};
 type StaffUser = { id: number; name: string; role: string };
 type PrescriptionOption = {
   id: number;
@@ -35,13 +49,30 @@ const GRIP_JUDGEMENT_LABEL: Record<GripJudgement, string> = {
   UNKNOWN: "판정불가",
 };
 
+const GRIP_AGE_TREND_LABEL: Record<GripAgeTrend, string> = {
+  IMPROVED: "개선 ↓",
+  MAINTAINED: "유지 →",
+  WORSENED: "악화 ↑",
+};
+
 type ExamType = "BODY_COMPOSITION" | "STRENGTH_TEST";
 
+type GripAgeResult = { estimatedAge: number | null; outOfRange: GripAgeOutOfRange | null };
+
 type StrengthResult = {
-  smi: number;
-  smiJudgement: SmiJudgement;
   gripAvgKg: number;
   gripJudgement: GripJudgement;
+} & GripAgeResult;
+
+function formatGripAge(result: GripAgeResult): string {
+  if (result.outOfRange) return GRIP_AGE_OUT_OF_RANGE_LABEL[result.outOfRange];
+  return `${result.estimatedAge}세`;
+}
+
+type BodyPreview = {
+  bmi: number | null;
+  smi: number | null;
+  smiJudgement: SmiJudgement | null;
 };
 
 function toNumber(value: string): number | null {
@@ -50,31 +81,72 @@ function toNumber(value: string): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
+function toDateParam(date: Date): string {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
+const TODAY_PARAM = toDateParam(new Date());
+
 export default function NewExaminationPage() {
+  return (
+    <Suspense fallback={null}>
+      <NewExaminationPageInner />
+    </Suspense>
+  );
+}
+
+function NewExaminationPageInner() {
+  const searchParams = useSearchParams();
+  const prefillPatientId = searchParams.get("patientId");
+  // /examinations/[examType]/[id] 상세보기의 "같은 환자 다른 검사종류 추가 등록" 버튼에서
+  // examDate/examType까지 함께 넘겨주면 그대로 이어서 채워 넣는다.
+  const prefillExamDateParam = searchParams.get("examDate");
+  const prefillExamTypeParam = searchParams.get("examType");
+
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<Patient[] | null>(null);
   const [searching, setSearching] = useState(false);
   const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
+  const [prefillLoading, setPrefillLoading] = useState(false);
 
   const [staffUsers, setStaffUsers] = useState<StaffUser[]>([]);
   const [staffUserId, setStaffUserId] = useState("");
   const [prescriptions, setPrescriptions] = useState<PrescriptionOption[]>([]);
   const [prescriptionId, setPrescriptionId] = useState("");
 
-  const [examType, setExamType] = useState<ExamType | "">("");
+  const [examType, setExamType] = useState<ExamType | "">(
+    prefillExamTypeParam === "BODY_COMPOSITION" || prefillExamTypeParam === "STRENGTH_TEST"
+      ? prefillExamTypeParam
+      : "",
+  );
+  // 검사 실시일(소급 입력 가능) — 기본값 오늘, 미래 날짜는 선택 불가.
+  const [examDate, setExamDate] = useState(prefillExamDateParam ?? TODAY_PARAM);
 
+  // 인바디(BODY_COMPOSITION) 입력
   const [weightKg, setWeightKg] = useState("");
+  const [bodyFatPercent, setBodyFatPercent] = useState("");
+  const [whr, setWhr] = useState("");
   const [note, setNote] = useState("");
+  // 키는 인바디에서만 쓰는 Patient 고정값. 성별은 인바디/근력검사 양쪽이 공유하는
+  // Patient 고정값이라 examType과 무관하게 하나의 state로 관리한다.
+  const [bodyHeightCm, setBodyHeightCm] = useState("");
+  const [patientGender, setPatientGender] = useState<Gender | "">("");
+  const [showLimbSection, setShowLimbSection] = useState(false);
+  const [rightArmKg, setRightArmKg] = useState("");
+  const [leftArmKg, setLeftArmKg] = useState("");
+  const [rightLegKg, setRightLegKg] = useState("");
+  const [leftLegKg, setLeftLegKg] = useState("");
 
-  const [gender, setGender] = useState<Gender | "">("");
+  // 근력검사(STRENGTH_TEST) 입력 — 순수 악력만 다룬다(SMI/사지골격근량/키는 인바디 전용).
   const [measuredAge, setMeasuredAge] = useState("");
-  const [heightCm, setHeightCm] = useState("");
-  const [armMuscleMassLeftKg, setArmMuscleMassLeftKg] = useState("");
-  const [armMuscleMassRightKg, setArmMuscleMassRightKg] = useState("");
-  const [legMuscleMassLeftKg, setLegMuscleMassLeftKg] = useState("");
-  const [legMuscleMassRightKg, setLegMuscleMassRightKg] = useState("");
   const [gripLeftKg, setGripLeftKg] = useState("");
   const [gripRightKg, setGripRightKg] = useState("");
+
+  // 근력나이 추이(개선/유지/악화) 표시용 — 환자의 가장 최근 근력검사 기록.
+  const [previousGripAge, setPreviousGripAge] = useState<GripAgeResult | null>(null);
 
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -98,6 +170,47 @@ export default function NewExaminationPage() {
       .then(setPrescriptions);
   }, []);
 
+  // /visit-check, /prescriptions 환자 리스트의 "검사" 버튼에서 ?patientId=로 진입한 경우
+  // 환자 재검색 없이 바로 폼으로 채워 넣는다.
+  useEffect(() => {
+    if (!prefillPatientId) return;
+    setPrefillLoading(true);
+    fetch(`/api/patients/${prefillPatientId}`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((patient: Patient | null) => {
+        if (patient) selectPatient(patient);
+      })
+      .finally(() => setPrefillLoading(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [prefillPatientId]);
+
+  // 근력나이 추이 표시용 — 환자 선택 시 가장 최근 근력검사 기록을 미리 불러온다.
+  useEffect(() => {
+    if (!selectedPatient) {
+      setPreviousGripAge(null);
+      return;
+    }
+    fetch(`/api/examinations?patientId=${selectedPatient.id}`)
+      .then((res) => res.json())
+      .then(
+        (
+          rows: Array<{
+            examType: string;
+            estimatedGripAge?: number | null;
+            gripAgeOutOfRange?: GripAgeOutOfRange | null;
+          }>,
+        ) => {
+          // listExaminations는 이미 examDate 내림차순 정렬 — 첫 STRENGTH_TEST가 가장 최근.
+          const latest = rows.find((r) => r.examType === "STRENGTH_TEST");
+          setPreviousGripAge(
+            latest
+              ? { estimatedAge: latest.estimatedGripAge ?? null, outOfRange: latest.gripAgeOutOfRange ?? null }
+              : null,
+          );
+        },
+      );
+  }, [selectedPatient]);
+
   async function handleSearch(e: React.FormEvent) {
     e.preventDefault();
     if (!query.trim()) return;
@@ -115,6 +228,8 @@ export default function NewExaminationPage() {
     setSelectedPatient(patient);
     setResults(null);
     setQuery("");
+    setBodyHeightCm(patient.height != null ? String(patient.height) : "");
+    setPatientGender(patient.gender ?? "");
   }
 
   function resetForm() {
@@ -122,16 +237,20 @@ export default function NewExaminationPage() {
     setPrescriptionId("");
     setExamType("");
     setWeightKg("");
+    setBodyFatPercent("");
+    setWhr("");
     setNote("");
-    setGender("");
+    setBodyHeightCm("");
+    setPatientGender("");
+    setShowLimbSection(false);
+    setRightArmKg("");
+    setLeftArmKg("");
+    setRightLegKg("");
+    setLeftLegKg("");
     setMeasuredAge("");
-    setHeightCm("");
-    setArmMuscleMassLeftKg("");
-    setArmMuscleMassRightKg("");
-    setLegMuscleMassLeftKg("");
-    setLegMuscleMassRightKg("");
     setGripLeftKg("");
     setGripRightKg("");
+    setExamDate(TODAY_PARAM);
   }
 
   const activePrescriptions = useMemo(
@@ -142,55 +261,50 @@ export default function NewExaminationPage() {
     [prescriptions, selectedPatient],
   );
 
+  const bodyPreview: BodyPreview = useMemo(() => {
+    const weight = toNumber(weightKg);
+    const height = toNumber(bodyHeightCm);
+    const bmi = weight !== null && height !== null ? computeBmi(weight, height) : null;
+
+    const rA = toNumber(rightArmKg);
+    const lA = toNumber(leftArmKg);
+    const rL = toNumber(rightLegKg);
+    const lL = toNumber(leftLegKg);
+
+    let smi: number | null = null;
+    let smiJudgement: SmiJudgement | null = null;
+    if (showLimbSection && height !== null && rA !== null && lA !== null && rL !== null && lL !== null) {
+      const result = computeSmi(height, rA, lA, rL, lL);
+      smi = result.smi;
+      if (patientGender) smiJudgement = judgeSmi(patientGender, smi);
+    }
+
+    return { bmi, smi, smiJudgement };
+  }, [weightKg, bodyHeightCm, showLimbSection, rightArmKg, leftArmKg, rightLegKg, leftLegKg, patientGender]);
+
   const strengthPreview: StrengthResult | null = useMemo(() => {
-    const height = toNumber(heightCm);
-    const armL = toNumber(armMuscleMassLeftKg);
-    const armR = toNumber(armMuscleMassRightKg);
-    const legL = toNumber(legMuscleMassLeftKg);
-    const legR = toNumber(legMuscleMassRightKg);
     const gripL = toNumber(gripLeftKg);
     const gripR = toNumber(gripRightKg);
     const age = toNumber(measuredAge);
 
-    if (
-      !gender ||
-      height === null ||
-      armL === null ||
-      armR === null ||
-      legL === null ||
-      legR === null ||
-      gripL === null ||
-      gripR === null ||
-      age === null
-    ) {
+    if (!patientGender || gripL === null || gripR === null || age === null) {
       return null;
     }
 
-    const smi = calcSmi({
-      heightCm: height,
-      armMuscleMassLeftKg: armL,
-      armMuscleMassRightKg: armR,
-      legMuscleMassLeftKg: legL,
-      legMuscleMassRightKg: legR,
-    });
     const gripAvgKg = calcGripAvg(gripL, gripR);
+    const gripAge = computeGripAge(patientGender, gripAvgKg);
     return {
-      smi,
-      smiJudgement: judgeSmi(gender, smi),
       gripAvgKg,
-      gripJudgement: judgeGrip(gender, age, gripAvgKg),
+      gripJudgement: judgeGrip(patientGender, age, gripAvgKg),
+      estimatedAge: gripAge.estimatedAge,
+      outOfRange: gripAge.outOfRange,
     };
-  }, [
-    gender,
-    heightCm,
-    armMuscleMassLeftKg,
-    armMuscleMassRightKg,
-    legMuscleMassLeftKg,
-    legMuscleMassRightKg,
-    gripLeftKg,
-    gripRightKg,
-    measuredAge,
-  ]);
+  }, [patientGender, gripLeftKg, gripRightKg, measuredAge]);
+
+  const gripAgeTrend: GripAgeTrend | null =
+    strengthPreview && previousGripAge
+      ? computeGripAgeTrend(strengthPreview, previousGripAge)
+      : null;
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -200,37 +314,81 @@ export default function NewExaminationPage() {
       setSubmitError("환자, 검사 종류, 담당자를 모두 선택하세요.");
       return;
     }
+    if (examDate > TODAY_PARAM) {
+      setSubmitError("검사일자는 미래 날짜를 선택할 수 없습니다.");
+      return;
+    }
 
     const commonBody = {
       patientId: selectedPatient.id,
       staffUserId: Number(staffUserId),
       prescriptionId: prescriptionId ? Number(prescriptionId) : undefined,
       examType,
+      examDate,
     };
 
     let body: Record<string, unknown>;
 
     if (examType === "BODY_COMPOSITION") {
       const weight = toNumber(weightKg);
-      if (weight === null) {
-        setSubmitError("체중을 입력하세요.");
+      const bodyFat = toNumber(bodyFatPercent);
+      const whrValue = toNumber(whr);
+      if (weight === null || bodyFat === null || whrValue === null) {
+        setSubmitError("체중, 체지방율, WHR을 모두 입력하세요.");
         return;
       }
-      body = { ...commonBody, weightKg: weight, note: note.trim() || undefined };
+
+      const height = toNumber(bodyHeightCm);
+      if (selectedPatient.height == null && height === null) {
+        setSubmitError("환자의 키(cm)를 입력하세요.");
+        return;
+      }
+      if (selectedPatient.gender == null && !patientGender) {
+        setSubmitError("환자의 성별을 선택하세요.");
+        return;
+      }
+
+      let limbFields: Record<string, unknown> = {};
+      if (showLimbSection) {
+        const rA = toNumber(rightArmKg);
+        const lA = toNumber(leftArmKg);
+        const rL = toNumber(rightLegKg);
+        const lL = toNumber(leftLegKg);
+        if (rA === null || lA === null || rL === null || lL === null) {
+          setSubmitError("사지골격근량 4개 항목을 모두 입력하거나, 체크를 해제하세요.");
+          return;
+        }
+        limbFields = {
+          armMuscleMassRightKg: rA,
+          armMuscleMassLeftKg: lA,
+          legMuscleMassRightKg: rL,
+          legMuscleMassLeftKg: lL,
+        };
+      }
+
+      body = {
+        ...commonBody,
+        weightKg: weight,
+        bodyFatPercent: bodyFat,
+        whr: whrValue,
+        heightCm: height ?? undefined,
+        gender: patientGender || undefined,
+        ...limbFields,
+        note: note.trim() || undefined,
+      };
     } else {
-      if (!strengthPreview || !gender) {
+      if (selectedPatient.gender == null && !patientGender) {
+        setSubmitError("환자의 성별을 선택하세요.");
+        return;
+      }
+      if (!strengthPreview) {
         setSubmitError("근력검사 입력값을 모두 확인하세요.");
         return;
       }
       body = {
         ...commonBody,
-        gender,
+        gender: patientGender || undefined,
         measuredAge: toNumber(measuredAge),
-        heightCm: toNumber(heightCm),
-        armMuscleMassLeftKg: toNumber(armMuscleMassLeftKg),
-        armMuscleMassRightKg: toNumber(armMuscleMassRightKg),
-        legMuscleMassLeftKg: toNumber(legMuscleMassLeftKg),
-        legMuscleMassRightKg: toNumber(legMuscleMassRightKg),
         gripLeftKg: toNumber(gripLeftKg),
         gripRightKg: toNumber(gripRightKg),
       };
@@ -259,10 +417,10 @@ export default function NewExaminationPage() {
         setLastResult({
           examType: "STRENGTH_TEST",
           patientName: selectedPatient.name,
-          smi: data.smi,
-          smiJudgement: data.smiJudgement,
           gripAvgKg: data.gripAvgKg,
           gripJudgement: data.gripJudgement,
+          estimatedAge: data.estimatedGripAge,
+          outOfRange: data.gripAgeOutOfRange,
         });
       }
       resetForm();
@@ -293,19 +451,6 @@ export default function NewExaminationPage() {
                 ✅ <strong>{lastResult.patientName}</strong>님 근력검사 등록 완료
               </div>
               <div className={styles.resultRow}>
-                <span>SMI</span>
-                <span className={styles.resultValue}>{lastResult.smi.toFixed(2)} kg/m²</span>
-                <span
-                  className={
-                    lastResult.smiJudgement === "SARCOPENIA"
-                      ? styles.judgementBad
-                      : styles.judgementGood
-                  }
-                >
-                  {SMI_JUDGEMENT_LABEL[lastResult.smiJudgement]}
-                </span>
-              </div>
-              <div className={styles.resultRow}>
                 <span>악력평균</span>
                 <span className={styles.resultValue}>{lastResult.gripAvgKg.toFixed(1)} kg</span>
                 <span
@@ -318,6 +463,10 @@ export default function NewExaminationPage() {
                   {GRIP_JUDGEMENT_LABEL[lastResult.gripJudgement]}
                 </span>
               </div>
+              <div className={styles.resultRow}>
+                <span>근력나이</span>
+                <span className={styles.resultValue}>{formatGripAge(lastResult)}</span>
+              </div>
             </div>
           )}
         </div>
@@ -328,6 +477,7 @@ export default function NewExaminationPage() {
 
         {!selectedPatient && (
           <>
+            {prefillLoading && <p className={styles.muted}>환자 정보를 불러오는 중...</p>}
             <form className={styles.row} onSubmit={handleSearch}>
               <input
                 type="text"
@@ -353,6 +503,10 @@ export default function NewExaminationPage() {
             {results !== null && results.length === 0 && (
               <p className={styles.muted}>검색 결과가 없습니다.</p>
             )}
+
+            <NewPatientForm
+              onCreated={(patient) => selectPatient({ ...patient, height: null, gender: null })}
+            />
           </>
         )}
 
@@ -387,6 +541,16 @@ export default function NewExaminationPage() {
               </label>
 
               <label>
+                검사일자{" "}
+                <input
+                  type="date"
+                  value={examDate}
+                  max={TODAY_PARAM}
+                  onChange={(e) => setExamDate(e.target.value)}
+                />
+              </label>
+
+              <label>
                 담당자{" "}
                 <select value={staffUserId} onChange={(e) => setStaffUserId(e.target.value)}>
                   <option value="">선택</option>
@@ -414,29 +578,154 @@ export default function NewExaminationPage() {
             </div>
 
             {examType === "BODY_COMPOSITION" && (
-              <div className={styles.fieldGrid}>
-                <label>
-                  체중(kg)
+              <>
+                <div className={styles.fieldGrid}>
+                  <label>
+                    체중(kg)
+                    <input
+                      type="number"
+                      step="0.1"
+                      value={weightKg}
+                      onChange={(e) => setWeightKg(e.target.value)}
+                    />
+                  </label>
+                  <label>
+                    체지방율(%)
+                    <input
+                      type="number"
+                      step="0.1"
+                      value={bodyFatPercent}
+                      onChange={(e) => setBodyFatPercent(e.target.value)}
+                    />
+                  </label>
+                  <label>
+                    WHR(복부지방율)
+                    <input type="number" step="0.01" value={whr} onChange={(e) => setWhr(e.target.value)} />
+                  </label>
+                  <label>
+                    키(cm){selectedPatient.height != null && <span className={styles.muted}> — 저장된 값</span>}
+                    <input
+                      type="number"
+                      step="0.1"
+                      value={bodyHeightCm}
+                      onChange={(e) => setBodyHeightCm(e.target.value)}
+                    />
+                  </label>
+                  <label>
+                    성별{selectedPatient.gender != null && <span className={styles.muted}> — 저장된 값</span>}
+                    <select
+                      value={patientGender}
+                      onChange={(e) => setPatientGender(e.target.value as Gender | "")}
+                    >
+                      <option value="">선택</option>
+                      <option value="MALE">남</option>
+                      <option value="FEMALE">여</option>
+                    </select>
+                  </label>
+                  <label className={styles.fieldGridWide}>
+                    메모(선택)
+                    <input type="text" value={note} onChange={(e) => setNote(e.target.value)} />
+                  </label>
+                </div>
+
+                <label className={styles.checkboxRow}>
                   <input
-                    type="number"
-                    step="0.1"
-                    value={weightKg}
-                    onChange={(e) => setWeightKg(e.target.value)}
+                    type="checkbox"
+                    checked={showLimbSection}
+                    onChange={(e) => setShowLimbSection(e.target.checked)}
                   />
+                  사지골격근량 측정하셨나요?
                 </label>
-                <label className={styles.fieldGridWide}>
-                  메모(선택)
-                  <input type="text" value={note} onChange={(e) => setNote(e.target.value)} />
-                </label>
-              </div>
+
+                {showLimbSection && (
+                  <div className={styles.fieldGrid}>
+                    <label>
+                      팔 골격근량(우, kg)
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={rightArmKg}
+                        onChange={(e) => setRightArmKg(e.target.value)}
+                      />
+                    </label>
+                    <label>
+                      팔 골격근량(좌, kg)
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={leftArmKg}
+                        onChange={(e) => setLeftArmKg(e.target.value)}
+                      />
+                    </label>
+                    <label>
+                      다리 골격근량(우, kg)
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={rightLegKg}
+                        onChange={(e) => setRightLegKg(e.target.value)}
+                      />
+                    </label>
+                    <label>
+                      다리 골격근량(좌, kg)
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={leftLegKg}
+                        onChange={(e) => setLeftLegKg(e.target.value)}
+                      />
+                    </label>
+                  </div>
+                )}
+
+                <div className={styles.previewBox}>
+                  <div className={styles.previewTitle}>미리보기</div>
+                  <div className={styles.resultGrid}>
+                    <div className={styles.resultRow}>
+                      <span>BMI</span>
+                      {bodyPreview.bmi !== null ? (
+                        <span className={styles.resultValue}>{bodyPreview.bmi.toFixed(1)}</span>
+                      ) : (
+                        <span className={styles.muted}>체중/키를 입력하면 표시됩니다.</span>
+                      )}
+                    </div>
+                    {showLimbSection && (
+                      <div className={styles.resultRow}>
+                        <span>SMI</span>
+                        {bodyPreview.smi !== null ? (
+                          <>
+                            <span className={styles.resultValue}>{bodyPreview.smi.toFixed(2)} kg/m²</span>
+                            {bodyPreview.smiJudgement && (
+                              <span
+                                className={
+                                  bodyPreview.smiJudgement === "SARCOPENIA"
+                                    ? styles.judgementBad
+                                    : styles.judgementGood
+                                }
+                              >
+                                {SMI_JUDGEMENT_LABEL[bodyPreview.smiJudgement]}
+                              </span>
+                            )}
+                          </>
+                        ) : (
+                          <span className={styles.muted}>사지골격근량 4개를 모두 입력하면 표시됩니다.</span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </>
             )}
 
             {examType === "STRENGTH_TEST" && (
               <>
                 <div className={styles.fieldGrid}>
                   <label>
-                    성별
-                    <select value={gender} onChange={(e) => setGender(e.target.value as Gender | "")}>
+                    성별{selectedPatient.gender != null && <span className={styles.muted}> — 저장된 값</span>}
+                    <select
+                      value={patientGender}
+                      onChange={(e) => setPatientGender(e.target.value as Gender | "")}
+                    >
                       <option value="">선택</option>
                       <option value="MALE">남</option>
                       <option value="FEMALE">여</option>
@@ -448,51 +737,6 @@ export default function NewExaminationPage() {
                       type="number"
                       value={measuredAge}
                       onChange={(e) => setMeasuredAge(e.target.value)}
-                    />
-                  </label>
-                  <label>
-                    키(cm)
-                    <input
-                      type="number"
-                      step="0.1"
-                      value={heightCm}
-                      onChange={(e) => setHeightCm(e.target.value)}
-                    />
-                  </label>
-                  <label>
-                    팔 골격근량(좌, kg)
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={armMuscleMassLeftKg}
-                      onChange={(e) => setArmMuscleMassLeftKg(e.target.value)}
-                    />
-                  </label>
-                  <label>
-                    팔 골격근량(우, kg)
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={armMuscleMassRightKg}
-                      onChange={(e) => setArmMuscleMassRightKg(e.target.value)}
-                    />
-                  </label>
-                  <label>
-                    다리 골격근량(좌, kg)
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={legMuscleMassLeftKg}
-                      onChange={(e) => setLegMuscleMassLeftKg(e.target.value)}
-                    />
-                  </label>
-                  <label>
-                    다리 골격근량(우, kg)
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={legMuscleMassRightKg}
-                      onChange={(e) => setLegMuscleMassRightKg(e.target.value)}
                     />
                   </label>
                   <label>
@@ -520,21 +764,6 @@ export default function NewExaminationPage() {
                   {strengthPreview ? (
                     <div className={styles.resultGrid}>
                       <div className={styles.resultRow}>
-                        <span>SMI</span>
-                        <span className={styles.resultValue}>
-                          {strengthPreview.smi.toFixed(2)} kg/m²
-                        </span>
-                        <span
-                          className={
-                            strengthPreview.smiJudgement === "SARCOPENIA"
-                              ? styles.judgementBad
-                              : styles.judgementGood
-                          }
-                        >
-                          {SMI_JUDGEMENT_LABEL[strengthPreview.smiJudgement]}
-                        </span>
-                      </div>
-                      <div className={styles.resultRow}>
                         <span>악력평균</span>
                         <span className={styles.resultValue}>
                           {strengthPreview.gripAvgKg.toFixed(1)} kg
@@ -548,6 +777,19 @@ export default function NewExaminationPage() {
                         >
                           {GRIP_JUDGEMENT_LABEL[strengthPreview.gripJudgement]}
                         </span>
+                      </div>
+                      <div className={styles.resultRow}>
+                        <span>근력나이</span>
+                        <span className={styles.resultValue}>{formatGripAge(strengthPreview)}</span>
+                        {gripAgeTrend && (
+                          <span
+                            className={
+                              gripAgeTrend === "WORSENED" ? styles.judgementBad : styles.judgementGood
+                            }
+                          >
+                            {GRIP_AGE_TREND_LABEL[gripAgeTrend]}
+                          </span>
+                        )}
                       </div>
                     </div>
                   ) : (

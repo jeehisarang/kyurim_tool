@@ -9,10 +9,10 @@ import { useCurrentUserContext } from "@/lib/CurrentUserContext";
 const MENU_ITEMS = [
   { label: "홈", href: "/home" },
   { label: "내원체크", href: "/visit-check" },
-  { label: "톡생성기", href: "/messages" },
   { label: "오늘 할 일", href: "/todo" },
   { label: "치료처방", href: "/prescriptions" },
   { label: "검사", href: "/examinations" },
+  { label: "AI 생성", href: "/ai-studio" },
   { label: "통계 대시보드", href: "/dashboard" },
 ];
 

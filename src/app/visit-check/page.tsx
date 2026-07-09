@@ -1,13 +1,22 @@
 "use client";
 
 import { Fragment, Suspense, useEffect, useState } from "react";
+import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import styles from "./page.module.css";
+import ExamButton from "@/components/ExamButton";
+import NewPatientForm from "@/components/NewPatientForm";
 import SealStamp from "@/components/SealStamp";
 import PatientNotes from "@/components/PatientNotes";
 import CategoryBadge from "@/components/CategoryBadge";
 import VisitTypeTag from "@/components/VisitTypeTag";
+import ProgramBadge from "@/components/ProgramBadge";
 import { getCurrentUserId } from "@/lib/currentUser";
+
+type ActivePrescriptionGroup = {
+  patient: { id: number };
+  prescriptions: { program: { id: number; name: string } }[];
+};
 
 type Patient = { id: number; chartNumber: string; name: string };
 type TreatmentCategory = { id: number; name: string };
@@ -80,11 +89,6 @@ function VisitCheckPageInner() {
 
   const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
 
-  const [showNewPatientForm, setShowNewPatientForm] = useState(false);
-  const [newChartNumber, setNewChartNumber] = useState("");
-  const [newName, setNewName] = useState("");
-  const [newPatientError, setNewPatientError] = useState<string | null>(null);
-  const [duplicatePatient, setDuplicatePatient] = useState<Patient | null>(null);
   // 이번 세션에서 신규 등록 폼으로 방금 만든 환자인지 — "다른 환자 선택" 시 아직
   // Visit이 하나도 없다면 되돌리기(삭제) 확인창을 띄울지 판단하는 데 쓴다.
   const [isFreshlyRegisteredPatient, setIsFreshlyRegisteredPatient] = useState(false);
@@ -104,6 +108,10 @@ function VisitCheckPageInner() {
   const [staffUsers, setStaffUsers] = useState<StaffUser[]>([]);
   const [currentUserId, setCurrentUserIdState] = useState<number | null>(null);
   const [expandedNotePatientId, setExpandedNotePatientId] = useState<number | null>(null);
+  // 환자별 진행중 치료처방 배지 표시용 — /prescriptions 목록과 동일한 데이터 재사용.
+  const [activePrescByPatientId, setActivePrescByPatientId] = useState<
+    Map<number, { id: number; name: string }[]>
+  >(new Map());
 
   const [editingVisitId, setEditingVisitId] = useState<number | null>(null);
   const [editVisitCategoryId, setEditVisitCategoryId] = useState("");
@@ -126,6 +134,19 @@ function VisitCheckPageInner() {
     fetch("/api/staff-users")
       .then((res) => res.json())
       .then(setStaffUsers);
+
+    fetch("/api/prescriptions/list")
+      .then((res) => res.json())
+      .then((groups: ActivePrescriptionGroup[]) => {
+        const map = new Map<number, { id: number; name: string }[]>();
+        for (const g of groups) {
+          map.set(
+            g.patient.id,
+            g.prescriptions.map((p) => p.program),
+          );
+        }
+        setActivePrescByPatientId(map);
+      });
   }, []);
 
   useEffect(() => {
@@ -149,7 +170,6 @@ function VisitCheckPageInner() {
       const res = await fetch(`/api/patients?q=${encodeURIComponent(query.trim())}`);
       const data: Patient[] = await res.json();
       setResults(data);
-      setShowNewPatientForm(data.length === 0);
     } finally {
       setSearching(false);
     }
@@ -159,7 +179,6 @@ function VisitCheckPageInner() {
     setSelectedPatient(patient);
     setResults(null);
     setQuery("");
-    setShowNewPatientForm(false);
     setPatientEditOpen(false);
     setIsFreshlyRegisteredPatient(options?.freshlyRegistered ?? false);
   }
@@ -170,14 +189,6 @@ function VisitCheckPageInner() {
     setVisitTypeId("");
     setPatientEditOpen(false);
     setIsFreshlyRegisteredPatient(false);
-  }
-
-  function handleCancelNewPatientForm() {
-    setShowNewPatientForm(false);
-    setNewChartNumber("");
-    setNewName("");
-    setNewPatientError(null);
-    setDuplicatePatient(null);
   }
 
   /**
@@ -199,41 +210,6 @@ function VisitCheckPageInner() {
       }
     }
     clearSelectedPatient();
-  }
-
-  async function handleCreatePatient(e: React.FormEvent) {
-    e.preventDefault();
-    setNewPatientError(null);
-    setDuplicatePatient(null);
-    const res = await fetch("/api/patients", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ chartNumber: newChartNumber, name: newName }),
-    });
-    const data = await res.json();
-    if (!res.ok) {
-      if (res.status === 409 && data.existingPatient) {
-        setDuplicatePatient(data.existingPatient);
-        return;
-      }
-      setNewPatientError(data.error ?? "환자 등록에 실패했습니다.");
-      return;
-    }
-    setNewChartNumber("");
-    setNewName("");
-    selectPatient(data, { freshlyRegistered: true });
-  }
-
-  function handleUseDuplicatePatient() {
-    if (!duplicatePatient) return;
-    setNewChartNumber("");
-    setNewName("");
-    selectPatient(duplicatePatient);
-    setDuplicatePatient(null);
-  }
-
-  function handleRetryNewPatient() {
-    setDuplicatePatient(null);
   }
 
   function openPatientEdit() {
@@ -434,59 +410,9 @@ function VisitCheckPageInner() {
               <p className={styles.muted}>검색 결과가 없습니다. 신규 환자로 등록하세요.</p>
             )}
 
-            {!showNewPatientForm && (
-              <button type="button" onClick={() => setShowNewPatientForm(true)}>
-                신규 환자 등록
-              </button>
-            )}
-
-            {showNewPatientForm && !duplicatePatient && (
-              <form className={styles.row} onSubmit={handleCreatePatient}>
-                <input
-                  className={styles.mono}
-                  type="text"
-                  placeholder="차트번호(숫자만)"
-                  value={newChartNumber}
-                  onChange={(e) => setNewChartNumber(e.target.value)}
-                />
-                <input
-                  type="text"
-                  placeholder="이름"
-                  value={newName}
-                  onChange={(e) => setNewName(e.target.value)}
-                />
-                <button type="submit">등록</button>
-                <button type="button" onClick={handleCancelNewPatientForm}>
-                  취소
-                </button>
-              </form>
-            )}
-            {newPatientError && <p className={styles.errorText}>{newPatientError}</p>}
-
-            {duplicatePatient && (
-              <div className={styles.duplicateNotice}>
-                <p>
-                  이미 등록된 환자입니다: <strong>{duplicatePatient.name}</strong> (
-                  <span className={styles.mono}>{duplicatePatient.chartNumber}</span>)
-                </p>
-                <div className={styles.duplicateActions}>
-                  <button
-                    type="button"
-                    className={styles.duplicateProceedButton}
-                    onClick={handleUseDuplicatePatient}
-                  >
-                    이 환자로 진행
-                  </button>
-                  <button
-                    type="button"
-                    className={styles.duplicateRetryButton}
-                    onClick={handleRetryNewPatient}
-                  >
-                    다시 입력
-                  </button>
-                </div>
-              </div>
-            )}
+            <NewPatientForm
+              onCreated={(patient) => selectPatient(patient, { freshlyRegistered: true })}
+            />
           </>
         )}
 
@@ -600,7 +526,16 @@ function VisitCheckPageInner() {
               {visits.map((v) => (
                 <Fragment key={v.id}>
                   <tr>
-                    <td>{v.patient.name}</td>
+                    <td>
+                      <Link href={`/patients/${v.patient.id}`} className={styles.patientNameLink}>
+                        {v.patient.name}
+                      </Link>
+                      {(activePrescByPatientId.get(v.patient.id) ?? []).map((program) => (
+                        <span key={program.id} className={styles.inlineBadge}>
+                          <ProgramBadge id={program.id} name={program.name} />
+                        </span>
+                      ))}
+                    </td>
                     <td>
                       <CategoryBadge id={v.treatmentCategory.id} name={v.treatmentCategory.name} />
                     </td>
@@ -633,6 +568,7 @@ function VisitCheckPageInner() {
                     </td>
                     <td>
                       <span className={styles.rowActions}>
+                        <ExamButton patientId={v.patient.id} />
                         <button
                           type="button"
                           className={styles.editButton}

@@ -237,7 +237,7 @@ export async function computeTodoWeeklySummary(): Promise<TodoWeeklySummary> {
     weekStart.getDate() + 7,
   );
 
-  const [weekTotal, weekDonePrescription, talkTodos, talkLogsDoneThisWeek, weekDoneProgramEvent] =
+  const [weekTotal, weekDonePrescription, talkTodos, talkLogsDoneThisWeek, weekDoneProgramEvent, weekDoneWork] =
     await Promise.all([
       prisma.todoTask.count({
         where: { createdAt: { gte: weekStart, lt: weekEnd } },
@@ -258,6 +258,11 @@ export async function computeTodoWeeklySummary(): Promise<TodoWeeklySummary> {
       prisma.programEventLog.count({
         where: { sentDate: { gte: weekStart, lt: weekEnd } },
       }),
+      // WORK(업무/요청)는 처방류와 동일한 체크형(TodoTask.isDone 진실원천)이지만
+      // prescriptionId가 없어 weekDonePrescription 카운트에 안 잡히므로 별도 집계.
+      prisma.todoTask.count({
+        where: { taskType: "WORK", isDone: true, doneAt: { gte: weekStart, lt: weekEnd } },
+      }),
     ]);
 
   const talkTodoKeys = new Set(talkTodos.map((t) => `${t.patientId}:${t.taskType}`));
@@ -265,7 +270,10 @@ export async function computeTodoWeeklySummary(): Promise<TodoWeeklySummary> {
     talkTodoKeys.has(`${log.patientId}:${log.messageType}`),
   ).length;
 
-  return { weekDone: weekDonePrescription + weekDoneTalk + weekDoneProgramEvent, weekTotal };
+  return {
+    weekDone: weekDonePrescription + weekDoneTalk + weekDoneProgramEvent + weekDoneWork,
+    weekTotal,
+  };
 }
 
 export type ProgramActiveCount = {

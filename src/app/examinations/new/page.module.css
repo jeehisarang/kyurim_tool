@@ -276,3 +276,13 @@
   opacity: 0.55;
   font-size: 13px;
 }
+
+.checkboxRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  color: var(--color-ink);
+  margin-bottom: 16px;
+  cursor: pointer;
+}

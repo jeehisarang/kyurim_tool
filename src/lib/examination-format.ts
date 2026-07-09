@@ -1,0 +1,134 @@
+import { computeBmi, computeGripAgeTrend, GRIP_AGE_OUT_OF_RANGE_LABEL, type GripAgeOutOfRange, type GripAgeTrend } from "@/lib/exam-thresholds";
+
+// /examinations 목록과 /examinations/patient/[patientId] 이력화면이 공유하는 검사기록
+// 표시 포맷 — 중복 구현 지양(TodoTaskTable의 buildTaskRows와 동일한 원칙).
+export type ExaminationRow =
+  | {
+      id: number;
+      examType: "BODY_COMPOSITION";
+      patient: { id: number; name: string; chartNumber: string; height: number | null };
+      examDate: string;
+      staffUserName: string;
+      weightKg: number;
+      bodyFatPercent: number;
+      whr: number;
+      smi: number | null;
+      smiJudgement: "NORMAL" | "SARCOPENIA" | null;
+      note: string | null;
+    }
+  | {
+      id: number;
+      examType: "STRENGTH_TEST";
+      patient: { id: number; name: string; chartNumber: string };
+      examDate: string;
+      staffUserName: string;
+      gripAvgKg: number;
+      gripJudgement: "WEAK" | "NORMAL" | "STRONG" | "UNKNOWN";
+      estimatedGripAge: number | null;
+      gripAgeOutOfRange: GripAgeOutOfRange | null;
+    };
+
+export const EXAM_TYPE_LABEL = {
+  BODY_COMPOSITION: "인바디",
+  STRENGTH_TEST: "근력검사",
+};
+
+export const SMI_JUDGEMENT_LABEL: Record<string, string> = {
+  NORMAL: "정상",
+  SARCOPENIA: "근감소증 의심",
+};
+
+export const GRIP_JUDGEMENT_LABEL: Record<string, string> = {
+  WEAK: "약함",
+  NORMAL: "정상",
+  STRONG: "강함",
+  UNKNOWN: "판정불가",
+};
+
+export const GRIP_AGE_TREND_LABEL: Record<GripAgeTrend, string> = {
+  IMPROVED: "개선 ↓",
+  MAINTAINED: "유지 →",
+  WORSENED: "악화 ↑",
+};
+
+export function formatExamDate(iso: string): string {
+  const d = new Date(iso);
+  return `${d.getFullYear()}.${d.getMonth() + 1}.${d.getDate()}`;
+}
+
+export function weightCell(row: ExaminationRow): string {
+  return row.examType === "BODY_COMPOSITION" ? `${row.weightKg}kg` : "-";
+}
+
+export function bmiCell(row: ExaminationRow): string {
+  if (row.examType !== "BODY_COMPOSITION" || row.patient.height == null) return "-";
+  return computeBmi(row.weightKg, row.patient.height).toFixed(1);
+}
+
+export function bodyFatCell(row: ExaminationRow): string {
+  return row.examType === "BODY_COMPOSITION" ? `${row.bodyFatPercent}%` : "-";
+}
+
+export function whrCell(row: ExaminationRow): string {
+  return row.examType === "BODY_COMPOSITION" ? String(row.whr) : "-";
+}
+
+export function smiLabel(row: ExaminationRow): string {
+  if (row.examType !== "BODY_COMPOSITION") return "-";
+  if (row.smi == null) return "-";
+  const judgement = row.smiJudgement ? ` (${SMI_JUDGEMENT_LABEL[row.smiJudgement]})` : "";
+  return `${row.smi.toFixed(2)}${judgement}`;
+}
+
+export function gripLabel(row: ExaminationRow): string {
+  if (row.examType !== "STRENGTH_TEST") return "-";
+  return `${row.gripAvgKg.toFixed(1)}kg (${GRIP_JUDGEMENT_LABEL[row.gripJudgement]})`;
+}
+
+export function gripAgeLabel(row: ExaminationRow): string {
+  if (row.examType !== "STRENGTH_TEST") return "-";
+  if (row.gripAgeOutOfRange) return GRIP_AGE_OUT_OF_RANGE_LABEL[row.gripAgeOutOfRange];
+  return `${row.estimatedGripAge}세`;
+}
+
+export function rowKey(row: ExaminationRow): string {
+  return `${row.examType}-${row.id}`;
+}
+
+export function isSmiConcerning(row: ExaminationRow): boolean {
+  return row.examType === "BODY_COMPOSITION" && row.smiJudgement === "SARCOPENIA";
+}
+
+/**
+ * 같은 환자의 근력검사 기록을 examDate 내림차순(최신 먼저)으로 순서대로 순회하며, 바로
+ * 다음(=시간상 직전) 기록과 비교한 근력나이 추이를 계산한다. rows가 이미 examDate
+ * 내림차순으로 정렬돼 있어야 한다.
+ */
+export function computeGripAgeTrendMap(
+  rows: ExaminationRow[],
+  groupByPatient: boolean,
+): Map<string, GripAgeTrend> {
+  const map = new Map<string, GripAgeTrend>();
+
+  const byPatient = new Map<number, Extract<ExaminationRow, { examType: "STRENGTH_TEST" }>[]>();
+  for (const row of rows) {
+    if (row.examType !== "STRENGTH_TEST") continue;
+    const key = groupByPatient ? row.patient.id : 0;
+    const list = byPatient.get(key) ?? [];
+    list.push(row);
+    byPatient.set(key, list);
+  }
+
+  for (const list of byPatient.values()) {
+    for (let i = 0; i < list.length - 1; i++) {
+      const current = list[i];
+      const previous = list[i + 1];
+      const trend = computeGripAgeTrend(
+        { estimatedAge: current.estimatedGripAge, outOfRange: current.gripAgeOutOfRange },
+        { estimatedAge: previous.estimatedGripAge, outOfRange: previous.gripAgeOutOfRange },
+      );
+      map.set(rowKey(current), trend);
+    }
+  }
+  return map;
+}

@@ -332,3 +332,47 @@
   transition: width 0.2s ease;
 }
 
+.announcementList {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 24px;
+}
+
+.announcementCard {
+  background: rgba(110, 148, 140, 0.1);
+  border: 1px solid rgba(110, 148, 140, 0.35);
+  border-left: 4px solid var(--color-celadon);
+  border-radius: 6px;
+  padding: 14px 16px;
+}
+
+.announcementTitle {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-celadon-dark);
+  margin-bottom: 4px;
+}
+
+.announcementContent {
+  font-size: 13px;
+  color: var(--color-ink);
+  white-space: pre-wrap;
+}
+
+.patientNameLink {
+  color: var(--color-ink);
+  text-decoration: underline;
+  text-decoration-color: rgba(110, 148, 140, 0.4);
+  text-underline-offset: 2px;
+}
+
+.patientNameLink:hover {
+  color: var(--color-celadon-dark);
+}
+
+.inlineBadge {
+  display: inline-block;
+  margin-left: 6px;
+}
+

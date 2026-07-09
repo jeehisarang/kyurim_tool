@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import styles from "./page.module.css";
-import CategoryBadge from "@/components/CategoryBadge";
+import ProgramBadge from "@/components/ProgramBadge";
 import {
   getProgramCategory,
   PROGRAM_CATEGORY_ICON,
@@ -299,23 +299,30 @@ export default function PrescriptionListPage() {
               {filteredGroups.map((g) => (
                 <tr key={g.patient.id}>
                   <td>
-                    {g.patient.name}{" "}
+                    <Link href={`/patients/${g.patient.id}`} className={styles.patientNameLink}>
+                      {g.patient.name}
+                    </Link>{" "}
                     <span className={styles.mono}>({g.patient.chartNumber})</span>
+                    <Link
+                      href={`/examinations/new?patientId=${g.patient.id}`}
+                      className={styles.examLink}
+                    >
+                      검사
+                    </Link>
                   </td>
                   <td>
                     <div className={styles.badgeRow}>
                       {g.prescriptions.map((row) => {
-                        const category = getProgramCategory(row.program.name);
                         const isEditing = editingPrescriptionId === row.prescriptionId;
                         return (
                           <div key={row.prescriptionId} className={styles.programChip}>
-                            <CategoryBadge
+                            {/* truncate 미사용: "가족명 · 기간"이 잘리면 배지 구분성 개선의
+                                취지(예: 킬캡3체험 vs 킬캡3개월)가 무의미해진다 — 프로그램명은
+                                항상 짧게 관리되므로 flex-wrap 컨테이너 안에서 전체 노출해도 무방. */}
+                            <ProgramBadge
                               id={row.program.id}
                               name={row.program.name}
-                              truncate
                               onClick={() => goToProgress(row)}
-                              categoryKey={category ?? undefined}
-                              icon={category ? PROGRAM_CATEGORY_ICON[category] : undefined}
                             />
                             <span className={styles.chipStatus}>{statusLabel(row)}</span>
                             <span className={styles.chipStatus}>담당: {row.staffUserName}</span>

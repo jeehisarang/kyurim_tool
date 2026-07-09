@@ -17,3 +17,12 @@ export const MESSAGE_TASK_TYPES = [
 export function isMessageTaskType(taskType: string): boolean {
   return (MESSAGE_TASK_TYPES as readonly string[]).includes(taskType);
 }
+
+// 업무/요청(직원이 직접 작성). 완료 로그가 따로 없는 체크형(NEXT_DOSE/FOLLOW_UP)과
+// 동일하게 TodoTask.isDone이 진실원천이지만, patientId/prescriptionId 둘 다 없을 수
+// 있어(자율업무/요청업무는 환자와 무관) 별도 분류가 필요하다.
+export const WORK_TASK_TYPE = "WORK";
+
+export function isWorkTaskType(taskType: string): boolean {
+  return taskType === WORK_TASK_TYPE;
+}

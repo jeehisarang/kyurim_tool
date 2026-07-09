@@ -2,6 +2,7 @@
 
 import { Suspense, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import styles from "./page.module.css";
 import CategoryBadge from "@/components/CategoryBadge";
 import VisitTypeTag from "@/components/VisitTypeTag";
@@ -14,9 +15,15 @@ import TodoTaskTable, {
   type Patient,
   type TodoTask,
 } from "@/components/TodoTaskTable";
+import ExamButton from "@/components/ExamButton";
+import ProgramBadge from "@/components/ProgramBadge";
 import { getCurrentUserId } from "@/lib/currentUser";
 
 type TreatmentCategory = { id: number; name: string };
+type ActivePrescriptionGroup = {
+  patient: { id: number };
+  prescriptions: { program: { id: number; name: string } }[];
+};
 type VisitType = { id: number; name: string };
 type StaffUser = { id: number; name: string; role: string };
 type VisitRecord = {
@@ -42,6 +49,12 @@ type MonthlyDailyStats = {
   daily: DailyStat[];
   monthTotalVisits: number;
   monthAvgReservationRate: number;
+};
+
+type Announcement = {
+  id: number;
+  title: string;
+  content: string;
 };
 
 const WEEKDAY_LABELS = ["일", "월", "화", "수", "목", "금", "토"];
@@ -119,6 +132,39 @@ function HomePageInner() {
   const [showResolved, setShowResolved] = useState(false);
   const [loadError, setLoadError] = useState(false);
   const [retryKey, setRetryKey] = useState(0);
+  const [staffUsers, setStaffUsers] = useState<StaffUser[]>([]);
+  const [announcements, setAnnouncements] = useState<Announcement[]>([]);
+  // 환자별 진행중 치료처방 배지 표시용 — /prescriptions 목록과 동일한 데이터 재사용.
+  const [activePrescByPatientId, setActivePrescByPatientId] = useState<
+    Map<number, { id: number; name: string }[]>
+  >(new Map());
+
+  useEffect(() => {
+    fetch("/api/staff-users")
+      .then((res) => res.json())
+      .then(setStaffUsers);
+
+    fetch("/api/prescriptions/list")
+      .then((res) => res.json())
+      .then((groups: ActivePrescriptionGroup[]) => {
+        const map = new Map<number, { id: number; name: string }[]>();
+        for (const g of groups) {
+          map.set(
+            g.patient.id,
+            g.prescriptions.map((p) => p.program),
+          );
+        }
+        setActivePrescByPatientId(map);
+      });
+  }, []);
+
+  // 공지사항은 화면에서 넘겨보는 selectedDate와 무관하게 항상 실제 "오늘" 기준으로
+  // 노출 여부를 판단한다(task2.md 요구사항 — 날짜 이동과 무관).
+  useEffect(() => {
+    fetch(`/api/announcements?activeOnly=1&date=${toDateParam(startOfDay(new Date()))}`)
+      .then((res) => res.json())
+      .then(setAnnouncements);
+  }, []);
 
   // 요청이 실패하면(네트워크 순단, 서버 재시작 타이밍 등) 화면이 "불러오는 중"에서
   // 영원히 멈추지 않도록 반드시 에러 상태로 빠져나가게 한다 — 실사용 중 발견된 문제:
@@ -182,11 +228,12 @@ function HomePageInner() {
 
   function handleManageTalk(patientId: number) {
     const params = new URLSearchParams({
+      tab: "talk",
       talkGroup: "1",
       patientId: String(patientId),
       date: toDateParam(selectedDate),
     });
-    router.push(`/messages?${params.toString()}`);
+    router.push(`/ai-studio?${params.toString()}`);
   }
 
   const selectedVisitCount = selectedVisits?.length ?? 0;
@@ -267,6 +314,17 @@ function HomePageInner() {
         </button>
       </div>
 
+      {announcements.length > 0 && (
+        <div className={styles.announcementList}>
+          {announcements.map((a) => (
+            <div key={a.id} className={styles.announcementCard}>
+              <div className={styles.announcementTitle}>{a.title}</div>
+              <div className={styles.announcementContent}>{a.content}</div>
+            </div>
+          ))}
+        </div>
+      )}
+
       {loadError && !monthly ? (
         <div className={styles.errorBox}>
           <p>화면을 불러오지 못했습니다. 네트워크 상태를 확인하고 다시 시도해 주세요.</p>
@@ -326,9 +384,11 @@ function HomePageInner() {
                     referenceDate={selectedDate}
                     showDueBadge
                     stampTaskId={stampTaskId}
+                    staffUsers={staffUsers}
                     onCheck={handleCheck}
                     onManageTalk={handleManageTalk}
                     onPatientClick={setHistoryPatient}
+                    onWorkTaskChanged={() => setRefreshKey((k) => k + 1)}
                   />
                 )}
 
@@ -347,9 +407,11 @@ function HomePageInner() {
                         referenceDate={selectedDate}
                         showDueBadge
                         stampTaskId={stampTaskId}
+                        staffUsers={staffUsers}
                         onCheck={handleCheck}
                         onManageTalk={handleManageTalk}
                         onPatientClick={setHistoryPatient}
+                        onWorkTaskChanged={() => setRefreshKey((k) => k + 1)}
                       />
                     )}
                   </>
@@ -468,13 +530,23 @@ function HomePageInner() {
                     <th>진료구분</th>
                     <th>예약여부</th>
                     <th>체크한 사람</th>
+                    <th>검사</th>
                   </tr>
                 </thead>
                 <tbody>
                   {selectedVisits.map((v) => (
                     <tr key={v.id}>
                       <td className={styles.mono}>{v.patient.chartNumber}</td>
-                      <td>{v.patient.name}</td>
+                      <td>
+                        <Link href={`/patients/${v.patient.id}`} className={styles.patientNameLink}>
+                          {v.patient.name}
+                        </Link>
+                        {(activePrescByPatientId.get(v.patient.id) ?? []).map((program) => (
+                          <span key={program.id} className={styles.inlineBadge}>
+                            <ProgramBadge id={program.id} name={program.name} />
+                          </span>
+                        ))}
+                      </td>
                       <td>
                         <CategoryBadge id={v.treatmentCategory.id} name={v.treatmentCategory.name} />
                       </td>
@@ -483,6 +555,9 @@ function HomePageInner() {
                       </td>
                       <td>{v.isReserved ? "예약함" : "예약안함"}</td>
                       <td>{v.checkedByUser?.name ?? "-"}</td>
+                      <td>
+                        <ExamButton patientId={v.patient.id} />
+                      </td>
                     </tr>
                   ))}
                 </tbody>

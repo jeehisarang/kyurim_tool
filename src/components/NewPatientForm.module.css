@@ -1,0 +1,107 @@
+.openButton {
+  border: 1px solid rgba(110, 148, 140, 0.4);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--color-ink);
+  padding: 6px 14px;
+  font-size: 14px;
+  font-family: var(--font-body);
+  cursor: pointer;
+}
+
+.openButton:hover {
+  background: rgba(110, 148, 140, 0.1);
+}
+
+.container {
+  margin-top: 8px;
+}
+
+.row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.row input {
+  border: 1px solid rgba(110, 148, 140, 0.4);
+  border-radius: 4px;
+  background: var(--color-hanji-bg);
+  color: var(--color-ink);
+  padding: 6px 10px;
+  font-size: 14px;
+  font-family: var(--font-body);
+}
+
+.row button {
+  border: none;
+  border-radius: 4px;
+  background: var(--color-celadon);
+  color: var(--color-hanji-card);
+  padding: 6px 14px;
+  font-size: 14px;
+  font-family: var(--font-body);
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.row button:hover {
+  background: var(--color-celadon-dark);
+}
+
+.mono {
+  font-family: var(--font-mono);
+}
+
+.errorText {
+  color: var(--color-seal);
+  font-size: 13px;
+  margin: 4px 0 12px;
+}
+
+.duplicateNotice {
+  padding: 12px;
+  background: var(--color-hanji-bg);
+  border-left: 3px solid var(--color-seal);
+  border-radius: 4px;
+  margin: 8px 0;
+}
+
+.duplicateNotice p {
+  margin: 0 0 8px;
+  font-size: 14px;
+  color: var(--color-ink);
+}
+
+.duplicateActions {
+  display: flex;
+  gap: 8px;
+}
+
+.duplicateActions button {
+  border: none;
+  border-radius: 4px;
+  padding: 6px 14px;
+  font-size: 13px;
+  font-family: var(--font-body);
+  cursor: pointer;
+}
+
+.duplicateProceedButton {
+  background: var(--color-celadon);
+  color: var(--color-hanji-card);
+}
+
+.duplicateProceedButton:hover {
+  background: var(--color-celadon-dark);
+}
+
+.duplicateRetryButton {
+  background: transparent;
+  border: 1px solid rgba(110, 148, 140, 0.4) !important;
+  color: var(--color-ink);
+}
+
+.duplicateRetryButton:hover {
+  background: rgba(110, 148, 140, 0.1);
+}

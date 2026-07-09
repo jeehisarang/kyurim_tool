@@ -1,0 +1,56 @@
+.container {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 32px 16px 64px;
+}
+
+.pageTitle {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 26px;
+  color: var(--color-ink);
+  margin-bottom: 20px;
+}
+
+.tabNav {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 24px;
+}
+
+.tabButton,
+.tabButtonActive {
+  border-radius: 4px;
+  padding: 7px 16px;
+  font-size: 14px;
+  font-family: var(--font-body);
+  cursor: pointer;
+}
+
+.tabButton {
+  border: 1px solid rgba(110, 148, 140, 0.4);
+  background: var(--color-hanji-card);
+  color: var(--color-ink);
+}
+
+.tabButton:hover {
+  background: rgba(110, 148, 140, 0.1);
+}
+
+.tabButtonActive {
+  border: 1px solid var(--color-celadon);
+  background: var(--color-celadon);
+  color: var(--color-hanji-card);
+  font-weight: 500;
+}
+
+.comingSoon {
+  background: var(--color-hanji-card);
+  border: 1px dashed rgba(110, 148, 140, 0.4);
+  border-radius: 6px;
+  padding: 40px 20px;
+  text-align: center;
+  color: var(--color-ink);
+  opacity: 0.55;
+  font-size: 14px;
+}

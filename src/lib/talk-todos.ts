@@ -73,39 +73,14 @@ export async function generateTalkTodos(): Promise<{ created: number }> {
     if (!existing) continue;
     const lastVisit = visits[visits.length - 1];
     const expectedDueDate = shiftPastClosedDays(addDays(lastVisit.visitDate, 7));
-    if (expectedDueDate.getTime() !== existing.dueDate.getTime()) {
+    // DAY7은 WORK와 달리 항상 dueDate가 채워지는 톡류 타입이라 non-null 단언.
+    if (expectedDueDate.getTime() !== existing.dueDate!.getTime()) {
       staleTaskIdsToDelete.push(existing.id);
       openTaskByKey.delete(key);
     }
   }
   if (staleTaskIdsToDelete.length > 0) {
     await prisma.todoTask.deleteMany({ where: { id: { in: staleTaskIdsToDelete } } });
-  }
-
-  /**
-   * 마감일로부터 DAY2_AUTO_SKIP_AFTER_DAYS일 넘게 미해결(발송/보류 이력 없음)인
-   * 2일톡을 자동 보류 처리한다. 기존 수동 보류(skipMessage)와 동일하게 TodoTask는
-   * 그대로 두고 MessageLog만 갱신 — 재생성 방지 로직이 그대로 적용된다.
-   */
-  const day2AutoSkipCandidates = openTalkTodos.filter(
-    (t) => t.taskType === "DAY2" && countOpenDaysBetween(t.dueDate, today) > DAY2_AUTO_SKIP_AFTER_DAYS,
-  );
-  if (day2AutoSkipCandidates.length > 0) {
-    const candidatePatientIds = day2AutoSkipCandidates.map((t) => t.patientId as number);
-    const existingLogs = await prisma.messageLog.findMany({
-      where: { patientId: { in: candidatePatientIds }, messageType: "DAY2" },
-    });
-    const resolvedPatientIds = new Set(
-      existingLogs.filter((l) => l.sentDate || l.skippedAt).map((l) => l.patientId),
-    );
-    const toAutoSkip = day2AutoSkipCandidates.filter((t) => !resolvedPatientIds.has(t.patientId as number));
-    for (const t of toAutoSkip) {
-      await prisma.messageLog.upsert({
-        where: { patientId_messageType: { patientId: t.patientId as number, messageType: "DAY2" } },
-        update: { skippedAt: new Date(), skippedByUserId: null },
-        create: { patientId: t.patientId as number, messageType: "DAY2", skippedAt: new Date(), skippedByUserId: null },
-      });
-    }
   }
 
   function shouldCreate(patientId: number, taskType: TalkTaskType): boolean {
@@ -166,6 +141,43 @@ export async function generateTalkTodos(): Promise<{ created: number }> {
           staffUserId: thirdVisit.checkedByUserId,
         });
       }
+    }
+  }
+
+  /**
+   * 마감일로부터 DAY2_AUTO_SKIP_AFTER_DAYS일 넘게 미해결(발송/보류 이력 없음)인
+   * 2일톡을 자동 보류 처리한다. 기존 수동 보류(skipMessage)와 동일하게 TodoTask는
+   * 그대로 두고 MessageLog만 갱신 — 재생성 방지 로직이 그대로 적용된다.
+   *
+   * 반드시 위 toCreate 루프 다음에 와야 한다 — 소급입력(과거 방문일)으로 막 생성되는
+   * DAY2도 같은 호출 안에서 곧바로 평가 대상에 포함시키기 위함이다. 원래는 이 블록이
+   * toCreate 루프보다 먼저 있어서, 이번 호출에서 막 만들어질 예정인 신규 DAY2는 아직
+   * openTalkTodos 스냅샷(DB 조회 시점)에 없어 자동보류 대상에서 빠졌었다 — 그 결과
+   * "소급입력 직후 1회는 미발송으로 보이고, 다음 조회(새로고침) 때야 보류 처리"되는
+   * 버그가 있었다(등록일/방문일 기준 계산 자체는 문제 없었음).
+   */
+  const day2CandidateSource = [
+    ...openTalkTodos,
+    ...toCreate.map((t) => ({ patientId: t.patientId as number | null, taskType: t.taskType, dueDate: t.dueDate })),
+  ];
+  const day2AutoSkipCandidates = day2CandidateSource.filter(
+    (t) => t.taskType === "DAY2" && countOpenDaysBetween(t.dueDate!, today) > DAY2_AUTO_SKIP_AFTER_DAYS,
+  );
+  if (day2AutoSkipCandidates.length > 0) {
+    const candidatePatientIds = day2AutoSkipCandidates.map((t) => t.patientId as number);
+    const existingLogs = await prisma.messageLog.findMany({
+      where: { patientId: { in: candidatePatientIds }, messageType: "DAY2" },
+    });
+    const resolvedPatientIds = new Set(
+      existingLogs.filter((l) => l.sentDate || l.skippedAt).map((l) => l.patientId),
+    );
+    const toAutoSkip = day2AutoSkipCandidates.filter((t) => !resolvedPatientIds.has(t.patientId as number));
+    for (const t of toAutoSkip) {
+      await prisma.messageLog.upsert({
+        where: { patientId_messageType: { patientId: t.patientId as number, messageType: "DAY2" } },
+        update: { skippedAt: new Date(), skippedByUserId: null },
+        create: { patientId: t.patientId as number, messageType: "DAY2", skippedAt: new Date(), skippedByUserId: null },
+      });
     }
   }
 

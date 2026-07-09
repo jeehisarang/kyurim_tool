@@ -8,7 +8,7 @@ import {
   findMessageLogsByPatientAndType,
   findProgramEventLogsByTodoTaskIds,
 } from "@/lib/todo-tasks";
-import { isMessageTaskType } from "@/lib/task-types";
+import { isMessageTaskType, WORK_TASK_TYPE } from "@/lib/task-types";
 
 // MessageLog는 patientId 직결 자가치유형 톡(2일/7일/3회차톡)만 저장한다.
 // 프로그램 이벤트(TRIAL_* 등, prescriptionId 경유)는 ProgramEventLog를 따로 조회한다.
@@ -37,13 +37,34 @@ export async function GET(request: Request) {
   const staffUserId = searchParams.get("staffUserId");
   const referenceDate = startOfDay(parseDateParam(searchParams.get("date")));
 
+  // WORK(업무/요청)는 톡/처방과 달리 "마감일 도달 시점"이 아니라 "등록 시점"부터 노출돼야
+  // 하고, 완료해도 마감일 도달 여부와 무관하게 계속 노출돼야 한다(완료 즉시 그 자리에서
+  // "완료(담당자명)"로 보여야 함 — 조기 완료 시 사라지는 건 버그로 확인됨). 완료된 항목을
+  // 화면에서 접어 숨기는 건 API가 아니라 클라이언트의 "완료된 항목 보기" 토글이 담당한다.
+  const dateOrTypeFilter = {
+    OR: [{ dueDate: { lt: endOfDay(referenceDate) } }, { taskType: WORK_TASK_TYPE }],
+  };
+
+  // 전체 공통(WorkTask.isSharedTask) 업무는 특정 담당자 소유가 아니라 모든 직원 화면에
+  // 동일하게 노출돼야 하므로, 담당자 필터가 걸려 있어도 별도로 포함시킨다.
+  const staffFilter = staffUserId
+    ? { OR: [{ staffUserId: Number(staffUserId) }, { workTask: { isSharedTask: true } }] }
+    : {};
+
   const tasks = await prisma.todoTask.findMany({
-    where: {
-      dueDate: { lt: endOfDay(referenceDate) },
-      ...(staffUserId ? { staffUserId: Number(staffUserId) } : {}),
-    },
+    where: { AND: [dateOrTypeFilter, staffFilter] },
     include: TODO_TASK_INCLUDE,
     orderBy: { dueDate: "asc" },
+  });
+
+  // WORK은 마감일이 없을 수 있어 SQLite의 기본 정렬(널이 맨 앞)로는 "마감 임박순, 없으면
+  // 맨 뒤" 요구를 만족 못한다 — 마감일 없는 항목을 뒤로 보내도록 다시 정렬한다.
+  // 톡/처방은 항상 마감일이 있어 이 재정렬이 기존 순서에 영향을 주지 않는다.
+  tasks.sort((a, b) => {
+    if (a.dueDate === null && b.dueDate === null) return 0;
+    if (a.dueDate === null) return 1;
+    if (b.dueDate === null) return -1;
+    return a.dueDate.getTime() - b.dueDate.getTime();
   });
 
   const talkPatientIds = tasks

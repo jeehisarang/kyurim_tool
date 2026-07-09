@@ -4,9 +4,11 @@ import { completeTodoTask } from "@/lib/prescriptions";
 import { confirmMessage, skipMessage } from "@/lib/messages";
 import { confirmProgramEvent, skipProgramEvent } from "@/lib/program-events";
 import { TODO_TASK_INCLUDE, normalizeTodoTask, type EventLogLite } from "@/lib/todo-tasks";
-import { isMessageTaskType } from "@/lib/task-types";
+import { isMessageTaskType, isWorkTaskType } from "@/lib/task-types";
 
-const SKIPPABLE_TASK_TYPES = ["DAY7"];
+// 2일톡/3회차톡도 소급입력 등으로 자동조건 도달 전에 수동으로 즉시 보류 처리할 수 있어야
+// 한다 — 기존에는 7일톡만 가능했음(task2.md 확인/수정 요청).
+const SKIPPABLE_TASK_TYPES = ["DAY2", "DAY7", "THIRD_VISIT"];
 
 export async function PATCH(
   request: Request,
@@ -30,7 +32,7 @@ export async function PATCH(
 
   if (isMessageTaskType(task.taskType)) {
     if (action === "SKIPPED" && !SKIPPABLE_TASK_TYPES.includes(task.taskType)) {
-      return NextResponse.json({ error: "7일톡만 보류할 수 있습니다." }, { status: 400 });
+      return NextResponse.json({ error: "2일톡/7일톡/3회차톡만 보류할 수 있습니다." }, { status: 400 });
     }
 
     if (task.patientId) {
@@ -56,6 +58,15 @@ export async function PATCH(
               internalAnalysis: typeof body.internalAnalysis === "string" ? body.internalAnalysis : undefined,
             });
     }
+  } else if (isWorkTaskType(task.taskType)) {
+    // WORK는 처방 회차 진행 로직(completeTodoTask)과 무관한 단순 체크형 — 그냥 완료 표시만.
+    if (action === "SKIPPED") {
+      return NextResponse.json({ error: "업무는 보류할 수 없습니다." }, { status: 400 });
+    }
+    await prisma.todoTask.update({
+      where: { id: task.id },
+      data: { isDone: true, doneByUserId, doneAt: new Date() },
+    });
   } else {
     if (action === "SKIPPED") {
       return NextResponse.json({ error: "처방 할일은 보류할 수 없습니다." }, { status: 400 });

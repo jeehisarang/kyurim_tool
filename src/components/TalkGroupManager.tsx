@@ -31,8 +31,9 @@ const TASK_TYPE_LABEL: Record<string, string> = {
   ...TRIAL_TASK_TYPE_LABEL,
 };
 
-// 7일톡만 보류 가능 — /todo, /messages와 동일 규칙.
-const SKIPPABLE_TASK_TYPES = ["DAY7"];
+// 2일톡/7일톡/3회차톡 보류 가능 — /todo, /messages와 동일 규칙(task2.md 확인/수정 요청으로
+// 2일톡/3회차톡도 수동 즉시 보류 가능하도록 확장).
+const SKIPPABLE_TASK_TYPES = ["DAY2", "DAY7", "THIRD_VISIT"];
 
 const PROGRESS_LEVEL_LABEL: Record<ProgressLevel, string> = {
   HIGH: "상 (60%↑)",
