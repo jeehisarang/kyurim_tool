@@ -1,4 +1,5 @@
 import { computeBmi, gripAgePatientMessage, type GripAgeOutOfRange } from "@/lib/exam-thresholds";
+import type { ExaminationRow } from "@/lib/examination-format";
 
 // "환자와 함께보기"(/patient-view/exam/[examType]/[id]) 전용 화이트리스트 변환 —
 // 원본 API 응답에 측정자/메모/처방 연결/수정이력 등 직원 전용 필드가 섞여 있어도, 여기서
@@ -87,4 +88,70 @@ export function toPatientSafeExamView(
     gripJudgementLabel: GRIP_JUDGEMENT_LABEL[detail.gripJudgement],
     gripAgeMessage: gripAgePatientMessage(detail.estimatedGripAge, detail.gripAgeOutOfRange),
   };
+}
+
+// "환자 검사 종합 리포트"(/patient-view/exam-report/[patientId], 14-6) 전용 —
+// 검사종류별로 몇 건 있는지에 따라 화면에서 무엇을 보여줘야 하는지만 판단한다(순수 함수).
+// - 0건: 섹션 자체를 숨김
+// - 1건: 기존 개별 검사 상세 화이트리스트 뷰(toPatientSafeExamView)를 그대로 재사용해
+//   가장 자세한 단일 결과를 보여준다(좌/우 악력 등 목록 API에는 없는 필드가 필요해서,
+//   호출측이 해당 id로 상세 API를 한 번 더 불러 변환해야 한다).
+// - 2건 이상: 목록 API 필드만으로 충분한 추이 그래프를 그린다(좌/우 악력 등 상세 불필요).
+export type ExamReportPlan = {
+  bodyComposition:
+    | { kind: "none" }
+    | { kind: "single"; id: number }
+    | { kind: "trend"; points: { examDate: string; weightKg: number; bodyFatPercent: number }[] };
+  strengthTest:
+    | { kind: "none" }
+    | { kind: "single"; id: number }
+    | {
+        kind: "trend";
+        points: { examDate: string; gripAvgKg: number; estimatedGripAge: number | null }[];
+      };
+};
+
+export function planPatientExamReport(rows: ExaminationRow[]): ExamReportPlan {
+  const bodyRows = rows.filter(
+    (r): r is Extract<ExaminationRow, { examType: "BODY_COMPOSITION" }> =>
+      r.examType === "BODY_COMPOSITION",
+  );
+  const strengthRows = rows.filter(
+    (r): r is Extract<ExaminationRow, { examType: "STRENGTH_TEST" }> =>
+      r.examType === "STRENGTH_TEST",
+  );
+
+  // 차트가 왼쪽(과거)→오른쪽(최신)으로 시간순 진행하도록 오름차순 정렬.
+  const bodySorted = [...bodyRows].sort((a, b) => a.examDate.localeCompare(b.examDate));
+  const strengthSorted = [...strengthRows].sort((a, b) => a.examDate.localeCompare(b.examDate));
+
+  const bodyComposition: ExamReportPlan["bodyComposition"] =
+    bodySorted.length === 0
+      ? { kind: "none" }
+      : bodySorted.length === 1
+        ? { kind: "single", id: bodySorted[0].id }
+        : {
+            kind: "trend",
+            points: bodySorted.map((r) => ({
+              examDate: r.examDate,
+              weightKg: r.weightKg,
+              bodyFatPercent: r.bodyFatPercent,
+            })),
+          };
+
+  const strengthTest: ExamReportPlan["strengthTest"] =
+    strengthSorted.length === 0
+      ? { kind: "none" }
+      : strengthSorted.length === 1
+        ? { kind: "single", id: strengthSorted[0].id }
+        : {
+            kind: "trend",
+            points: strengthSorted.map((r) => ({
+              examDate: r.examDate,
+              gripAvgKg: r.gripAvgKg,
+              estimatedGripAge: r.estimatedGripAge,
+            })),
+          };
+
+  return { bodyComposition, strengthTest };
 }

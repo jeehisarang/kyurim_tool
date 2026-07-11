@@ -23,3 +23,11 @@ export const TRIAL_TASK_TYPE_LABEL: Record<"TRIAL_WELCOME" | "TRIAL_DAY2" | "TRI
   TRIAL_DAY2: "체험 2일차톡",
   TRIAL_DEADLINE: "체험 마감톡",
 };
+
+// 활동피드(ActivityLog) 문구 조립용 — WELCOME/MEETING까지 포함한 전체 톡 타입 라벨.
+export const MESSAGE_TYPE_LABEL: Record<string, string> = {
+  WELCOME: "웰컴 메시지",
+  MEETING: "만남톡",
+  ...TALK_MESSAGE_TYPE_LABEL,
+  ...TRIAL_TASK_TYPE_LABEL,
+};

@@ -5,6 +5,7 @@ import { confirmMessage, skipMessage } from "@/lib/messages";
 import { confirmProgramEvent, skipProgramEvent } from "@/lib/program-events";
 import { TODO_TASK_INCLUDE, normalizeTodoTask, type EventLogLite } from "@/lib/todo-tasks";
 import { isMessageTaskType, isWorkTaskType } from "@/lib/task-types";
+import { completeWorkTask } from "@/lib/work-tasks";
 
 // 2일톡/3회차톡도 소급입력 등으로 자동조건 도달 전에 수동으로 즉시 보류 처리할 수 있어야
 // 한다 — 기존에는 7일톡만 가능했음(task2.md 확인/수정 요청).
@@ -63,10 +64,7 @@ export async function PATCH(
     if (action === "SKIPPED") {
       return NextResponse.json({ error: "업무는 보류할 수 없습니다." }, { status: 400 });
     }
-    await prisma.todoTask.update({
-      where: { id: task.id },
-      data: { isDone: true, doneByUserId, doneAt: new Date() },
-    });
+    await completeWorkTask(task.id, doneByUserId);
   } else {
     if (action === "SKIPPED") {
       return NextResponse.json({ error: "처방 할일은 보류할 수 없습니다." }, { status: 400 });

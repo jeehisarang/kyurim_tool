@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import styles from "./page.module.css";
+import BackButton from "@/components/BackButton";
 
 type StaffUser = { id: number; name: string; role: string; isActive: boolean };
 
@@ -49,6 +50,8 @@ export default function StaffSettingsPage() {
       setNewName("");
       setNewRole("직원");
       refresh();
+    } catch {
+      setAddError("서버에 연결하지 못했습니다. 다시 시도해주세요.");
     } finally {
       setAdding(false);
     }
@@ -82,6 +85,8 @@ export default function StaffSettingsPage() {
       }
       setEditingId(null);
       refresh();
+    } catch {
+      setEditError("서버에 연결하지 못했습니다. 다시 시도해주세요.");
     } finally {
       setEditSaving(false);
     }
@@ -90,17 +95,28 @@ export default function StaffSettingsPage() {
   async function toggleActive(u: StaffUser) {
     const action = u.isActive ? "비활성화" : "재활성화";
     if (!window.confirm(`${u.name}님을 ${action}하시겠습니까?`)) return;
-    await fetch(`/api/staff-users/${u.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ isActive: !u.isActive }),
-    });
-    refresh();
+    try {
+      const res = await fetch(`/api/staff-users/${u.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isActive: !u.isActive }),
+      });
+      if (!res.ok) {
+        alert("처리에 실패했습니다. 다시 시도해주세요.");
+        return;
+      }
+      refresh();
+    } catch {
+      alert("서버에 연결하지 못했습니다. 다시 시도해주세요.");
+    }
   }
 
   return (
     <div className={styles.container}>
-      <h1 className={styles.pageTitle}>직원 관리</h1>
+      <div className={styles.titleRow}>
+        <BackButton />
+        <h1 className={styles.pageTitle}>직원 관리</h1>
+      </div>
       <p className={styles.muted}>
         여기서 추가/비활성화한 직원은 &ldquo;현재 사용자&rdquo; 드롭다운에 즉시 반영됩니다. 비활성화는
         완전 삭제가 아니라 과거 기록(체크한 사람/담당자)의 이름 표시를 그대로 보존하기 위한

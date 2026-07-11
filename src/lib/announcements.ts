@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db";
+import { logActivity } from "@/lib/activity-log";
 
 // 설정 화면(원장 전용)에서 전체(활성+비활성) 조회.
 export async function listAnnouncements() {
@@ -29,10 +30,17 @@ export async function createAnnouncement(input: {
   endDate: Date | null;
   createdById: number;
 }) {
-  return prisma.announcement.create({
+  const announcement = await prisma.announcement.create({
     data: input,
     include: { createdBy: true },
   });
+  await logActivity({
+    actorType: "STAFF",
+    actorId: input.createdById,
+    actionType: "ANNOUNCEMENT_CREATE",
+    label: `${announcement.createdBy.name}님이 공지사항을 등록했습니다: ${announcement.title}`,
+  });
+  return announcement;
 }
 
 export async function updateAnnouncement(

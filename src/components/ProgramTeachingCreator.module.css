@@ -1,0 +1,166 @@
+.wrap {
+  margin-top: 10px;
+}
+
+.toggleButton {
+  border: 1px solid var(--color-celadon);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--color-celadon-dark);
+  padding: 6px 14px;
+  font-size: 13px;
+  font-family: var(--font-body);
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.toggleButton:hover {
+  background: rgba(110, 148, 140, 0.1);
+}
+
+.panel {
+  margin-top: 10px;
+  padding: 14px;
+  background: var(--color-hanji-bg);
+  border: 1px solid rgba(110, 148, 140, 0.3);
+  border-radius: 6px;
+}
+
+.sectionLabel {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-celadon-dark);
+  margin-bottom: 8px;
+}
+
+.muted {
+  color: var(--color-ink);
+  opacity: 0.55;
+  font-size: 13px;
+}
+
+.resultList {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 10px;
+  max-height: 260px;
+  overflow-y: auto;
+  border: 1px solid rgba(110, 148, 140, 0.25);
+  border-radius: 4px;
+}
+
+.resultItem,
+.resultItemActive {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 8px 10px;
+  cursor: pointer;
+  border-bottom: 1px solid rgba(110, 148, 140, 0.15);
+  font-size: 13px;
+}
+
+.resultItem:last-child,
+.resultItemActive:last-child {
+  border-bottom: none;
+}
+
+.resultItem:hover {
+  background: rgba(110, 148, 140, 0.1);
+}
+
+.resultItemActive {
+  background: rgba(110, 148, 140, 0.2);
+}
+
+.resultKeywords {
+  font-size: 11px;
+  color: var(--color-ink);
+  opacity: 0.55;
+}
+
+.noticeText {
+  background: rgba(179, 60, 46, 0.08);
+  border-left: 3px solid var(--color-seal);
+  border-radius: 4px;
+  padding: 8px 10px;
+  color: var(--color-seal);
+  font-size: 13px;
+  margin: 4px 0 8px;
+}
+
+.errorText {
+  color: var(--color-seal);
+  font-size: 13px;
+  margin: 4px 0 8px;
+}
+
+.generateButton {
+  border: none;
+  border-radius: 4px;
+  background: var(--color-celadon);
+  color: var(--color-hanji-card);
+  padding: 7px 16px;
+  font-size: 13px;
+  font-family: var(--font-body);
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.generateButton:hover:not(:disabled) {
+  background: var(--color-celadon-dark);
+}
+
+.generateButton:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.previewBox {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.testValueText {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--color-celadon-dark);
+}
+
+.previewText {
+  background: var(--color-hanji-card);
+  border-left: 3px solid var(--color-celadon);
+  border-radius: 4px;
+  padding: 10px 12px;
+  font-size: 13px;
+  color: var(--color-ink);
+  white-space: pre-wrap;
+}
+
+.thumbnail {
+  width: 120px;
+  border-radius: 4px;
+  border: 1px solid rgba(110, 148, 140, 0.35);
+}
+
+.previewActions {
+  display: flex;
+  gap: 8px;
+}
+
+.resetButton {
+  border: 1px solid rgba(110, 148, 140, 0.4);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--color-ink);
+  padding: 7px 16px;
+  font-size: 13px;
+  font-family: var(--font-body);
+  cursor: pointer;
+}
+
+.resetButton:hover {
+  background: rgba(110, 148, 140, 0.1);
+}

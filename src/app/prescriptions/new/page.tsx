@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import styles from "./page.module.css";
+import BackButton from "@/components/BackButton";
 import SealStamp from "@/components/SealStamp";
 import NewPatientForm from "@/components/NewPatientForm";
 import ProgramBadge from "@/components/ProgramBadge";
@@ -178,6 +179,8 @@ export default function NewPrescriptionPage() {
       setSurveyDataJson("");
       setSurveyResponseCacheId(null);
       setStampKey((k) => k + 1);
+    } catch {
+      setSubmitError("서버에 연결하지 못했습니다. 처방이 등록되지 않았으니 다시 시도해주세요.");
     } finally {
       setSubmitting(false);
     }
@@ -186,7 +189,10 @@ export default function NewPrescriptionPage() {
   return (
     <div className={styles.container}>
       <div className={styles.pageHeader}>
-        <h1 className={styles.pageTitle}>치료처방 등록</h1>
+        <div className={styles.titleGroup}>
+          <BackButton />
+          <h1 className={styles.pageTitle}>치료처방 등록</h1>
+        </div>
         <Link href="/prescriptions" className={styles.listLink}>
           ← 치료처방 목록
         </Link>

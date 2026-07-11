@@ -73,6 +73,8 @@ export default function GoalTracker({ metric, currentValue, goal, onSaved }: Pro
       setEditing(false);
       setStampKey((k) => k + 1);
       onSaved();
+    } catch {
+      setError("서버에 연결하지 못했습니다. 다시 시도해주세요.");
     } finally {
       setSubmitting(false);
     }

@@ -1,4 +1,6 @@
 import { prisma } from "@/lib/db";
+import { logActivity } from "@/lib/activity-log";
+import { MESSAGE_TYPE_LABEL } from "@/lib/message-templates";
 
 export async function getProgramEventDetail(todoTaskId: number) {
   const task = await prisma.todoTask.findUniqueOrThrow({
@@ -25,25 +27,43 @@ export async function confirmProgramEvent(input: {
 }) {
   const { todoTaskId, staffUserId, patientMessage, internalAnalysis } = input;
 
-  return prisma.programEventLog.upsert({
-    where: { todoTaskId },
-    update: {
-      sentDate: new Date(),
-      staffUserId,
-      skippedAt: null,
-      skippedByUserId: null,
-      ...(patientMessage !== undefined ? { patientMessage } : {}),
-      ...(internalAnalysis !== undefined ? { internalAnalysis } : {}),
-    },
-    create: {
-      todoTaskId,
-      sentDate: new Date(),
-      staffUserId,
-      patientMessage: patientMessage ?? null,
-      internalAnalysis: internalAnalysis ?? null,
-    },
-    include: { staffUser: true, skippedByUser: true },
-  });
+  const [log, task, staffUser] = await Promise.all([
+    prisma.programEventLog.upsert({
+      where: { todoTaskId },
+      update: {
+        sentDate: new Date(),
+        staffUserId,
+        skippedAt: null,
+        skippedByUserId: null,
+        ...(patientMessage !== undefined ? { patientMessage } : {}),
+        ...(internalAnalysis !== undefined ? { internalAnalysis } : {}),
+      },
+      create: {
+        todoTaskId,
+        sentDate: new Date(),
+        staffUserId,
+        patientMessage: patientMessage ?? null,
+        internalAnalysis: internalAnalysis ?? null,
+      },
+      include: { staffUser: true, skippedByUser: true },
+    }),
+    prisma.todoTask.findUniqueOrThrow({
+      where: { id: todoTaskId },
+      include: { prescription: { include: { patient: true } } },
+    }),
+    prisma.staffUser.findUniqueOrThrow({ where: { id: staffUserId } }),
+  ]);
+
+  if (task.prescription) {
+    await logActivity({
+      actorType: "STAFF",
+      actorId: staffUserId,
+      actionType: "TALK_CONFIRM",
+      label: `${staffUser.name}님이 ${task.prescription.patient.name}님 ${MESSAGE_TYPE_LABEL[task.taskType] ?? task.taskType} 발송을 확인했습니다`,
+    });
+  }
+
+  return log;
 }
 
 export async function skipProgramEvent(input: { todoTaskId: number; staffUserId: number }) {

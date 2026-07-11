@@ -12,6 +12,7 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import styles from "./page.module.css";
+import BackButton from "@/components/BackButton";
 import GoalTracker, { type Goal } from "./GoalTracker";
 import { GOAL_METRICS, type MetricKey } from "@/lib/goals";
 import CategoryBadge from "@/components/CategoryBadge";
@@ -134,7 +135,10 @@ export default function DashboardPage() {
 
   return (
     <div className={styles.container}>
-      <h1 className={styles.pageTitle}>통계 대시보드</h1>
+      <div className={styles.titleRow}>
+        <BackButton />
+        <h1 className={styles.pageTitle}>통계 대시보드</h1>
+      </div>
 
       {loadError && !stats ? (
         <div className={styles.errorBox}>

@@ -3,6 +3,7 @@
 import { Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import styles from "./page.module.css";
+import BackButton from "@/components/BackButton";
 import TalkStudioPanel from "@/components/TalkStudioPanel";
 
 const TABS = [
@@ -44,7 +45,10 @@ function AiStudioPageInner() {
 
   return (
     <div className={styles.container}>
-      <h1 className={styles.pageTitle}>AI 생성</h1>
+      <div className={styles.titleRow}>
+        <BackButton />
+        <h1 className={styles.pageTitle}>AI 생성</h1>
+      </div>
 
       <nav className={styles.tabNav}>
         {TABS.map((tab) => (

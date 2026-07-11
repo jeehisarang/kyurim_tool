@@ -1,0 +1,69 @@
+.section {
+  margin-bottom: 32px;
+}
+
+.section:last-child {
+  margin-bottom: 0;
+}
+
+.sectionTitle {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 20px;
+  color: var(--color-celadon-dark);
+  border-left: 4px solid var(--color-celadon);
+  padding-left: 10px;
+  margin-bottom: 16px;
+}
+
+.chartCaption {
+  text-align: center;
+  font-size: 14px;
+  color: var(--color-ink);
+  opacity: 0.6;
+  margin-bottom: 8px;
+}
+
+.resultGrid {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.resultRow {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid rgba(110, 148, 140, 0.2);
+}
+
+.resultRow:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.resultLabel {
+  font-size: 16px;
+  color: var(--color-ink);
+  opacity: 0.75;
+}
+
+.resultValue {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 24px;
+  color: var(--color-celadon-dark);
+}
+
+.messageBox {
+  margin-top: 4px;
+  padding: 16px 20px;
+  background: rgba(110, 148, 140, 0.12);
+  border-radius: 8px;
+  text-align: center;
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--color-celadon-dark);
+}

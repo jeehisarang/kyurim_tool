@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import styles from "./page.module.css";
+import BackButton from "@/components/BackButton";
 import ProgramBadge from "@/components/ProgramBadge";
 import {
   getProgramCategory,
@@ -138,6 +139,8 @@ export default function PrescriptionListPage() {
       }
       setEditingPrescriptionId(null);
       refresh();
+    } catch {
+      setEditError("서버에 연결하지 못했습니다. 다시 시도해주세요.");
     } finally {
       setEditSaving(false);
     }
@@ -151,12 +154,20 @@ export default function PrescriptionListPage() {
     ) {
       return;
     }
-    await fetch(`/api/prescriptions/${row.prescriptionId}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status: "STOPPED" }),
-    });
-    refresh();
+    try {
+      const res = await fetch(`/api/prescriptions/${row.prescriptionId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "STOPPED" }),
+      });
+      if (!res.ok) {
+        alert("처리에 실패했습니다. 다시 시도해주세요.");
+        return;
+      }
+      refresh();
+    } catch {
+      alert("서버에 연결하지 못했습니다. 다시 시도해주세요.");
+    }
   }
 
   // 카테고리에 속하지 않는 프로그램(예: 미분류 "킬팻캡슐" 기본형)도 진행 중인 환자가
@@ -196,7 +207,10 @@ export default function PrescriptionListPage() {
   return (
     <div className={styles.container}>
       <div className={styles.pageHeader}>
-        <h1 className={styles.pageTitle}>치료처방 목록</h1>
+        <div className={styles.titleGroup}>
+          <BackButton />
+          <h1 className={styles.pageTitle}>치료처방 목록</h1>
+        </div>
         <Link href="/prescriptions/new" className={styles.newLink}>
           + 신규 등록
         </Link>

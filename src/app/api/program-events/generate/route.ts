@@ -38,6 +38,11 @@ export async function POST(request: Request) {
       memo: task.prescription.patient.memo,
       notes: notes.map((n) => ({ content: n.content, createdAt: n.createdAt })),
       surveyDataJson: task.prescription.surveyDataJson,
+      coreProfile: {
+        pastHistory: task.prescription.patient.pastHistory,
+        currentCondition: task.prescription.patient.currentCondition,
+        mainNeeds: task.prescription.patient.mainNeeds,
+      },
     });
     return NextResponse.json(result);
   } catch (err) {

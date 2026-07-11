@@ -54,6 +54,11 @@ export async function POST(request: Request) {
         visitType: v.visitType.name,
       })),
       notes: notes.map((n) => ({ content: n.content, createdAt: n.createdAt })),
+      coreProfile: {
+        pastHistory: patient.pastHistory,
+        currentCondition: patient.currentCondition,
+        mainNeeds: patient.mainNeeds,
+      },
       extraKeywords: typeof extraKeywords === "string" ? extraKeywords : undefined,
       progressLevel:
         messageType === "THIRD_VISIT" && isProgressLevel(progressLevel) ? progressLevel : undefined,

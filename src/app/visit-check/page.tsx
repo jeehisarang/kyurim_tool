@@ -4,6 +4,7 @@ import { Fragment, Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import styles from "./page.module.css";
+import BackButton from "@/components/BackButton";
 import ExamButton from "@/components/ExamButton";
 import NewPatientForm from "@/components/NewPatientForm";
 import SealStamp from "@/components/SealStamp";
@@ -202,10 +203,14 @@ function VisitCheckPageInner() {
         "방금 등록한 환자 정보를 취소할까요?\n\n확인을 누르면 방금 등록한 환자 정보가 삭제됩니다.",
       );
       if (shouldDelete) {
-        const res = await fetch(`/api/patients/${selectedPatient.id}`, { method: "DELETE" });
-        if (!res.ok) {
-          const data = await res.json();
-          alert(data.error ?? "환자 삭제에 실패했습니다. 정보만 해제합니다.");
+        try {
+          const res = await fetch(`/api/patients/${selectedPatient.id}`, { method: "DELETE" });
+          if (!res.ok) {
+            const data = await res.json();
+            alert(data.error ?? "환자 삭제에 실패했습니다. 정보만 해제합니다.");
+          }
+        } catch {
+          alert("서버에 연결하지 못했습니다. 정보만 해제합니다.");
         }
       }
     }
@@ -238,6 +243,8 @@ function VisitCheckPageInner() {
       }
       setSelectedPatient(data);
       setPatientEditOpen(false);
+    } catch {
+      setPatientEditError("서버에 연결하지 못했습니다. 다시 시도해주세요.");
     } finally {
       setPatientEditSaving(false);
     }
@@ -274,6 +281,8 @@ function VisitCheckPageInner() {
       setVisits((prev) => [data, ...prev]);
       clearSelectedPatient();
       setStampKey((k) => k + 1);
+    } catch {
+      setSubmitError("서버에 연결하지 못했습니다. 내원 체크가 저장되지 않았으니 다시 시도해주세요.");
     } finally {
       setSubmitting(false);
     }
@@ -310,6 +319,8 @@ function VisitCheckPageInner() {
       }
       setVisits((prev) => prev.map((v) => (v.id === id ? data : v)));
       setEditingVisitId(null);
+    } catch {
+      setEditVisitError("서버에 연결하지 못했습니다. 다시 시도해주세요.");
     } finally {
       setEditVisitSaving(false);
     }
@@ -324,8 +335,13 @@ function VisitCheckPageInner() {
         body: JSON.stringify({ isReserved: !v.isReserved }),
       });
       const data = await res.json();
-      if (!res.ok) return;
+      if (!res.ok) {
+        alert("처리에 실패했습니다. 다시 시도해주세요.");
+        return;
+      }
       setVisits((prev) => prev.map((item) => (item.id === v.id ? data : item)));
+    } catch {
+      alert("서버에 연결하지 못했습니다. 다시 시도해주세요.");
     } finally {
       setTogglingReservedId(null);
     }
@@ -339,8 +355,16 @@ function VisitCheckPageInner() {
     ) {
       return;
     }
-    await fetch(`/api/visits/${id}`, { method: "DELETE" });
-    setVisits((prev) => prev.filter((v) => v.id !== id));
+    try {
+      const res = await fetch(`/api/visits/${id}`, { method: "DELETE" });
+      if (!res.ok) {
+        alert("삭제에 실패했습니다. 다시 시도해주세요.");
+        return;
+      }
+      setVisits((prev) => prev.filter((v) => v.id !== id));
+    } catch {
+      alert("서버에 연결하지 못했습니다. 삭제되지 않았으니 다시 시도해주세요.");
+    }
   }
 
   const isToday = isSameDate(selectedDate, startOfDay(new Date()));
@@ -350,7 +374,10 @@ function VisitCheckPageInner() {
 
   return (
     <div className={styles.container}>
-      <h1 className={styles.pageTitle}>내원체크</h1>
+      <div className={styles.titleRow}>
+        <BackButton />
+        <h1 className={styles.pageTitle}>내원체크</h1>
+      </div>
 
       <div className={styles.dateNav}>
         <button

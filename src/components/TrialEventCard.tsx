@@ -5,6 +5,7 @@ import styles from "@/app/messages/page.module.css";
 import cardStyles from "./TrialEventCard.module.css";
 import SealStamp from "@/components/SealStamp";
 import { getCurrentUserId } from "@/lib/currentUser";
+import { copyToClipboard } from "@/lib/clipboard";
 import { TRIAL_TASK_TYPE_LABEL } from "@/lib/message-templates";
 
 type TrialTaskType = "TRIAL_WELCOME" | "TRIAL_DAY2" | "TRIAL_DEADLINE";
@@ -62,6 +63,8 @@ export default function TrialEventCard({ todoTaskId }: { todoTaskId: number }) {
       }
       setPatientMessage(data.patientMessage);
       setInternalAnalysis(data.internalAnalysis);
+    } catch {
+      setGenerateError("서버에 연결하지 못했습니다. 다시 시도해주세요.");
     } finally {
       setGenerating(false);
     }
@@ -69,7 +72,11 @@ export default function TrialEventCard({ todoTaskId }: { todoTaskId: number }) {
 
   async function handleCopy() {
     if (!patientMessage) return;
-    await navigator.clipboard.writeText(patientMessage);
+    const success = await copyToClipboard(patientMessage);
+    if (!success) {
+      alert("복사에 실패했습니다. 텍스트를 직접 선택해서 복사해주세요.");
+      return;
+    }
     setCopied(true);
     setTimeout(() => setCopied(false), 1500);
   }
@@ -81,15 +88,22 @@ export default function TrialEventCard({ todoTaskId }: { todoTaskId: number }) {
       return;
     }
 
-    await fetch(`/api/todo-tasks/${todoTaskId}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ doneByUserId: staffUserId, action: "DONE", patientMessage, internalAnalysis }),
-    });
-
-    setStampKey((k) => k + 1);
-    const res = await fetch(`/api/program-events/${todoTaskId}`);
-    setDetail(await res.json());
+    try {
+      const res = await fetch(`/api/todo-tasks/${todoTaskId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ doneByUserId: staffUserId, action: "DONE", patientMessage, internalAnalysis }),
+      });
+      if (!res.ok) {
+        alert("완료 처리에 실패했습니다. 다시 시도해주세요.");
+        return;
+      }
+      setStampKey((k) => k + 1);
+      const detailRes = await fetch(`/api/program-events/${todoTaskId}`);
+      setDetail(await detailRes.json());
+    } catch {
+      alert("서버에 연결하지 못했습니다. 완료 처리되지 않았으니 다시 시도해주세요.");
+    }
   }
 
   if (!detail) return null;

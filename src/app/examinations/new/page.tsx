@@ -4,6 +4,7 @@ import { Suspense, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import styles from "./page.module.css";
+import BackButton from "@/components/BackButton";
 import NewPatientForm from "@/components/NewPatientForm";
 import { getCurrentUserId } from "@/lib/currentUser";
 import {
@@ -151,10 +152,11 @@ function NewExaminationPageInner() {
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [lastResult, setLastResult] = useState<
-    | { examType: "BODY_COMPOSITION"; patientName: string; weightKg: number }
-    | ({ examType: "STRENGTH_TEST"; patientName: string } & StrengthResult)
+    | { examType: "BODY_COMPOSITION"; patientId: number; patientName: string; weightKg: number }
+    | ({ examType: "STRENGTH_TEST"; patientId: number; patientName: string } & StrengthResult)
     | null
   >(null);
+  const [patientViewPopupBlocked, setPatientViewPopupBlocked] = useState(false);
 
   useEffect(() => {
     fetch("/api/staff-users")
@@ -410,12 +412,14 @@ function NewExaminationPageInner() {
       if (examType === "BODY_COMPOSITION") {
         setLastResult({
           examType: "BODY_COMPOSITION",
+          patientId: selectedPatient.id,
           patientName: selectedPatient.name,
           weightKg: data.weightKg,
         });
       } else {
         setLastResult({
           examType: "STRENGTH_TEST",
+          patientId: selectedPatient.id,
           patientName: selectedPatient.name,
           gripAvgKg: data.gripAvgKg,
           gripJudgement: data.gripJudgement,
@@ -423,16 +427,37 @@ function NewExaminationPageInner() {
           outOfRange: data.gripAgeOutOfRange,
         });
       }
+      setPatientViewPopupBlocked(false);
       resetForm();
+    } catch {
+      setSubmitError("서버에 연결하지 못했습니다. 검사 기록이 저장되지 않았으니 다시 시도해주세요.");
     } finally {
       setSubmitting(false);
+    }
+  }
+
+  // 등록 완료 즉시 1클릭으로 종합 리포트를 열 수 있게 한다(기존 등록→목록→상세→버튼
+  // 클릭의 3단계를 제거, task.md 핵심 요청사항).
+  function handleOpenPatientView() {
+    if (!lastResult) return;
+    setPatientViewPopupBlocked(false);
+    const win = window.open(
+      `/patient-view/exam-report/${lastResult.patientId}`,
+      "_blank",
+      "noopener,noreferrer,width=760,height=900",
+    );
+    if (!win || win.closed) {
+      setPatientViewPopupBlocked(true);
     }
   }
 
   return (
     <div className={styles.container}>
       <div className={styles.pageHeader}>
-        <h1 className={styles.pageTitle}>검사 등록</h1>
+        <div className={styles.titleGroup}>
+          <BackButton />
+          <h1 className={styles.pageTitle}>검사 등록</h1>
+        </div>
         <Link href="/examinations" className={styles.listLink}>
           ← 검사 목록
         </Link>
@@ -468,6 +493,21 @@ function NewExaminationPageInner() {
                 <span className={styles.resultValue}>{formatGripAge(lastResult)}</span>
               </div>
             </div>
+          )}
+          <div>
+            <button
+              type="button"
+              className={styles.patientViewButton}
+              onClick={handleOpenPatientView}
+            >
+              환자와 함께보기
+            </button>
+          </div>
+          {patientViewPopupBlocked && (
+            <p className={styles.errorText}>
+              팝업이 차단되었습니다. 브라우저 주소창의 팝업 차단 아이콘을 눌러 이 사이트의 팝업을
+              허용한 뒤 다시 시도해주세요.
+            </p>
           )}
         </div>
       )}

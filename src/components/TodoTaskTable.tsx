@@ -178,6 +178,10 @@ export type TodoTaskTableProps = {
   onPatientClick: (patient: Patient) => void;
   // WORK 수정/삭제가 성공하면 호출 — 부모가 목록을 다시 불러오게 한다(체크 처리와 동일한 새로고침 패턴).
   onWorkTaskChanged: () => void;
+  // "work"면 업무 전용 반쪽 표로 렌더링 — 구분/환자명/프로그램명 컬럼을 아예 뺀다.
+  // (해당 컬럼이 업무 항목에서는 항상 "-"로 비어 공간만 차지하기 때문 — 톡/업무 좌우
+  // 분리 레이아웃은 TodoSplitView가 category로 나눈 tasks를 이 prop과 함께 넘겨준다)
+  mode?: "all" | "work";
 };
 
 export default function TodoTaskTable({
@@ -190,7 +194,9 @@ export default function TodoTaskTable({
   onManageTalk,
   onPatientClick,
   onWorkTaskChanged,
+  mode = "all",
 }: TodoTaskTableProps) {
+  const hideNameColumns = mode === "work";
   const rows = buildTaskRows(tasks);
 
   const [editingWorkId, setEditingWorkId] = useState<number | null>(null);
@@ -238,6 +244,8 @@ export default function TodoTaskTable({
       }
       setEditingWorkId(null);
       onWorkTaskChanged();
+    } catch {
+      setEditError("서버에 연결하지 못했습니다. 다시 시도해주세요.");
     } finally {
       setEditSaving(false);
     }
@@ -245,17 +253,29 @@ export default function TodoTaskTable({
 
   async function handleDeleteWork(taskId: number) {
     if (!window.confirm("이 업무를 삭제하시겠습니까?")) return;
-    await fetch(`/api/work-tasks/${taskId}`, { method: "DELETE" });
-    onWorkTaskChanged();
+    try {
+      const res = await fetch(`/api/work-tasks/${taskId}`, { method: "DELETE" });
+      if (!res.ok) {
+        alert("삭제에 실패했습니다. 다시 시도해주세요.");
+        return;
+      }
+      onWorkTaskChanged();
+    } catch {
+      alert("서버에 연결하지 못했습니다. 삭제되지 않았으니 다시 시도해주세요.");
+    }
   }
 
   return (
     <table className={styles.table}>
       <thead>
         <tr>
-          <th>구분</th>
-          <th>환자명</th>
-          <th>프로그램명</th>
+          {!hideNameColumns && (
+            <>
+              <th>구분</th>
+              <th>환자명</th>
+              <th>프로그램명</th>
+            </>
+          )}
           <th>할일종류</th>
           {showDueBadge && <th>마감</th>}
           <th>담당자</th>
@@ -318,33 +338,37 @@ export default function TodoTaskTable({
           const task = row.task;
           const isWork = task.category === "WORK";
           const isEditingThis = editingWorkId === task.id;
-          const colSpan = showDueBadge ? 7 : 6;
+          const colSpan = (hideNameColumns ? 3 : 6) + (showDueBadge ? 1 : 0);
           return (
             <Fragment key={task.id}>
               <tr>
-                <td>
-                  {isWork ? (
-                    <span className={styles.categoryBadgeWork}>{CATEGORY_LABEL.WORK}</span>
-                  ) : (
-                    <span className={styles.categoryBadgePrescription}>{CATEGORY_LABEL.PRESCRIPTION}</span>
-                  )}
-                </td>
-                <td>
-                  {task.patient ? (
-                    <button
-                      type="button"
-                      className={styles.patientNameButton}
-                      onClick={() => onPatientClick(task.patient!)}
-                    >
-                      {task.patient.name}
-                    </button>
-                  ) : (
-                    "-"
-                  )}
-                </td>
-                <td>
-                  {task.program ? <ProgramBadge id={task.program.id} name={task.program.name} /> : "-"}
-                </td>
+                {!hideNameColumns && (
+                  <>
+                    <td>
+                      {isWork ? (
+                        <span className={styles.categoryBadgeWork}>{CATEGORY_LABEL.WORK}</span>
+                      ) : (
+                        <span className={styles.categoryBadgePrescription}>{CATEGORY_LABEL.PRESCRIPTION}</span>
+                      )}
+                    </td>
+                    <td>
+                      {task.patient ? (
+                        <button
+                          type="button"
+                          className={styles.patientNameButton}
+                          onClick={() => onPatientClick(task.patient!)}
+                        >
+                          {task.patient.name}
+                        </button>
+                      ) : (
+                        "-"
+                      )}
+                    </td>
+                    <td>
+                      {task.program ? <ProgramBadge id={task.program.id} name={task.program.name} /> : "-"}
+                    </td>
+                  </>
+                )}
                 <td>
                   {isWork ? (
                     <span className={styles.taskTypeBadgeWork}>

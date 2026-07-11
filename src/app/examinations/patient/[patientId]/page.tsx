@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import styles from "./page.module.css";
+import BackButton from "@/components/BackButton";
 import {
   type ExaminationRow,
   EXAM_TYPE_LABEL,
@@ -73,7 +74,10 @@ export default function PatientExamHistoryPage() {
   return (
     <div className={styles.container}>
       <div className={styles.pageHeader}>
-        <h1 className={styles.pageTitle}>{patient.name}님 검사이력</h1>
+        <div className={styles.titleGroup}>
+          <BackButton />
+          <h1 className={styles.pageTitle}>{patient.name}님 검사이력</h1>
+        </div>
         <Link href="/examinations" className={styles.listLink}>
           ← 검사 목록
         </Link>

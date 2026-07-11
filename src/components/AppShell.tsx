@@ -3,21 +3,36 @@
 import { usePathname } from "next/navigation";
 import Sidebar from "@/components/Sidebar";
 import CurrentUserBadge from "@/components/CurrentUserBadge";
+import ActivityRail from "@/components/ActivityRail";
 import { CurrentUserProvider } from "@/lib/CurrentUserContext";
 import styles from "@/app/layout.module.css";
 
 /**
- * /patient-view/* 경로는 원장님이 환자와 함께 보는 완전 별도 화면이라 사이드바/내비게이션/
- * "현재 사용자" 배지가 전혀 없어야 한다 — Next.js는 root layout을 경로별로 분리하려면
- * 앱 전체 디렉토리 구조를 route group으로 재편해야 해서(대규모 변경), 대신 이 얇은
- * 클라이언트 래퍼에서 경로를 보고 기존 사이드바 셸을 건너뛰는 쪽을 택했다.
+ * /patient-view/*, /p/{token}(환자 티칭지 공개 페이지) 경로는 인증 없이 환자에게 그대로
+ * 노출되는 완전 별도 화면이라 사이드바/내비게이션/"현재 사용자" 배지가 전혀 없어야 한다 —
+ * Next.js는 root layout을 경로별로 분리하려면 앱 전체 디렉토리 구조를 route group으로
+ * 재편해야 해서(대규모 변경), 대신 이 얇은 클라이언트 래퍼에서 경로를 보고 기존 사이드바
+ * 셸을 건너뛰는 쪽을 택했다.
+ *
+ * /consult-mode(원장 상담모드, 14-5)는 사이드바 없는 독립 창이지만 환자 대면용은 아니라
+ * "현재 사용자"(role 판별용) 컨텍스트는 그대로 필요하다 — Sidebar/CurrentUserBadge만
+ * 건너뛰고 CurrentUserProvider는 유지하는 세 번째 분기.
+ *
+ * ActivityRail(실시간 활동피드, 14-7)은 사이드바가 있는 마지막 분기에서만 렌더링한다 —
+ * 독립 창 두 분기(공개 페이지/상담모드)에는 노출하지 않는다(task.md 지시).
  */
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const isPatientView = pathname?.startsWith("/patient-view") ?? false;
+  const isPublicPatientFacing =
+    (pathname?.startsWith("/patient-view") || pathname?.startsWith("/p/")) ?? false;
+  const isStandaloneStaffPage = pathname?.startsWith("/consult-mode") ?? false;
 
-  if (isPatientView) {
+  if (isPublicPatientFacing) {
     return <>{children}</>;
+  }
+
+  if (isStandaloneStaffPage) {
+    return <CurrentUserProvider>{children}</CurrentUserProvider>;
   }
 
   return (
@@ -28,6 +43,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           <CurrentUserBadge />
           {children}
         </main>
+        <ActivityRail />
       </div>
     </CurrentUserProvider>
   );

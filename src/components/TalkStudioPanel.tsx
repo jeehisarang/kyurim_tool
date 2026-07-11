@@ -7,7 +7,9 @@ import SealStamp from "@/components/SealStamp";
 import PatientNotes from "@/components/PatientNotes";
 import TrialEventCard from "@/components/TrialEventCard";
 import TalkGroupManager from "@/components/TalkGroupManager";
+import ProgramTeachingCreator from "@/components/ProgramTeachingCreator";
 import { getCurrentUserId } from "@/lib/currentUser";
+import { copyToClipboard } from "@/lib/clipboard";
 import {
   FIXED_MESSAGE_TEMPLATE,
   MEETING_TALK_TEMPLATES,
@@ -194,6 +196,8 @@ function TalkStudioInner() {
         return;
       }
       setDrafts((prev) => ({ ...prev, [messageType]: data.content }));
+    } catch {
+      setGenerateError("서버에 연결하지 못했습니다. 다시 시도해주세요.");
     } finally {
       setGeneratingType(null);
     }
@@ -208,7 +212,11 @@ function TalkStudioInner() {
   async function handleCopy(status: MessageStatus) {
     const text = contentFor(status);
     if (!text) return;
-    await navigator.clipboard.writeText(text);
+    const success = await copyToClipboard(text);
+    if (!success) {
+      alert("복사에 실패했습니다. 텍스트를 직접 선택해서 복사해주세요.");
+      return;
+    }
     setCopiedType(status.messageType);
     setTimeout(() => {
       setCopiedType((prev) => (prev === status.messageType ? null : prev));
@@ -223,19 +231,26 @@ function TalkStudioInner() {
       return;
     }
 
-    await fetch("/api/messages/confirm", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        patientId: selectedPatient.id,
-        messageType: status.messageType,
-        staffUserId,
-        aiDraftContent: isAiMessageType(status.messageType) ? contentFor(status) : undefined,
-      }),
-    });
-
-    setStampType(status.messageType);
-    refreshStatuses(selectedPatient.id);
+    try {
+      const res = await fetch("/api/messages/confirm", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          patientId: selectedPatient.id,
+          messageType: status.messageType,
+          staffUserId,
+          aiDraftContent: isAiMessageType(status.messageType) ? contentFor(status) : undefined,
+        }),
+      });
+      if (!res.ok) {
+        alert("발송확인 처리에 실패했습니다. 다시 시도해주세요.");
+        return;
+      }
+      setStampType(status.messageType);
+      refreshStatuses(selectedPatient.id);
+    } catch {
+      alert("서버에 연결하지 못했습니다. 발송확인 처리되지 않았으니 다시 시도해주세요.");
+    }
   }
 
   async function handleSkip(status: MessageStatus) {
@@ -246,21 +261,28 @@ function TalkStudioInner() {
       return;
     }
 
-    await fetch("/api/messages/skip", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        patientId: selectedPatient.id,
-        messageType: status.messageType,
-        staffUserId,
-      }),
-    });
-
-    setSkippedFeedbackType(status.messageType);
-    setTimeout(() => {
-      setSkippedFeedbackType((prev) => (prev === status.messageType ? null : prev));
-    }, 1500);
-    refreshStatuses(selectedPatient.id);
+    try {
+      const res = await fetch("/api/messages/skip", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          patientId: selectedPatient.id,
+          messageType: status.messageType,
+          staffUserId,
+        }),
+      });
+      if (!res.ok) {
+        alert("보류 처리에 실패했습니다. 다시 시도해주세요.");
+        return;
+      }
+      setSkippedFeedbackType(status.messageType);
+      setTimeout(() => {
+        setSkippedFeedbackType((prev) => (prev === status.messageType ? null : prev));
+      }, 1500);
+      refreshStatuses(selectedPatient.id);
+    } catch {
+      alert("서버에 연결하지 못했습니다. 보류 처리되지 않았으니 다시 시도해주세요.");
+    }
   }
 
   return (
@@ -309,6 +331,8 @@ function TalkStudioInner() {
             </button>
           </div>
         )}
+
+        {selectedPatient && <ProgramTeachingCreator patientId={selectedPatient.id} />}
       </div>
 
       {selectedPatient && statuses && (

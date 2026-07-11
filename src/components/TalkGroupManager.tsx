@@ -5,6 +5,7 @@ import styles from "@/app/messages/page.module.css";
 import cardStyles from "./TalkGroupManager.module.css";
 import SealStamp from "@/components/SealStamp";
 import { getCurrentUserId } from "@/lib/currentUser";
+import { copyToClipboard } from "@/lib/clipboard";
 import { TALK_MESSAGE_TYPE_LABEL, TRIAL_TASK_TYPE_LABEL } from "@/lib/message-templates";
 
 type StaffUserLite = { id: number; name: string; role: string };
@@ -125,6 +126,11 @@ export default function TalkGroupManager({ patientId, date }: { patientId: numbe
         }
         setDrafts((prev) => ({ ...prev, [candidate.id]: { message: data.content, internalAnalysis: "" } }));
       }
+    } catch {
+      setGenerateErrors((prev) => ({
+        ...prev,
+        [candidate.id]: "서버에 연결하지 못했습니다. 다시 시도해주세요.",
+      }));
     } finally {
       setGeneratingIds((prev) => {
         const next = new Set(prev);
@@ -143,7 +149,11 @@ export default function TalkGroupManager({ patientId, date }: { patientId: numbe
   async function handleCopy(id: number) {
     const text = drafts[id]?.message ?? "";
     if (!text) return;
-    await navigator.clipboard.writeText(text);
+    const success = await copyToClipboard(text);
+    if (!success) {
+      alert("복사에 실패했습니다. 텍스트를 직접 선택해서 복사해주세요.");
+      return;
+    }
     setCopiedId(id);
     setTimeout(() => setCopiedId((prev) => (prev === id ? null : prev)), 1500);
   }
@@ -156,19 +166,26 @@ export default function TalkGroupManager({ patientId, date }: { patientId: numbe
     }
     const draft = drafts[candidate.id];
 
-    await fetch(`/api/todo-tasks/${candidate.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        doneByUserId: staffUserId,
-        action: "DONE",
-        patientMessage: draft?.message,
-        internalAnalysis: draft?.internalAnalysis,
-      }),
-    });
-
-    setStampId(candidate.id);
-    setRefreshKey((k) => k + 1);
+    try {
+      const res = await fetch(`/api/todo-tasks/${candidate.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          doneByUserId: staffUserId,
+          action: "DONE",
+          patientMessage: draft?.message,
+          internalAnalysis: draft?.internalAnalysis,
+        }),
+      });
+      if (!res.ok) {
+        alert("완료 처리에 실패했습니다. 다시 시도해주세요.");
+        return;
+      }
+      setStampId(candidate.id);
+      setRefreshKey((k) => k + 1);
+    } catch {
+      alert("서버에 연결하지 못했습니다. 완료 처리되지 않았으니 다시 시도해주세요.");
+    }
   }
 
   async function handleSkip(candidate: Candidate) {
@@ -178,13 +195,20 @@ export default function TalkGroupManager({ patientId, date }: { patientId: numbe
       return;
     }
 
-    await fetch(`/api/todo-tasks/${candidate.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ doneByUserId: staffUserId, action: "SKIPPED" }),
-    });
-
-    setRefreshKey((k) => k + 1);
+    try {
+      const res = await fetch(`/api/todo-tasks/${candidate.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ doneByUserId: staffUserId, action: "SKIPPED" }),
+      });
+      if (!res.ok) {
+        alert("보류 처리에 실패했습니다. 다시 시도해주세요.");
+        return;
+      }
+      setRefreshKey((k) => k + 1);
+    } catch {
+      alert("서버에 연결하지 못했습니다. 보류 처리되지 않았으니 다시 시도해주세요.");
+    }
   }
 
   if (candidates === null) return <p className={styles.muted}>불러오는 중...</p>;

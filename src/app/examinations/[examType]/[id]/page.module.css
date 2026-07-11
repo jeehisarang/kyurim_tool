@@ -12,6 +12,12 @@
   gap: 12px;
 }
 
+.titleGroup {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .pageTitle {
   font-family: var(--font-display);
   font-weight: 700;

@@ -1,7 +1,7 @@
 .container {
-  max-width: 880px;
+  max-width: 1360px;
   margin: 0 auto;
-  padding: 32px 16px 64px;
+  padding: 32px 28px 64px;
 }
 
 .pageHeader {
@@ -9,6 +9,12 @@
   align-items: baseline;
   justify-content: space-between;
   margin-bottom: 20px;
+}
+
+.titleGroup {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .pageTitle {

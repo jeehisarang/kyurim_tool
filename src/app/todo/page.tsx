@@ -3,8 +3,9 @@
 import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import styles from "./page.module.css";
+import BackButton from "@/components/BackButton";
 import PatientHistoryModal from "@/components/PatientHistoryModal";
-import TodoTaskTable, {
+import {
   buildTaskRows,
   isRowResolved,
   splitByDateScope,
@@ -13,6 +14,7 @@ import TodoTaskTable, {
   type StaffUser,
   type TodoTask,
 } from "@/components/TodoTaskTable";
+import TodoSplitView from "@/components/TodoSplitView";
 import { getCurrentUserId } from "@/lib/currentUser";
 
 type WeeklySummary = { weekDone: number; weekTotal: number };
@@ -116,14 +118,21 @@ function TodoPageInner() {
       return;
     }
 
-    await fetch(`/api/todo-tasks/${task.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ doneByUserId, action: "DONE" }),
-    });
-
-    setStampTaskId(task.id);
-    setRefreshKey((k) => k + 1);
+    try {
+      const res = await fetch(`/api/todo-tasks/${task.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ doneByUserId, action: "DONE" }),
+      });
+      if (!res.ok) {
+        alert("완료 처리에 실패했습니다. 다시 시도해주세요.");
+        return;
+      }
+      setStampTaskId(task.id);
+      setRefreshKey((k) => k + 1);
+    } catch {
+      alert("서버에 연결하지 못했습니다. 완료 처리되지 않았으니 다시 시도해주세요.");
+    }
   }
 
   // 톡 후보가 1건이든 여러 건이든(내원기반+프로그램기반 섞여 있어도) 항상 "톡 관리"
@@ -184,6 +193,8 @@ function TodoPageInner() {
       }
       resetWorkForm();
       setRefreshKey((k) => k + 1);
+    } catch {
+      setWorkError("서버에 연결하지 못했습니다. 등록되지 않았으니 다시 시도해주세요.");
     } finally {
       setWorkSubmitting(false);
     }
@@ -210,7 +221,10 @@ function TodoPageInner() {
 
   return (
     <div className={styles.container}>
-      <h1 className={styles.pageTitle}>오늘 할 일</h1>
+      <div className={styles.titleRow}>
+        <BackButton />
+        <h1 className={styles.pageTitle}>오늘 할 일</h1>
+      </div>
 
       <div className={styles.dateNav}>
         <button
@@ -361,7 +375,7 @@ function TodoPageInner() {
           <p className={styles.muted}>밀린 할 일이 없습니다.</p>
         )}
         {overdueTasks.length > 0 && (
-          <TodoTaskTable
+          <TodoSplitView
             tasks={overdueTasks}
             referenceDate={selectedDate}
             showDueBadge
@@ -386,7 +400,7 @@ function TodoPageInner() {
           <p className={styles.muted}>오늘 할 일을 모두 처리했습니다 🎉</p>
         )}
         {todayUnresolvedRows.length > 0 && (
-          <TodoTaskTable
+          <TodoSplitView
             tasks={todayUnresolvedTasks}
             referenceDate={selectedDate}
             // 업무(WORK)는 마감일이 있으면 이 구간에서도 D-day를 보여줘야 해서 마감 컬럼을 켠다 —
@@ -412,7 +426,7 @@ function TodoPageInner() {
               {showResolved ? "완료된 항목 접기" : `완료된 항목 보기 (${todayResolvedRows.length}건)`}
             </button>
             {showResolved && (
-              <TodoTaskTable
+              <TodoSplitView
                 tasks={todayResolvedTasks}
                 referenceDate={selectedDate}
                 showDueBadge

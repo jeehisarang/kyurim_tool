@@ -29,6 +29,17 @@ export default function Sidebar() {
     <aside className={styles.sidebar}>
       <div className={styles.title}>규림한의원 통합 툴</div>
 
+      {currentUser?.role === "원장" && (
+        <a
+          href="/consult-mode"
+          target="_blank"
+          rel="noopener noreferrer"
+          className={styles.consultModeButton}
+        >
+          상담모드 ↗
+        </a>
+      )}
+
       <nav className={styles.nav}>
         {menuItems.map((item) => {
           const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);

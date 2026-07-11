@@ -1,0 +1,32 @@
+.splitGrid {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 20px;
+  align-items: start;
+}
+
+.column,
+.columnNarrow {
+  min-width: 0;
+}
+
+.columnTitle {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--color-celadon-dark);
+  border-left: 3px solid var(--color-celadon);
+  padding-left: 8px;
+  margin-bottom: 10px;
+}
+
+.empty {
+  color: var(--color-ink);
+  opacity: 0.55;
+  font-size: 13px;
+}
+
+@media (max-width: 860px) {
+  .splitGrid {
+    grid-template-columns: 1fr;
+  }
+}

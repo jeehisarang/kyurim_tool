@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import styles from "./page.module.css";
+import BackButton from "@/components/BackButton";
 import {
   type ExaminationRow,
   EXAM_TYPE_LABEL,
@@ -31,12 +32,29 @@ const EXAM_TYPE_FILTER_TABS: { key: ExamTypeFilter; label: string }[] = [
   { key: "STRENGTH_TEST", label: "근력검사" },
 ];
 
+function isExamTypeFilter(value: string | null): value is ExamTypeFilter {
+  return value === "ALL" || value === "BODY_COMPOSITION" || value === "STRENGTH_TEST";
+}
+
 export default function ExaminationListPage() {
+  return (
+    <Suspense fallback={null}>
+      <ExaminationListPageInner />
+    </Suspense>
+  );
+}
+
+function ExaminationListPageInner() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+
   const [rows, setRows] = useState<ExaminationRow[] | null>(null);
-  const [patientFilter, setPatientFilter] = useState("");
-  const [examTypeFilter, setExamTypeFilter] = useState<ExamTypeFilter>("ALL");
-  const [page, setPage] = useState(1);
+  const [patientFilter, setPatientFilter] = useState(() => searchParams.get("q") ?? "");
+  const [examTypeFilter, setExamTypeFilter] = useState<ExamTypeFilter>(() => {
+    const raw = searchParams.get("type");
+    return isExamTypeFilter(raw) ? raw : "ALL";
+  });
+  const [page, setPage] = useState(() => Number(searchParams.get("page")) || 1);
 
   useEffect(() => {
     fetch("/api/examinations")
@@ -58,7 +76,26 @@ export default function ExaminationListPage() {
   // 새 필터 결과가 그보다 적어 "결과 없음"으로 보이는 혼란이 생긴다.
   useEffect(() => {
     setPage(1);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [patientFilter, examTypeFilter]);
+
+  // 검색/필터/페이지 상태를 URL 쿼리스트링에 그대로 반영해둔다 — 상세보기로 갔다가
+  // 뒤로가기(router.back())로 돌아오면 이 URL이 그대로 다시 로드되면서 검색 상태가
+  // 복원된다(컴포넌트 로컬 state만으로는 페이지 이탈 시 사라져서 복원이 안 됨).
+  const currentQueryString = useMemo(() => {
+    const params = new URLSearchParams();
+    if (patientFilter) params.set("q", patientFilter);
+    if (examTypeFilter !== "ALL") params.set("type", examTypeFilter);
+    if (page > 1) params.set("page", String(page));
+    return params.toString();
+  }, [patientFilter, examTypeFilter, page]);
+
+  useEffect(() => {
+    router.replace(currentQueryString ? `/examinations?${currentQueryString}` : "/examinations", {
+      scroll: false,
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentQueryString]);
 
   const totalPages = Math.max(1, Math.ceil(filteredRows.length / PAGE_SIZE));
   const pagedRows = filteredRows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
@@ -72,10 +109,20 @@ export default function ExaminationListPage() {
     router.push(`/examinations/patient/${patientId}`);
   }
 
+  function goToDetail(row: ExaminationRow) {
+    // 현재 검색/필터/페이지 상태를 함께 실어 보내 상세보기의 "← 검사 목록"이
+    // 정확히 이 상태로 복귀할 수 있게 한다.
+    const from = currentQueryString ? `?from=${encodeURIComponent(currentQueryString)}` : "";
+    router.push(`/examinations/${row.examType}/${row.id}${from}`);
+  }
+
   return (
     <div className={styles.container}>
       <div className={styles.pageHeader}>
-        <h1 className={styles.pageTitle}>검사 목록</h1>
+        <div className={styles.titleGroup}>
+          <BackButton />
+          <h1 className={styles.pageTitle}>검사 목록</h1>
+        </div>
         <Link href="/examinations/new" className={styles.newLink}>
           + 신규 등록
         </Link>
@@ -133,7 +180,7 @@ export default function ExaminationListPage() {
                     <tr
                       key={rowKey(row)}
                       className={styles.clickableRow}
-                      onClick={() => router.push(`/examinations/${row.examType}/${row.id}`)}
+                      onClick={() => goToDetail(row)}
                     >
                       <td>
                         <button

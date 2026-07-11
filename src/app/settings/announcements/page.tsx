@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import styles from "./page.module.css";
+import BackButton from "@/components/BackButton";
 import { getCurrentUserId } from "@/lib/currentUser";
 
 type Announcement = {
@@ -83,6 +84,8 @@ export default function AnnouncementSettingsPage() {
       setNewStartDate(toDateInputValue(new Date().toISOString()));
       setNewEndDate("");
       refresh();
+    } catch {
+      setAddError("서버에 연결하지 못했습니다. 다시 시도해주세요.");
     } finally {
       setAdding(false);
     }
@@ -123,6 +126,8 @@ export default function AnnouncementSettingsPage() {
       }
       setEditingId(null);
       refresh();
+    } catch {
+      setEditError("서버에 연결하지 못했습니다. 다시 시도해주세요.");
     } finally {
       setEditSaving(false);
     }
@@ -131,23 +136,42 @@ export default function AnnouncementSettingsPage() {
   async function toggleActive(a: Announcement) {
     const action = a.isActive ? "내리시겠습니까" : "다시 올리시겠습니까";
     if (!window.confirm(`이 공지를 ${action}?`)) return;
-    await fetch(`/api/announcements/${a.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ isActive: !a.isActive }),
-    });
-    refresh();
+    try {
+      const res = await fetch(`/api/announcements/${a.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isActive: !a.isActive }),
+      });
+      if (!res.ok) {
+        alert("처리에 실패했습니다. 다시 시도해주세요.");
+        return;
+      }
+      refresh();
+    } catch {
+      alert("서버에 연결하지 못했습니다. 다시 시도해주세요.");
+    }
   }
 
   async function handleDelete(a: Announcement) {
     if (!window.confirm("이 공지사항을 삭제하시겠습니까?")) return;
-    await fetch(`/api/announcements/${a.id}`, { method: "DELETE" });
-    refresh();
+    try {
+      const res = await fetch(`/api/announcements/${a.id}`, { method: "DELETE" });
+      if (!res.ok) {
+        alert("삭제에 실패했습니다. 다시 시도해주세요.");
+        return;
+      }
+      refresh();
+    } catch {
+      alert("서버에 연결하지 못했습니다. 다시 시도해주세요.");
+    }
   }
 
   return (
     <div className={styles.container}>
-      <h1 className={styles.pageTitle}>공지사항 관리</h1>
+      <div className={styles.titleRow}>
+        <BackButton />
+        <h1 className={styles.pageTitle}>공지사항 관리</h1>
+      </div>
       <p className={styles.muted}>
         휴진 안내, 유의사항, 이벤트 기간 안내 등 상시 안내용 게시물입니다. 완료/체크 개념이
         없으며, 조건에 맞으면 홈 화면 상단에 그대로 노출됩니다.

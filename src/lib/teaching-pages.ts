@@ -1,0 +1,222 @@
+import crypto from "crypto";
+import { prisma } from "@/lib/db";
+import { generateProgramTeachingText } from "@/lib/ai-message";
+import {
+  formatProgramTeachingContent,
+  getExamTrend,
+  getLatestExamSnapshot,
+  isLinkedTestType,
+  type LatestExamSnapshot,
+  type LinkedTestType,
+} from "@/lib/program-teaching";
+import { EXAM_TYPE_LABEL, SMI_JUDGEMENT_LABEL, GRIP_JUDGEMENT_LABEL } from "@/lib/examination-format";
+import { logActivity } from "@/lib/activity-log";
+import { withObjectParticle } from "@/lib/korean-particle";
+import { listConsultationNotesForPatient } from "@/lib/consultation-notes";
+
+// 티칭지에 개별 문구(ProgramTeaching.ctaButtonLabel)가 없을 때 쓰는 기본 전환버튼 문구.
+export const DEFAULT_CTA_LABEL = "본상담 예약하기";
+
+export class NeedsExamError extends Error {
+  linkedTestType: LinkedTestType;
+  constructor(linkedTestType: LinkedTestType) {
+    super(
+      `이 프로그램은 검사와 연결됩니다. 먼저 ${EXAM_TYPE_LABEL[linkedTestType]} 진행을 권유해주세요.`,
+    );
+    this.name = "NeedsExamError";
+    this.linkedTestType = linkedTestType;
+  }
+}
+
+function formatTestValueSummary(snapshot: LatestExamSnapshot): string {
+  if (snapshot.examType === "BODY_COMPOSITION") {
+    const parts = [
+      `체중 ${snapshot.weightKg}kg`,
+      `체지방율 ${snapshot.bodyFatPercent}%`,
+      `WHR ${snapshot.whr}`,
+    ];
+    if (snapshot.smi != null && snapshot.smiJudgement) {
+      parts.push(
+        `SMI ${snapshot.smi.toFixed(2)}(${SMI_JUDGEMENT_LABEL[snapshot.smiJudgement] ?? snapshot.smiJudgement})`,
+      );
+    }
+    return parts.join(", ");
+  }
+
+  const parts = [
+    `악력평균 ${snapshot.gripAvgKg.toFixed(1)}kg(${GRIP_JUDGEMENT_LABEL[snapshot.gripJudgement] ?? snapshot.gripJudgement})`,
+  ];
+  if (snapshot.estimatedGripAge != null) parts.push(`근력나이 ${snapshot.estimatedGripAge}세`);
+  return parts.join(", ");
+}
+
+// AI 프롬프트에 "판정에 따라 톤을 분기하라"고 명시적으로 전달할 라벨만 따로 뽑아낸다 —
+// BODY_COMPOSITION은 SMI를 계산 못했으면(키/성별 미입력 등) 판정 자체가 없어 null.
+function extractJudgementLabel(snapshot: LatestExamSnapshot): string | null {
+  if (snapshot.examType === "BODY_COMPOSITION") {
+    return snapshot.smiJudgement ? (SMI_JUDGEMENT_LABEL[snapshot.smiJudgement] ?? snapshot.smiJudgement) : null;
+  }
+  return GRIP_JUDGEMENT_LABEL[snapshot.gripJudgement] ?? snapshot.gripJudgement;
+}
+
+export type CreateTeachingPageInput = {
+  patientId: number;
+  programTeachingId: number;
+  createdByStaffId: number;
+};
+
+/**
+ * linkedTestType이 있는 프로그램은 반드시 최신 검사기록이 있어야 생성할 수 있다 — 검사
+ * 이력이 없으면 NeedsExamError를 던져 "먼저 검사를 권유해달라"는 안내로 생성을 중단시킨다
+ * (task.md 3항 — 검사 유도 장치로 활용). linkedTestType이 null인 프로그램(추나패키지 등)은
+ * 검사수치 없이 바로 진행한다.
+ */
+export async function createTeachingPage(input: CreateTeachingPageInput) {
+  const [patient, program, notes, consultationNotes] = await Promise.all([
+    prisma.patient.findUnique({ where: { id: input.patientId } }),
+    prisma.programTeaching.findUnique({ where: { id: input.programTeachingId } }),
+    prisma.patientNote.findMany({
+      where: { patientId: input.patientId },
+      orderBy: { createdAt: "desc" },
+    }),
+    listConsultationNotesForPatient(input.patientId),
+  ]);
+
+  if (!patient) throw new Error("환자를 찾을 수 없습니다.");
+  if (!program || !program.isActive) throw new Error("프로그램 자료를 찾을 수 없습니다.");
+
+  let snapshot: LatestExamSnapshot | null = null;
+  let examTrend: string | null = null;
+  if (isLinkedTestType(program.linkedTestType)) {
+    snapshot = await getLatestExamSnapshot(input.patientId, program.linkedTestType);
+    if (!snapshot) {
+      throw new NeedsExamError(program.linkedTestType);
+    }
+    examTrend = await getExamTrend(input.patientId, program.linkedTestType);
+  }
+
+  const testValueSummary = snapshot ? formatTestValueSummary(snapshot) : null;
+  const examJudgementLabel = snapshot ? extractJudgementLabel(snapshot) : null;
+  const { sellingText, academicText } = formatProgramTeachingContent(program);
+
+  // SOAP 변환본(convertedChartText)이 있으면 그쪽이 더 정리된 형태라 우선 사용, 없으면 원문.
+  const latestNote = consultationNotes[0];
+  const latestConsultationNote = latestNote
+    ? {
+        typeName: latestNote.consultationType.name,
+        text: latestNote.convertedChartText ?? latestNote.rawText,
+      }
+    : undefined;
+
+  const aiPersonalizedText = await generateProgramTeachingText(
+    {
+      programName: program.programName,
+      targetSymptomKeywords: program.targetSymptomKeywords,
+      sellingText,
+      academicText,
+      testValueSummary,
+      examJudgementLabel,
+      examTrend,
+    },
+    {
+      name: patient.name,
+      notes: notes.map((n) => ({ content: n.content, createdAt: n.createdAt })),
+      coreProfile: {
+        pastHistory: patient.pastHistory,
+        currentCondition: patient.currentCondition,
+        mainNeeds: patient.mainNeeds,
+      },
+      latestConsultationNote,
+    },
+  );
+
+  const page = await prisma.patientTeachingPage.create({
+    data: {
+      token: crypto.randomUUID(),
+      patientId: input.patientId,
+      programTeachingId: input.programTeachingId,
+      snapshotTestValueJson: snapshot ? JSON.stringify(snapshot) : null,
+      aiPersonalizedText,
+      createdByStaffId: input.createdByStaffId,
+    },
+    include: { programTeaching: true },
+  });
+
+  return {
+    token: page.token,
+    aiPersonalizedText: page.aiPersonalizedText,
+    programName: page.programTeaching.programName,
+    testValueSummary,
+    supportImagePath: page.programTeaching.supportImagePath,
+  };
+}
+
+export type PublicTeachingPageView = {
+  programName: string;
+  supportImagePath: string | null;
+  aiPersonalizedText: string;
+  testValueSummary: string | null;
+  viewCount: number;
+  ctaButtonLabel: string;
+};
+
+/**
+ * 공개 페이지(/p/{token}) 전용 조회 — 화이트리스트 변환(patient-view.ts와 동일 원칙,
+ * 측정자/staffId/원본 메모 등 내부 정보는 반환 타입 자체에 아예 없음).
+ * 접속마다 viewCount +1, 최초 접속이면 firstViewedAt만 1회 기록한다.
+ */
+export async function getPublicTeachingPageByToken(
+  token: string,
+): Promise<PublicTeachingPageView | null> {
+  const existing = await prisma.patientTeachingPage.findUnique({ where: { token } });
+  if (!existing) return null;
+
+  const updated = await prisma.patientTeachingPage.update({
+    where: { id: existing.id },
+    data: {
+      viewCount: { increment: 1 },
+      firstViewedAt: existing.firstViewedAt ?? new Date(),
+    },
+    include: { programTeaching: true },
+  });
+
+  let testValueSummary: string | null = null;
+  if (updated.snapshotTestValueJson) {
+    try {
+      const parsed = JSON.parse(updated.snapshotTestValueJson) as LatestExamSnapshot;
+      testValueSummary = formatTestValueSummary(parsed);
+    } catch {
+      testValueSummary = null;
+    }
+  }
+
+  return {
+    programName: updated.programTeaching.programName,
+    supportImagePath: updated.programTeaching.supportImagePath,
+    aiPersonalizedText: updated.aiPersonalizedText,
+    testValueSummary,
+    viewCount: updated.viewCount,
+    ctaButtonLabel: updated.programTeaching.ctaButtonLabel ?? DEFAULT_CTA_LABEL,
+  };
+}
+
+/**
+ * 공개 티칭지 전환버튼 클릭 기록 — 인증 없이(/p/{token}에서 직접) 호출되는 공개 엔드포인트다.
+ * 중복 클릭 방지는 하지 않는다(task.md 지시) — 여러 번 눌러도 각각 별도 로그로 남는다.
+ */
+export async function recordTeachingPageCtaClick(token: string): Promise<boolean> {
+  const page = await prisma.patientTeachingPage.findUnique({
+    where: { token },
+    include: { patient: true, programTeaching: true },
+  });
+  if (!page) return false;
+
+  const ctaLabel = page.programTeaching.ctaButtonLabel ?? DEFAULT_CTA_LABEL;
+  await logActivity({
+    actorType: "PATIENT",
+    actorId: page.patientId,
+    actionType: "TEACHING_CTA_CLICK",
+    label: `${page.patient.name}님이 [${page.programTeaching.programName}] ${withObjectParticle(ctaLabel)} 눌렀습니다`,
+  });
+  return true;
+}

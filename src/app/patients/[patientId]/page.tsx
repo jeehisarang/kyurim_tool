@@ -4,9 +4,12 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import styles from "./page.module.css";
+import BackButton from "@/components/BackButton";
 import ProgramBadge from "@/components/ProgramBadge";
 import CategoryBadge from "@/components/CategoryBadge";
 import VisitTypeTag from "@/components/VisitTypeTag";
+import { useCurrentUserContext } from "@/lib/CurrentUserContext";
+import { getCurrentUserId } from "@/lib/currentUser";
 import {
   type ExaminationRow,
   EXAM_TYPE_LABEL,
@@ -27,6 +30,9 @@ type PatientInfo = {
   height: number | null;
   gender: "MALE" | "FEMALE" | null;
   createdAt: string;
+  pastHistory: string | null;
+  currentCondition: string | null;
+  mainNeeds: string | null;
 };
 
 type PrescriptionRow = {
@@ -56,6 +62,15 @@ type ProfileData = {
   inactivePrescriptions: PrescriptionRow[];
   recentExams: ExaminationRow[];
   recentVisits: VisitRow[];
+};
+
+type ConsultationNote = {
+  id: number;
+  visitDate: string;
+  rawText: string;
+  convertedChartText: string | null;
+  consultationType: { id: number; name: string };
+  createdByStaff: { id: number; name: string };
 };
 
 const GENDER_LABEL: Record<string, string> = { MALE: "남", FEMALE: "여" };
@@ -91,6 +106,18 @@ export default function PatientProfilePage() {
   const [loadError, setLoadError] = useState(false);
   const [showInactive, setShowInactive] = useState(false);
 
+  const { currentUser } = useCurrentUserContext();
+  const isDirector = currentUser?.role === "원장";
+
+  const [editingCoreProfile, setEditingCoreProfile] = useState(false);
+  const [editPastHistory, setEditPastHistory] = useState("");
+  const [editCurrentCondition, setEditCurrentCondition] = useState("");
+  const [editMainNeeds, setEditMainNeeds] = useState("");
+  const [coreProfileSaving, setCoreProfileSaving] = useState(false);
+  const [coreProfileError, setCoreProfileError] = useState<string | null>(null);
+
+  const [consultationNotes, setConsultationNotes] = useState<ConsultationNote[] | null>(null);
+
   useEffect(() => {
     setLoadError(false);
     fetch(`/api/patients/${patientId}/profile`)
@@ -99,9 +126,75 @@ export default function PatientProfilePage() {
       .catch(() => setLoadError(true));
   }, [patientId]);
 
+  useEffect(() => {
+    fetch(`/api/consultation-notes?patientId=${patientId}`)
+      .then((res) => res.json())
+      .then(setConsultationNotes);
+  }, [patientId]);
+
   function goToProgress(row: PrescriptionRow) {
     const reference = row.latestTaskDueDate ?? row.startDate;
     router.push(`/todo?date=${toDateParam(reference)}`);
+  }
+
+  function startEditCoreProfile() {
+    if (!data) return;
+    setEditPastHistory(data.patient.pastHistory ?? "");
+    setEditCurrentCondition(data.patient.currentCondition ?? "");
+    setEditMainNeeds(data.patient.mainNeeds ?? "");
+    setCoreProfileError(null);
+    setEditingCoreProfile(true);
+  }
+
+  function cancelEditCoreProfile() {
+    setEditingCoreProfile(false);
+    setCoreProfileError(null);
+  }
+
+  async function handleSaveCoreProfile(e: React.FormEvent) {
+    e.preventDefault();
+    const staffUserId = getCurrentUserId();
+    if (!staffUserId) {
+      setCoreProfileError("상단에서 현재 사용자를 먼저 선택하세요.");
+      return;
+    }
+    setCoreProfileSaving(true);
+    setCoreProfileError(null);
+    try {
+      const res = await fetch(`/api/patients/${patientId}/core-profile`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          staffUserId,
+          pastHistory: editPastHistory,
+          currentCondition: editCurrentCondition,
+          mainNeeds: editMainNeeds,
+        }),
+      });
+      const updated = await res.json();
+      if (!res.ok) {
+        setCoreProfileError(updated.error ?? "핵심프로필 저장에 실패했습니다.");
+        return;
+      }
+      setData((prev) =>
+        prev
+          ? {
+              ...prev,
+              patient: {
+                ...prev.patient,
+                pastHistory: updated.pastHistory,
+                currentCondition: updated.currentCondition,
+                mainNeeds: updated.mainNeeds,
+              },
+            }
+          : prev,
+      );
+      setEditingCoreProfile(false);
+    } catch {
+      setCoreProfileError("서버에 연결하지 못했습니다. 저장되지 않았으니 다시 시도해주세요.");
+    } finally {
+      setCoreProfileSaving(false);
+    }
   }
 
   if (loadError) {
@@ -128,10 +221,108 @@ export default function PatientProfilePage() {
   return (
     <div className={styles.container}>
       <div className={styles.pageHeader}>
-        <h1 className={styles.pageTitle}>{patient.name}님 프로필</h1>
+        <div className={styles.titleGroup}>
+          <BackButton />
+          <h1 className={styles.pageTitle}>{patient.name}님 프로필</h1>
+        </div>
         <Link href="/visit-check" className={styles.listLink}>
           ← 내원체크
         </Link>
+      </div>
+
+      <div className={styles.coreProfileSection}>
+        <div className={styles.sectionTitleRow}>
+          <div className={styles.sectionTitle}>핵심프로필</div>
+          <span className={styles.directorBadge}>원장 작성</span>
+        </div>
+
+        {!editingCoreProfile ? (
+          <>
+            <div className={styles.coreProfileGrid}>
+              <div>
+                <div className={styles.patientInfoLabel}>과거력</div>
+                <p className={styles.coreProfileValue}>{patient.pastHistory ?? "-"}</p>
+              </div>
+              <div>
+                <div className={styles.patientInfoLabel}>현재질환/주요증상</div>
+                <p className={styles.coreProfileValue}>{patient.currentCondition ?? "-"}</p>
+              </div>
+              <div>
+                <div className={styles.patientInfoLabel}>주요니즈</div>
+                <p className={styles.coreProfileValue}>{patient.mainNeeds ?? "-"}</p>
+              </div>
+            </div>
+            {isDirector && (
+              <button type="button" className={styles.editButton} onClick={startEditCoreProfile}>
+                수정
+              </button>
+            )}
+          </>
+        ) : (
+          <form className={styles.coreProfileForm} onSubmit={handleSaveCoreProfile}>
+            <label>
+              과거력
+              <textarea
+                value={editPastHistory}
+                onChange={(e) => setEditPastHistory(e.target.value)}
+              />
+            </label>
+            <label>
+              현재질환/주요증상
+              <textarea
+                value={editCurrentCondition}
+                onChange={(e) => setEditCurrentCondition(e.target.value)}
+              />
+            </label>
+            <label>
+              주요니즈
+              <textarea value={editMainNeeds} onChange={(e) => setEditMainNeeds(e.target.value)} />
+            </label>
+            {coreProfileError && <p className={styles.errorText}>{coreProfileError}</p>}
+            <div className={styles.coreProfileFormActions}>
+              <button type="submit" className={styles.editButton} disabled={coreProfileSaving}>
+                저장
+              </button>
+              <button type="button" className={styles.editButton} onClick={cancelEditCoreProfile}>
+                취소
+              </button>
+            </div>
+          </form>
+        )}
+      </div>
+
+      <div className={styles.section}>
+        <div className={styles.sectionTitleRow}>
+          <div className={styles.sectionTitle}>상담 이력 ({consultationNotes?.length ?? 0}건)</div>
+          <span className={styles.directorBadge}>원장 작성 · 읽기 전용</span>
+        </div>
+        {consultationNotes === null ? (
+          <p className={styles.muted}>불러오는 중...</p>
+        ) : consultationNotes.length === 0 ? (
+          <p className={styles.muted}>
+            등록된 상담 기록이 없습니다. 작성/수정은 원장 상담모드(/consult-mode)에서만 가능합니다.
+          </p>
+        ) : (
+          <div className={styles.consultationHistoryStack}>
+            {consultationNotes.map((n) => (
+              <div key={n.id} className={styles.consultationHistoryCard}>
+                <div className={styles.consultationHistoryHeader}>
+                  <span className={styles.consultationTypeBadge}>{n.consultationType.name}</span>
+                  <span className={styles.consultationHistoryMeta}>
+                    {formatDate(n.visitDate)} · {n.createdByStaff.name}
+                  </span>
+                </div>
+                <p className={styles.consultationHistoryRaw}>{n.rawText}</p>
+                {n.convertedChartText && (
+                  <div className={styles.consultationHistoryConverted}>
+                    <div className={styles.consultationHistoryConvertedLabel}>AI 차팅변환</div>
+                    <p>{n.convertedChartText}</p>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       <div className={styles.section}>

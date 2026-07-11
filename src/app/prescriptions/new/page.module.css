@@ -19,6 +19,12 @@
   margin-bottom: 16px;
 }
 
+.titleGroup {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .listLink {
   font-size: 13px;
   color: var(--color-celadon-dark);

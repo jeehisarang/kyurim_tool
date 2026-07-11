@@ -44,5 +44,8 @@ next-env.d.ts
 dev.db
 dev.db.backup-*
 
+# 환자 티칭지(14-1) 업로드 이미지 — 런타임 데이터, dev.db와 동일 원칙으로 커밋하지 않음
+/public/uploads
+
 # google service account key (절대 커밋 금지)
 /secrets

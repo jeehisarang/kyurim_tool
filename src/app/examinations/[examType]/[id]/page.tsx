@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { Suspense, useEffect, useState } from "react";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import styles from "./page.module.css";
+import BackButton from "@/components/BackButton";
 import { computeBmi, GRIP_AGE_OUT_OF_RANGE_LABEL, type Gender, type GripAgeOutOfRange } from "@/lib/exam-thresholds";
 
 type PatientInfo = { id: number; name: string; chartNumber: string; height: number | null; gender: Gender | null };
@@ -80,9 +81,23 @@ function formatGripAge(estimatedAge: number | null, outOfRange: GripAgeOutOfRang
 }
 
 export default function ExaminationDetailPage() {
+  return (
+    <Suspense fallback={null}>
+      <ExaminationDetailPageInner />
+    </Suspense>
+  );
+}
+
+function ExaminationDetailPageInner() {
   const params = useParams<{ examType: string; id: string }>();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { examType, id } = params;
+
+  // 검사 목록에서 검색/필터/페이지 상태를 실어 왔다면(?from=...) "← 검사 목록"이 그
+  // 상태 그대로 복귀하게 한다 — 없으면(직접 링크 진입 등) 기본 목록으로.
+  const fromQuery = searchParams.get("from");
+  const listHref = fromQuery ? `/examinations?${fromQuery}` : "/examinations";
 
   const [detail, setDetail] = useState<Detail | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -209,17 +224,21 @@ export default function ExaminationDetailPage() {
       }
       setEditing(false);
       loadDetail();
+    } catch {
+      setSaveError("서버에 연결하지 못했습니다. 다시 시도해주세요.");
     } finally {
       setSaving(false);
     }
   }
 
   function handleOpenPatientView() {
+    if (!detail) return;
     setPatientViewPopupBlocked(false);
+    // 개별 검사 1건 팝업이 아니라, 항상 이 환자의 검사 종합 리포트로 연결한다(task.md 지시).
     const win = window.open(
-      `/patient-view/exam/${examType}/${id}`,
+      `/patient-view/exam-report/${detail.patient.id}`,
       "_blank",
-      "noopener,noreferrer,width=720,height=900",
+      "noopener,noreferrer,width=760,height=900",
     );
     // 브라우저 팝업 차단 시 window.open이 null을 반환하거나, 반환은 되지만 즉시
     // closed 상태인 창을 주는 경우가 있어 둘 다 확인한다.
@@ -238,6 +257,8 @@ export default function ExaminationDetailPage() {
         return;
       }
       router.push("/examinations");
+    } catch {
+      alert("서버에 연결하지 못했습니다. 삭제되지 않았으니 다시 시도해주세요.");
     } finally {
       setDeleting(false);
     }
@@ -247,7 +268,7 @@ export default function ExaminationDetailPage() {
     return (
       <div className={styles.container}>
         <p className={styles.errorText}>{loadError}</p>
-        <Link href="/examinations" className={styles.listLink}>
+        <Link href={listHref} className={styles.listLink}>
           ← 검사 목록
         </Link>
       </div>
@@ -273,10 +294,13 @@ export default function ExaminationDetailPage() {
   return (
     <div className={styles.container}>
       <div className={styles.pageHeader}>
-        <h1 className={styles.pageTitle}>
-          {EXAM_TYPE_LABEL[detail.examType]} 상세 — {detail.patient.name}
-        </h1>
-        <Link href="/examinations" className={styles.listLink}>
+        <div className={styles.titleGroup}>
+          <BackButton />
+          <h1 className={styles.pageTitle}>
+            {EXAM_TYPE_LABEL[detail.examType]} 상세 — {detail.patient.name}
+          </h1>
+        </div>
+        <Link href={listHref} className={styles.listLink}>
           ← 검사 목록
         </Link>
       </div>

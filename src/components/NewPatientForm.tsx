@@ -51,6 +51,8 @@ export default function NewPatientForm({
       }
       onCreated(data);
       reset();
+    } catch {
+      setError("서버에 연결하지 못했습니다. 환자가 등록되지 않았으니 다시 시도해주세요.");
     } finally {
       setSubmitting(false);
     }

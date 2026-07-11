@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db";
 import { WORK_TASK_TYPE } from "@/lib/task-types";
+import { logActivity } from "@/lib/activity-log";
 
 /**
  * 업무/요청 등록. TodoTask(taskType='WORK')와 WorkTask 상세를 함께 만든다.
@@ -28,7 +29,7 @@ export async function createWorkTask(input: {
     },
   });
 
-  return prisma.workTask.create({
+  const workTask = await prisma.workTask.create({
     data: {
       todoTaskId: todoTask.id,
       title: input.title,
@@ -38,6 +39,36 @@ export async function createWorkTask(input: {
       isSharedTask,
     },
     include: { creator: true, assignee: true, todoTask: true },
+  });
+
+  await logActivity({
+    actorType: "STAFF",
+    actorId: input.creatorId,
+    actionType: "WORK_CREATE",
+    label: `${workTask.creator.name}님이 업무를 등록했습니다: ${workTask.title}`,
+  });
+
+  return workTask;
+}
+
+// 업무 완료 처리 + 활동피드 기록을 한 곳에 묶는다 — /api/todo-tasks/[id] PATCH가 이 함수를
+// 호출한다(기존에는 그 라우트가 직접 prisma.todoTask.update만 호출해 로그가 없었음).
+export async function completeWorkTask(todoTaskId: number, doneByUserId: number) {
+  const [workTask, doneByUser] = await Promise.all([
+    prisma.workTask.findUniqueOrThrow({ where: { todoTaskId } }),
+    prisma.staffUser.findUniqueOrThrow({ where: { id: doneByUserId } }),
+  ]);
+
+  await prisma.todoTask.update({
+    where: { id: todoTaskId },
+    data: { isDone: true, doneByUserId, doneAt: new Date() },
+  });
+
+  await logActivity({
+    actorType: "STAFF",
+    actorId: doneByUserId,
+    actionType: "WORK_COMPLETE",
+    label: `${doneByUser.name}님이 업무를 완료했습니다: ${workTask.title}`,
   });
 }
 

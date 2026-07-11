@@ -1,4 +1,6 @@
 import { prisma } from "@/lib/db";
+import { logActivity } from "@/lib/activity-log";
+import { MESSAGE_TYPE_LABEL } from "@/lib/message-templates";
 
 const AI_MESSAGE_TYPES = ["DAY2", "DAY7", "THIRD_VISIT"];
 
@@ -17,7 +19,7 @@ export async function confirmMessage(input: {
   const { patientId, messageType, staffUserId, aiDraftContent } = input;
   const isAiType = AI_MESSAGE_TYPES.includes(messageType);
 
-  return prisma.messageLog.upsert({
+  const log = await prisma.messageLog.upsert({
     where: { patientId_messageType: { patientId, messageType } },
     update: {
       sentDate: new Date(),
@@ -33,8 +35,17 @@ export async function confirmMessage(input: {
       staffUserId,
       aiDraftContent: isAiType ? (aiDraftContent ?? null) : null,
     },
-    include: { staffUser: true, skippedByUser: true },
+    include: { staffUser: true, skippedByUser: true, patient: true },
   });
+
+  await logActivity({
+    actorType: "STAFF",
+    actorId: staffUserId,
+    actionType: "TALK_CONFIRM",
+    label: `${log.staffUser?.name ?? "직원"}님이 ${log.patient.name}님 ${MESSAGE_TYPE_LABEL[messageType] ?? messageType} 발송을 확인했습니다`,
+  });
+
+  return log;
 }
 
 /**

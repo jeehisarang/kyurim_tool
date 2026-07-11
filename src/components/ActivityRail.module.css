@@ -1,0 +1,66 @@
+.rail {
+  width: 272px;
+  flex-shrink: 0;
+  border-left: 1px solid rgba(110, 148, 140, 0.25);
+  background: var(--color-hanji-card);
+  padding: 20px 16px;
+  position: sticky;
+  top: 0;
+  align-self: flex-start;
+  height: 100vh;
+  overflow-y: auto;
+}
+
+.title {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-celadon-dark);
+  border-left: 3px solid var(--color-celadon);
+  padding-left: 8px;
+  margin-bottom: 14px;
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.itemStaff,
+.itemPatient {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 12px;
+  line-height: 1.5;
+  padding-bottom: 10px;
+  border-bottom: 1px solid rgba(110, 148, 140, 0.15);
+}
+
+.itemStaff .label {
+  color: var(--color-ink);
+}
+
+.itemPatient .label {
+  color: var(--color-seal);
+}
+
+.time {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--color-ink);
+  opacity: 0.5;
+}
+
+.empty {
+  color: var(--color-ink);
+  opacity: 0.55;
+  font-size: 12px;
+}
+
+/* 노트북 등 좁은 화면에서는 본문 폭 확보를 위해 자동으로 숨긴다(task.md 3항 허용 범위). */
+@media (max-width: 1400px) {
+  .rail {
+    display: none;
+  }
+}

@@ -44,13 +44,19 @@ export default function PatientNotes({ patientId }: { patientId: number }) {
     setSubmitting(true);
     setError(null);
     try {
-      await fetch("/api/patient-notes", {
+      const res = await fetch("/api/patient-notes", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ patientId, content: newContent.trim(), staffUserId }),
       });
+      if (!res.ok) {
+        setError("메모 저장에 실패했습니다. 다시 시도해주세요.");
+        return;
+      }
       setNewContent("");
       refresh();
+    } catch {
+      setError("서버에 연결하지 못했습니다. 메모가 저장되지 않았으니 다시 시도해주세요.");
     } finally {
       setSubmitting(false);
     }
