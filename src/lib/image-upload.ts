@@ -1,4 +1,4 @@
-import { mkdir, writeFile } from "fs/promises";
+import { mkdir, unlink, writeFile } from "fs/promises";
 import path from "path";
 import crypto from "crypto";
 import sharp from "sharp";
@@ -68,4 +68,15 @@ export async function saveCompositeImage(file: File): Promise<{ path: string }> 
   const filename = `${crypto.randomUUID()}.png`;
   await writeFile(path.join(EVENT_UPLOAD_DIR, filename), buffer);
   return { path: `${EVENT_PUBLIC_PATH_PREFIX}/${filename}` };
+}
+
+// EventImage 완전 삭제/이미지 교체(수정) 시 디스크에서 파일을 정리한다 — publicPath는
+// saveResizedImage 등이 반환한 "/uploads/..." 형태. 이미 없는 파일(ENOENT)은 조용히 무시.
+export async function deleteUploadedFile(publicPath: string): Promise<void> {
+  const filePath = path.join(process.cwd(), "public", ...publicPath.split("/").filter(Boolean));
+  try {
+    await unlink(filePath);
+  } catch {
+    // 파일이 이미 없거나 접근 불가 — 삭제 자체를 막을 이유는 아니므로 무시.
+  }
 }

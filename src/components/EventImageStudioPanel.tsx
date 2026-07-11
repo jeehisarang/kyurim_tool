@@ -25,6 +25,14 @@ function formatDate(iso: string): string {
   return `${d.getFullYear()}.${d.getMonth() + 1}.${d.getDate()}`;
 }
 
+// intro는 저장되지 않는 값이라(task.md 결정), 기존 이벤트를 수정하러 들어갈 때는 본문의
+// 첫 문단(카테고리 목록이 시작되기 전 인트로 문장)을 근사치로 되살린다 — 필요하면 직접
+// 수정하거나 "재생성"으로 다시 뽑으면 된다.
+function deriveIntroFromCopy(copy: string): string {
+  const firstParagraph = copy.split(/\n\s*\n/)[0]?.trim();
+  return firstParagraph || copy.slice(0, 80);
+}
+
 /**
  * 이벤트 이미지 생성기 1차 버전(task.md) — ① AI로 문구 완성/재생성 → ② 배경 업로드 후
  * Canvas로 자동 배치 합성(실시간 미리보기) → ③ 저장, 순서로 진행하되 순서를 강제하지는
@@ -33,6 +41,7 @@ function formatDate(iso: string): string {
 export default function EventImageStudioPanel() {
   const { currentUser } = useCurrentUserContext();
 
+  const [editingId, setEditingId] = useState<number | null>(null);
   const [rawIdea, setRawIdea] = useState("");
   const [title, setTitle] = useState("");
   const [intro, setIntro] = useState("");
@@ -61,7 +70,7 @@ export default function EventImageStudioPanel() {
 
   useEffect(() => {
     return () => {
-      if (backgroundUrl) URL.revokeObjectURL(backgroundUrl);
+      if (backgroundUrl?.startsWith("blob:")) URL.revokeObjectURL(backgroundUrl);
     };
   }, [backgroundUrl]);
 
@@ -128,14 +137,47 @@ export default function EventImageStudioPanel() {
 
   function handleBackgroundChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0] ?? null;
-    if (backgroundUrl) URL.revokeObjectURL(backgroundUrl);
+    if (backgroundUrl?.startsWith("blob:")) URL.revokeObjectURL(backgroundUrl);
     setBackgroundFile(file);
     setBackgroundUrl(file ? URL.createObjectURL(file) : null);
   }
 
+  function resetWizard() {
+    setEditingId(null);
+    setRawIdea("");
+    setTitle("");
+    setIntro("");
+    setCopy("");
+    setInstruction("");
+    setConfirmed(false);
+    if (backgroundUrl?.startsWith("blob:")) URL.revokeObjectURL(backgroundUrl);
+    setBackgroundFile(null);
+    setBackgroundUrl(null);
+    setSaveError(null);
+  }
+
+  // 상세 모달의 "수정" — 기존 값을 그대로 마법사에 채워넣고, 이미 문구가 있으니 바로
+  // 2/3단계(배경/저장)까지 노출한다. 배경을 다시 올리지 않으면 기존 이미지를 그대로
+  // 캔버스에 불러와 재합성 미리보기를 보여준다(재업로드 시에만 배경 자체가 바뀜).
+  function startEdit(item: EventImage) {
+    if (backgroundUrl?.startsWith("blob:")) URL.revokeObjectURL(backgroundUrl);
+    setEditingId(item.id);
+    setRawIdea(item.rawIdea);
+    setTitle(item.finalTitle);
+    setIntro(deriveIntroFromCopy(item.finalCopy));
+    setCopy(item.finalCopy);
+    setInstruction("");
+    setConfirmed(true);
+    setBackgroundFile(null);
+    setBackgroundUrl(item.backgroundImagePath);
+    setDetailId(null);
+    setSaveError(null);
+  }
+
   async function handleSave() {
-    if (!currentUser || !backgroundFile || !title.trim() || !intro.trim() || !copy.trim() || !canvasRef.current)
+    if (!currentUser || !title.trim() || !intro.trim() || !copy.trim() || !backgroundUrl || !canvasRef.current)
       return;
+    if (!editingId && !backgroundFile) return; // 신규 생성은 배경 업로드가 필수
     setSaving(true);
     setSaveError(null);
     try {
@@ -150,26 +192,23 @@ export default function EventImageStudioPanel() {
       formData.set("rawIdea", rawIdea.trim());
       formData.set("finalTitle", title.trim());
       formData.set("finalCopy", copy.trim());
-      formData.set("createdByStaffId", String(currentUser.id));
-      formData.set("backgroundImage", backgroundFile);
       formData.set("compositeImage", new File([blob], "composite.png", { type: "image/png" }));
+      if (backgroundFile) formData.set("backgroundImage", backgroundFile);
 
-      const res = await fetch("/api/event-images", { method: "POST", body: formData });
+      let res: Response;
+      if (editingId) {
+        res = await fetch(`/api/event-images/${editingId}`, { method: "PATCH", body: formData });
+      } else {
+        formData.set("createdByStaffId", String(currentUser.id));
+        res = await fetch("/api/event-images", { method: "POST", body: formData });
+      }
       const data = await res.json();
       if (!res.ok) {
         setSaveError(data.error ?? "저장에 실패했습니다.");
         return;
       }
 
-      setRawIdea("");
-      setTitle("");
-      setIntro("");
-      setCopy("");
-      setInstruction("");
-      setConfirmed(false);
-      if (backgroundUrl) URL.revokeObjectURL(backgroundUrl);
-      setBackgroundFile(null);
-      setBackgroundUrl(null);
+      resetWizard();
       refresh();
     } catch {
       setSaveError("서버에 연결하지 못했습니다. 저장되지 않았으니 다시 시도해주세요.");
@@ -188,6 +227,18 @@ export default function EventImageStudioPanel() {
       alert("처리에 실패했습니다. 다시 시도해주세요.");
       return;
     }
+    refresh();
+  }
+
+  // 완전 삭제(task.md) — 비활성화와 별개의 더 강한 액션. DB 레코드+이미지 파일까지 정리.
+  async function handleDelete(item: EventImage) {
+    if (!window.confirm("정말 삭제하시겠습니까? 되돌릴 수 없습니다.")) return;
+    const res = await fetch(`/api/event-images/${item.id}`, { method: "DELETE" });
+    if (!res.ok) {
+      alert("삭제에 실패했습니다. 다시 시도해주세요.");
+      return;
+    }
+    setDetailId(null);
     refresh();
   }
 
@@ -255,6 +306,14 @@ export default function EventImageStudioPanel() {
               문구 확정
             </button>
             {confirmed && <span className={styles.confirmedBadge}>문구 확정됨 (계속 수정 가능)</span>}
+            {editingId && (
+              <div className={styles.editingRow}>
+                <span className={styles.confirmedBadge}>이벤트 #{editingId} 수정 중</span>
+                <button type="button" className={styles.secondaryButton} onClick={resetWizard}>
+                  수정 취소
+                </button>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -263,6 +322,9 @@ export default function EventImageStudioPanel() {
         <div className={styles.section}>
           <div className={styles.sectionTitle}>2단계 — 배경 이미지 업로드 + 합성</div>
           <input type="file" accept="image/*" onChange={handleBackgroundChange} />
+          {editingId && (
+            <p className={styles.muted}>다시 올리지 않으면 기존 배경 이미지를 그대로 사용합니다.</p>
+          )}
 
           {backgroundUrl && (
             <div className={styles.previewBox}>
@@ -291,9 +353,9 @@ export default function EventImageStudioPanel() {
             type="button"
             className={styles.primaryButton}
             onClick={handleSave}
-            disabled={saving || composing || !currentUser}
+            disabled={saving || composing || !currentUser || (!editingId && !backgroundFile)}
           >
-            {saving ? "저장 중..." : "이벤트 저장"}
+            {saving ? "저장 중..." : editingId ? "수정 저장" : "이벤트 저장"}
           </button>
           {!currentUser && <p className={styles.muted}>상단에서 현재 사용자를 먼저 선택해주세요.</p>}
         </div>
@@ -351,12 +413,18 @@ export default function EventImageStudioPanel() {
               {formatDate(detail.createdAt)} · {detail.createdByStaff.name}
             </p>
             <div className={styles.modalActions}>
+              <button type="button" className={styles.secondaryButton} onClick={() => startEdit(detail)}>
+                수정
+              </button>
               <button
                 type="button"
                 className={detail.isActive ? styles.deactivateButton : styles.activateButton}
                 onClick={() => toggleActive(detail)}
               >
                 {detail.isActive ? "비활성화" : "재활성화"}
+              </button>
+              <button type="button" className={styles.deleteButton} onClick={() => handleDelete(detail)}>
+                삭제
               </button>
               <button type="button" className={styles.secondaryButton} onClick={() => setDetailId(null)}>
                 닫기

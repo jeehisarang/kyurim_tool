@@ -120,6 +120,12 @@
   flex: 1;
 }
 
+.editingRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .confirmedBadge {
   font-size: 12px;
   color: var(--color-celadon-dark);
@@ -280,6 +286,24 @@
 
 .deactivateButton:hover {
   background: rgba(179, 60, 46, 0.1);
+}
+
+/* 완전 삭제는 비활성화보다 더 강한 액션이라는 것을 명확히 구분하기 위해 채워진
+   빨간 버튼으로 표시한다(비활성화의 outline 스타일과 대비). */
+.deleteButton {
+  border: 1px solid var(--color-seal);
+  border-radius: 4px;
+  background: var(--color-seal);
+  color: var(--color-hanji-card);
+  padding: 6px 14px;
+  font-size: 13px;
+  font-family: var(--font-body);
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.deleteButton:hover {
+  opacity: 0.85;
 }
 
 .activateButton {
