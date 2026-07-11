@@ -155,7 +155,11 @@ export default function ConsultModePage() {
   }
 
   async function handleSave() {
-    if (!selectedPatient || !currentUser) return;
+    if (!currentUser) return;
+    if (!selectedPatient) {
+      setSaveError("저장하려면 환자를 먼저 선택해주세요.");
+      return;
+    }
     if (!selectedTypeId || !rawText.trim()) {
       setSaveError("상담유형과 상담 내용을 모두 입력하세요.");
       return;
@@ -328,14 +332,13 @@ export default function ConsultModePage() {
       </div>
 
       {selectedPatient && (
-        <>
-          <div className={styles.section}>
-            <div className={styles.sectionTitle}>상담 이력</div>
-            {notes === null ? (
-              <p className={styles.muted}>불러오는 중...</p>
-            ) : notes.length === 0 ? (
-              <p className={styles.muted}>등록된 상담 기록이 없습니다.</p>
-            ) : (
+        <div className={styles.section}>
+          <div className={styles.sectionTitle}>상담 이력</div>
+          {notes === null ? (
+            <p className={styles.muted}>불러오는 중...</p>
+          ) : notes.length === 0 ? (
+            <p className={styles.muted}>등록된 상담 기록이 없습니다.</p>
+          ) : (
               <div className={styles.historyStack}>
                 {notes.map((n) =>
                   editingNoteId === n.id ? (
@@ -423,67 +426,72 @@ export default function ConsultModePage() {
               </div>
             )}
           </div>
+      )}
 
-          <div className={styles.section}>
-            <div className={styles.sectionTitle}>새 상담 작성</div>
-            <label className={styles.typeLabel}>
-              상담유형
-              <select value={selectedTypeId} onChange={(e) => setSelectedTypeId(e.target.value)}>
-                {(types ?? []).map((t) => (
-                  <option key={t.id} value={t.id}>
-                    {t.name}
-                  </option>
-                ))}
-              </select>
-            </label>
+      <div className={styles.section}>
+        <div className={styles.sectionTitle}>새 상담 작성</div>
+        {!selectedPatient && (
+          <p className={styles.convertHint}>
+            환자를 선택하지 않아도 기입/AI 차팅변환은 가능합니다. 저장하려면 환자를 먼저
+            선택해주세요.
+          </p>
+        )}
+        <label className={styles.typeLabel}>
+          상담유형
+          <select value={selectedTypeId} onChange={(e) => setSelectedTypeId(e.target.value)}>
+            {(types ?? []).map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.name}
+              </option>
+            ))}
+          </select>
+        </label>
 
+        <textarea
+          className={styles.rawTextarea}
+          placeholder="상담 내용을 자유롭게 입력하세요"
+          value={rawText}
+          onChange={(e) => setRawText(e.target.value)}
+          rows={6}
+        />
+
+        <div className={styles.convertRow}>
+          <button
+            type="button"
+            className={styles.convertButton}
+            onClick={handleConvert}
+            disabled={!rawText.trim() || converting}
+          >
+            {converting ? "변환 중..." : "AI 차팅변환"}
+          </button>
+          <span className={styles.convertHint}>주로 초진상담에 사용 (선택사항)</span>
+        </div>
+        {convertError && <p className={styles.errorText}>{convertError}</p>}
+
+        {convertedText && (
+          <div className={styles.convertedBox}>
             <textarea
-              className={styles.rawTextarea}
-              placeholder="상담 내용을 자유롭게 입력하세요"
-              value={rawText}
-              onChange={(e) => setRawText(e.target.value)}
+              className={styles.convertedTextarea}
+              value={convertedText}
+              onChange={(e) => setConvertedText(e.target.value)}
               rows={6}
             />
-
-            <div className={styles.convertRow}>
-              <button
-                type="button"
-                className={styles.convertButton}
-                onClick={handleConvert}
-                disabled={!rawText.trim() || converting}
-              >
-                {converting ? "변환 중..." : "AI 차팅변환"}
-              </button>
-              <span className={styles.convertHint}>주로 초진상담에 사용 (선택사항)</span>
-            </div>
-            {convertError && <p className={styles.errorText}>{convertError}</p>}
-
-            {convertedText && (
-              <div className={styles.convertedBox}>
-                <textarea
-                  className={styles.convertedTextarea}
-                  value={convertedText}
-                  onChange={(e) => setConvertedText(e.target.value)}
-                  rows={6}
-                />
-                <button type="button" className={styles.copyButton} onClick={handleCopyConverted}>
-                  {copied ? "복사됨" : "복사"}
-                </button>
-              </div>
-            )}
-
-            {saveError && <p className={styles.errorText}>{saveError}</p>}
-            <button
-              type="button"
-              className={styles.saveButton}
-              onClick={handleSave}
-              disabled={saving || !rawText.trim()}
-            >
-              {saving ? "저장 중..." : "저장"}
+            <button type="button" className={styles.copyButton} onClick={handleCopyConverted}>
+              {copied ? "복사됨" : "복사"}
             </button>
           </div>
-        </>
-      )}
+        )}
+
+        {saveError && <p className={styles.errorText}>{saveError}</p>}
+        <button
+          type="button"
+          className={styles.saveButton}
+          onClick={handleSave}
+          disabled={saving || !rawText.trim()}
+        >
+          {saving ? "저장 중..." : "저장"}
+        </button>
+      </div>
     </div>
   );
 }
