@@ -149,6 +149,8 @@ export type LatestExamSnapshot =
       examDate: string;
       gripAvgKg: number;
       gripJudgement: string;
+      // 측정 시점 나이 스냅샷 — 4단계 판정 재계산(computeGripFourLevel)의 연령대 조회용.
+      measuredAge: number;
       estimatedGripAge: number | null;
       gripAgeOutOfRange: string | null;
     };
@@ -186,6 +188,7 @@ export async function getLatestExamSnapshot(
     examDate: record.examDate.toISOString(),
     gripAvgKg: record.gripAvgKg,
     gripJudgement: record.gripJudgement,
+    measuredAge: record.measuredAge,
     estimatedGripAge: record.estimatedGripAge,
     gripAgeOutOfRange: record.gripAgeOutOfRange,
   };

@@ -17,8 +17,19 @@ function parseStartDate(value: unknown): Date | null {
   return new Date(Number(y), Number(m) - 1, Number(d));
 }
 
-export async function GET() {
+// patientId/status 쿼리파라미터는 선택사항 — 둘 다 없으면 기존처럼 전체 목록(치료처방
+// 관리 화면용). patientId만 주면 특정 환자의 처방 이력, status까지 주면(예: 티칭지 생성
+// 화면의 "진행 중 프로그램" 조회) 그 상태로 추가 필터링한다.
+export async function GET(request: Request) {
+  const { searchParams } = new URL(request.url);
+  const patientIdParam = searchParams.get("patientId");
+  const statusParam = searchParams.get("status");
+
   const prescriptions = await prisma.prescription.findMany({
+    where: {
+      ...(patientIdParam ? { patientId: Number(patientIdParam) } : {}),
+      ...(statusParam ? { status: statusParam } : {}),
+    },
     include: { patient: true, program: true, staffUser: true },
     orderBy: { createdAt: "desc" },
   });

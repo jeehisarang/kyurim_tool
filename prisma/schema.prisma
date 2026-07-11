@@ -418,7 +418,15 @@ model PatientTeachingPage {
   // 생성 시점의 검사수치 스냅샷(JSON 자유 형식) — linkedTestType이 null인 프로그램이면 null.
   // 이후 검사기준이 바뀌어도 과거 발급 티칭지의 수치가 소급 변경되지 않도록 스냅샷으로 고정.
   snapshotTestValueJson String?
-  aiPersonalizedText    String
+  // 14-10: 단일 텍스트 블록(aiPersonalizedText) 폐기, 5단 구조로 교체 — /p/[token]이
+  // headline → personalSubtopic → bodyText → examSummary(있을 때만) → academicHook
+  // 순서로 렌더링한다. 실사용 등록 0건 시점에 교체해 별도 데이터 마이그레이션 없음.
+  headline              String
+  personalSubtopic      String
+  bodyText              String
+  // 검사 무관 프로그램(linkedTestType null)이면 항상 null.
+  examSummary           String?
+  academicHook          String
   viewCount             Int             @default(0)
   firstViewedAt         DateTime?
   createdAt             DateTime        @default(now())

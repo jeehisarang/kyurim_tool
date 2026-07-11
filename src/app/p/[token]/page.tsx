@@ -7,7 +7,11 @@ import styles from "./page.module.css";
 type TeachingPageView = {
   programName: string;
   supportImagePath: string | null;
-  aiPersonalizedText: string;
+  headline: string;
+  personalSubtopic: string;
+  bodyText: string;
+  examSummary: string | null;
+  academicHook: string;
   testValueSummary: string | null;
   viewCount: number;
   ctaButtonLabel: string;
@@ -71,7 +75,11 @@ export default function TeachingPagePublicPage() {
   return (
     <div className={styles.page}>
       <div className={styles.card}>
-        <p className={styles.aiText}>{view.aiPersonalizedText}</p>
+        <p className={styles.headline}>{view.headline}</p>
+        <p className={styles.personalSubtopic}>{view.personalSubtopic}</p>
+        <p className={styles.bodyText}>{view.bodyText}</p>
+        {view.examSummary && <p className={styles.examSummary}>{view.examSummary}</p>}
+        <p className={styles.academicHook}>{view.academicHook}</p>
 
         {view.testValueSummary && (
           <div className={styles.testValueBox}>

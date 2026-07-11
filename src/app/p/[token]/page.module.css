@@ -17,12 +17,50 @@
   align-self: flex-start;
 }
 
-.aiText {
+/* 14-10: 5단 구조(headline → personalSubtopic → bodyText → examSummary → academicHook) —
+   각 단계가 시각적으로 구분되도록 크기/색/간격을 순서대로 낮춰간다. */
+.headline {
   font-family: var(--font-display);
-  font-size: 18px;
+  font-weight: 700;
+  font-size: 22px;
+  line-height: 1.4;
+  color: var(--color-ink);
+  margin-bottom: 8px;
+}
+
+.personalSubtopic {
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--color-celadon-dark);
+  line-height: 1.5;
+  margin-bottom: 16px;
+}
+
+.bodyText {
+  font-family: var(--font-display);
+  font-size: 17px;
   line-height: 1.6;
   color: var(--color-ink);
   white-space: pre-wrap;
+  margin-bottom: 16px;
+}
+
+.examSummary {
+  font-size: 15px;
+  line-height: 1.6;
+  color: var(--color-ink);
+  background: var(--color-hanji-bg);
+  border-left: 3px solid var(--color-celadon);
+  border-radius: 4px;
+  padding: 10px 14px;
+  margin-bottom: 16px;
+}
+
+.academicHook {
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--color-ink);
+  opacity: 0.75;
   margin-bottom: 20px;
 }
 

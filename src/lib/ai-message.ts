@@ -423,72 +423,88 @@ ${noteHistory}
 }
 
 /**
- * 환자 티칭지(14-4 → 14-9 정식 스펙, 셀링포인트 7개 + 학술 3개 구조) 개인화 문구 — 목적은
- * 환자가 "이건 나를 위해 짚어준 것"이라는 인상을 받게 하는 것(학술 설명문이 아니라 상담 중
- * 체감되는 자연스러운 언어). 입력 재료는 전부 "있는 것만" 사용하고 없으면 생략, 전부 없어도
- * 폴백으로 에러 없이 정상 생성된다.
+ * 환자 티칭지 콘텐츠 — headline/personalSubtopic/bodyText/examSummary/academicHook 5개
+ * 필드를 JSON으로 한 번에 생성한다. 원장님이 직접 작성한 정식 프롬프트(task.md)를 그대로
+ * 반영 — 핵심은 "이 환자만을 위한" 구체성(다른 환자에게 복사해도 어색하지 않으면 실패)이며,
+ * 이전 버전보다 뭉뚱그린 일반론 문장을 훨씬 엄격히 금지하고 examSummary는 수치/판정을
+ * 완곡하게 대신 그대로 인용하도록 요구가 바뀌었다.
  */
-const PROGRAM_TEACHING_SYSTEM_PROMPT = `너는 규림한의원에서 환자에게 전달하는 프로그램 안내 티칭지 위에 붙는 개인화 문구를 쓰는 카피라이터야.
+const PROGRAM_TEACHING_SYSTEM_PROMPT = `당신은 한의원 환자 맞춤 티칭 콘텐츠를 작성하는 카피라이터입니다.
+아래 입력재료를 바탕으로 JSON 형식으로만 응답하세요. 다른 텍스트는 출력하지 마세요.
 
-[목적]
-환자가 "이건 나를 위해 짚어준 것"이라는 인상을 받게 쓰는 것이 목표야. 학술적 설명문이
-아니라 상담 중 실제로 체감되는 자연스러운 언어로 써.
+[출력 형식]
+{
+  "headline": "5~12자 내외 후킹 문구",
+  "personalSubtopic": "이 환자에게 해당하는 핵심 소주제 한 문장",
+  "bodyText": "공감형 본문 2~4문장",
+  "examSummary": "검사 요약 1~2문장 (검사 정보 없으면 이 키 자체를 생략)",
+  "academicHook": "학술 근거 기반 신뢰 마무리 1~2문장"
+}
 
-[입력 재료 사용 원칙 — 있는 것만 사용, 없으면 자연스럽게 생략]
-- 셀링포인트(직원 작성): 이 환자 상황에 가장 잘 맞는 것 1~2개만 골라 완전히 새로운 문장으로
-  재작성해. 원문을 그대로 복사하거나 목록을 나열하면 절대 안 돼.
-- 학술 근거(원장 작성): 그대로 인용하지 말고 "왜 그런지" 신뢰를 뒷받침하는 배경지식으로만
-  짧게(한 문장 정도) 녹여써.
-- 프로그램명/증상키워드: 어떤 프로그램이고 어떤 상황에 맞는지 자연스럽게 짚어주는 데만 참고해.
-- 환자 검사수치(연결된 경우): 수치 자체는 화면에 별도 박스로 이미 표시되니 본문에서 숫자를
-  그대로 반복하지 말고 "최근 검사 결과를 보니" 정도로 완곡하게만 언급해.
-- 검사판정(연결된 경우, 필수 반영): "정상"/"강함"처럼 양호한 판정이면 예방·관리 목적의
-  담백하고 산뜻한 톤으로 써. "약함"/"근감소증 의심"/"주의"처럼 개선이 필요한 판정이면
-  공감으로 시작해서 왜 지금 시작하면 좋은지를 짚어주는 톤으로 써(겁주거나 과장하지 말고
-  담담하게). 판정값이 없으면 이 톤 분기 없이 중립적으로 써.
-- 검사 추이(같은 검사가 2건 이상 있어 변화량이 주어진 경우): 값이 주어졌다는 것 자체가 이미
-  의미 있는 변화라는 뜻이니, "지난번보다 ~해지셨네요/~됐어요"처럼 직전 기록과 비교하는
-  후킹 문장을 반드시 1개 포함해(수치를 그대로 읽지 말고 "가벼워지셨다/무거워지셨다/약해지셨다/
-  강해지셨다"처럼 체감형 표현으로). 이 재료 자체가 없으면(기록이 1건뿐이면) 당연히 생략해.
-- 최근 상담기록(있는 경우): 이 프로그램과 관련 있는 부분만 선별해서 자연스럽게 녹여써.
-  프로그램과 무관한 내용(다른 질환, 무관한 개인정보 등)은 절대 억지로 포함하지 마.
-- 환자 핵심프로필/누적 메모(있는 경우): 개인화 재료로 활용하되, 핵심프로필이 원장이 정리한
-  더 안정적인 사실관계이므로 누적 메모보다 우선 참고해.
+[핵심 원칙 — 개인화]
+이 문서는 "이 환자만을 위한" 문서입니다. 다른 환자에게 그대로 복사해도 어색하지 않은
+문장이 있다면 그것은 실패한 결과입니다.
+- personalSubtopic과 bodyText 중 최소 하나에는 [최근 상담메모] 또는 [누적 환자메모]에 있는
+  실제 표현을 반영할 것 — 단, 이 프로그램(programName)과 명백히 무관한 내용(예: 근력
+  관련 메모를 피부 프로그램 티칭지에 넣는 경우)이라면 억지로 끼워 넣지 말고 생략할 것.
+  관련성 없는 인용은 일반론적 문장보다 더 나쁜 결과입니다. 환자메모/상담메모가 이
+  프로그램과 무관해 생략하는 경우, 개인화는 [타겟 증상 키워드]와 [직원 셀링포인트]만으로
+  시도할 것 — "이 환자가 왜 이 프로그램에 관심 가질만한지"를 구체화하는 방향으로 대체
+- bodyText에는 [직원 셀링포인트] 중 최소 1개(복용법/기간/가격/편의성 등 구체적 내용)를
+  반드시 포함할 것
+- examSummary가 있다면 반드시 [검사 최신값 및 판정]의 실제 수치와 판정 등급을 그대로
+  인용할 것(수치를 뭉뚱그려 "소폭 감소" 식으로 쓰지 말 것)
 
-[출력 구조 — 총 3~5문장, 1~2문단]
-1. 환자 상황(핵심프로필/상담기록/누적 메모/검사수치·판정 중 있는 것)에 공감하는 문장으로
-   시작해(검사판정이 부정적이면 이 문장에서 공감을 더 분명히 드러낼 것).
-2. 셀링포인트 중 가장 맞는 것 1~2개를 골라 새로운 문장으로 재작성해(원문 복사 절대 금지).
-   검사 추이가 주어졌으면 이 문장 전후로 직전 대비 변화를 짚는 후킹 문장을 반드시 곁들여.
-3. 학술 근거가 있으면 "왜 그런지" 신뢰를 뒷받침하는 문장을 한 개 정도 더해(직접 인용 아님).
-4. 부담 없이 시작해볼 수 있다는 부드러운 문장으로 마무리해.
+[금지 문장 패턴 — 아래와 유사한 일반론적 문장 금지]
+- "나이가 들수록 근육은 자연스럽게 감소합니다" (교과서적 일반 설명)
+- "적절한 관리와 꾸준한 생활습관 개선이 도움이 됩니다" (누구에게나 해당되는 뭉뚱그린 조언)
+- "몸이 보내는 신호일 수 있습니다" (구체성 없는 추상적 표현)
+→ 이런 톤이 나올 것 같으면, 반드시 입력재료의 구체적 사실 하나를 문장에 끼워 넣어
+  대체할 것
 
-[금지사항]
-- 셀링포인트/학술 필드 원문을 그대로 복사하거나 나열하는 것 절대 금지.
-- "접근성/비용:", "차별성:" 같은 카테고리 라벨을 그대로 노출하는 것 금지.
-- "완치", "무조건 효과"처럼 확진적이거나 과장된 의학 표현 금지.
-- 상담기록 중 이 프로그램과 무관한 개인정보를 억지로 끼워넣는 것 금지.
-- "OO님"처럼 이름을 불러주는 다정한 존댓말 회화체로 쓰고, 과도한 느낌표·감정 표현은 피해.
-  이모지는 🙂 정도만 아주 가끔.
+[academicHook 작성 규칙]
+- academicHook은 [원장 학술문구] 3종(질환정의/처방기전/임상근거)에 실제로 있는 내용만
+  재구성해서 쓸 것
+- 원장 학술문구에 없는 새로운 의학적 효능, 기전, 통계, 근거를 창작해서 추가하지 말 것
+  (예: 원문에 없는데 "낙상 예방", "대사 건강" 등을 임의로 갖다붙이는 것 금지)
+- 원문의 신중한 단서("~일 수 있습니다" 등)를 확신형으로 바꾸지 말 것
+
+[절대 금지사항]
+- 특정 한약재명(마황, 태음조위탕, 월비탕, 마포황금탕, 보광기화 등) 절대 언급 금지
+- "100% 낫습니다", "완치" 등 과장/단정 표현 금지
+- 검사 정보가 없는 프로그램이면 examSummary 키 자체를 만들지 말 것
+- [직원 셀링포인트]/[원장 학술문구] 원문을 그대로 복사하거나 카테고리 라벨("접근성/비용:" 등)을
+  그대로 노출하지 말 것 — 반드시 새로운 문장으로 재구성할 것
+- [최근 상담메모] 중 이 프로그램과 무관한 내용(다른 질환 등)은 억지로 포함하지 말 것
+
+[검사판정에 따른 톤 분기 — 4단계, 주어지면 반드시 반영]
+- 약함: 공감으로 시작해서 개선이 필요하다는 점을 담담하게(겁주지 않고) 짚어줄 것
+- 경계: 아직 심각한 수준은 아니지만 "지금이 관리를 시작하기 좋은 시점"이라는 뉘앙스로
+  자연스럽게 권유할 것 — "정상"이라고 안심시키거나 "약하다"고 겁주지 말 것
+- 양호: 예방·관리 목적의 담백하고 산뜻한 톤
+- 우수: 예방·관리 + 잘 유지되고 있다는 점을 가볍고 긍정적으로 강조하는 톤
+판정이 없으면(검사 무관 프로그램) 이 톤 분기 없이 중립적으로 쓸 것
 
 [폴백]
-셀링포인트/학술 근거가 전부 비어있으면, 프로그램명(과 증상키워드가 있다면 그것)만으로
-담백하고 따뜻한 기본 소개 문구를 3~5문장으로 써야 해(에러 내지 말고 반드시 정상적으로
-생성할 것).
+셀링포인트/학술 근거가 전부 비어있으면, 프로그램명(과 타겟 증상 키워드가 있다면 그것)만
+으로 담백하고 따뜻한 기본 소개로 5개 필드(examSummary는 검사 정보 있을 때만)를 모두
+채울 것(에러 없이 반드시 정상 생성).
 
-[출력 전 자체 검토 — 반드시 수행]
-문장을 완성한 뒤 실제로 출력하기 전에 아래 기준으로 다시 읽고, 문제가 있으면 고쳐 쓴
-최종본만 출력해(검토 과정이나 메모는 절대 출력하지 마):
-1. 셀링포인트/학술 원문이 그대로 복사되거나 카테고리 라벨이 그대로 노출된 곳이 있는가?
-2. 검사수치가 숫자 그대로 반복되지 않고 완곡하게만 언급됐는가?
-3. 검사판정이 주어졌다면 그 판정에 맞는 톤(양호=예방·관리, 개선필요=공감)으로 썼는가?
-4. 검사 추이가 주어졌다면 직전 대비 변화를 짚는 문장이 실제로 포함됐는가?
-5. 상담기록 중 이 프로그램과 무관한 내용이 섞이지 않았는가?
-6. "완치"/"무조건" 등 확진적 표현이 섞이지 않았는가?
-7. 전체가 3~5문장, 1~2문단 분량인가? 문장이 중간에 끊기지 않았는가?
-위 기준 중 하나라도 걸리면 반드시 고친 뒤 최종본만 출력해.
+[말투]
+"OO님"처럼 이름을 불러주는 다정한 존댓말 회화체로 쓰고, 과도한 느낌표·감정 표현은 피할
+것. 이모지는 🙂 정도만 아주 가끔(headline 제외).
 
-출력은 문구 본문만. 안내 문구, 따옴표, 마크다운 없이 바로 텍스트로 시작해.`;
+[자체검토 — 출력 전 스스로 점검]
+1. personalSubtopic 또는 bodyText에 환자메모/상담메모의 구체적 내용이 실제로 들어갔는가?
+   (안 들어갔다면 다시 작성)
+1-1. 인용한 환자메모/상담메모가 이 프로그램(programName)과 실제로 관련 있는 내용인가?
+   (무관한데 끼워 넣었다면 제거하고 관련 키워드/셀링포인트 중심으로 재작성할 것)
+2. bodyText에 직원 셀링포인트 중 최소 1개가 구체적으로 들어갔는가?
+3. examSummary에 실제 수치/판정이 그대로 인용되었는가? (있는 경우)
+4. academicHook에 원장 학술문구에 없는 내용을 창작하지 않았는가?
+5. [금지 문장 패턴]에 나열된 것과 유사한 뭉뚱그린 문장이 있는가? 있다면 구체화할 것
+6. 비문(어색한 문장)이 있는가?
+위 기준 중 하나라도 걸리면 반드시 고친 뒤 최종 JSON만 출력하세요.`;
 
 export type ProgramTeachingPatientContext = {
   name: string;
@@ -498,20 +514,99 @@ export type ProgramTeachingPatientContext = {
   latestConsultationNote?: { typeName: string; text: string };
 };
 
-export async function generateProgramTeachingText(
+export type ProgramTeachingResult = {
+  headline: string;
+  personalSubtopic: string;
+  bodyText: string;
+  examSummary: string | null;
+  academicHook: string;
+};
+
+function isNonEmptyString(value: unknown): value is string {
+  return typeof value === "string" && value.trim().length > 0;
+}
+
+// task.md 스펙의 {examResult}는 "검사 최신값 및 판정"을 하나로 합친 자리 — 기존에 각각
+// 계산해두던 수치 요약/4단계 판정/직전 대비 추이를 한 문자열로 묶어 전달한다.
+function buildExamResultText(
+  testValueSummary: string | null,
+  examJudgementLabel: string | null,
+  examTrend: string | null,
+): string {
+  const parts: string[] = [];
+  if (testValueSummary) parts.push(testValueSummary);
+  if (examJudgementLabel) parts.push(`판정: ${examJudgementLabel}`);
+  if (examTrend) parts.push(`직전 대비 변화: ${examTrend}`);
+  return parts.length > 0 ? parts.join(" / ") : "없음";
+}
+
+async function callProgramTeachingModel(
+  system: string,
+  user: string,
+  hasLinkedExam: boolean,
+): Promise<ProgramTeachingResult> {
+  assertOpenAiApiKeyConfigured();
+
+  const client = new OpenAI();
+
+  const response = await client.chat.completions.create({
+    model: MODEL,
+    messages: [
+      { role: "system", content: system },
+      { role: "user", content: user },
+    ],
+    response_format: { type: "json_object" },
+    max_tokens: 700,
+  });
+
+  const raw = response.choices[0]?.message?.content?.trim() ?? "{}";
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    throw new Error("AI 응답을 JSON으로 파싱하지 못했습니다: " + raw);
+  }
+
+  if (typeof parsed !== "object" || parsed === null) {
+    throw new Error("AI 응답 형식이 올바르지 않습니다: " + raw);
+  }
+  const v = parsed as Record<string, unknown>;
+  if (
+    !isNonEmptyString(v.headline) ||
+    !isNonEmptyString(v.personalSubtopic) ||
+    !isNonEmptyString(v.bodyText) ||
+    !isNonEmptyString(v.academicHook)
+  ) {
+    throw new Error(
+      "AI 응답 형식이 올바르지 않습니다(headline/personalSubtopic/bodyText/academicHook 필요): " + raw,
+    );
+  }
+
+  return {
+    headline: v.headline.trim(),
+    personalSubtopic: v.personalSubtopic.trim(),
+    bodyText: v.bodyText.trim(),
+    examSummary: hasLinkedExam && isNonEmptyString(v.examSummary) ? v.examSummary.trim() : null,
+    academicHook: v.academicHook.trim(),
+  };
+}
+
+export async function generateProgramTeachingContent(
   program: {
     programName: string;
     targetSymptomKeywords: string | null;
     sellingText: string;
     academicText: string;
     testValueSummary: string | null;
-    // 검사 판정 라벨(정상/약함/근감소증 의심 등) — 연결검사 없거나 판정을 못 낸 경우 null.
+    // 검사 판정 라벨(약함/경계/양호/우수) — 연결검사 없거나 판정을 못 낸 경우 null.
     examJudgementLabel: string | null;
     // 같은 검사종류 최근 2건 이상일 때의 변화량 요약 — 1건뿐이면 null.
     examTrend: string | null;
+    // 이 프로그램이 검사와 연결됐는지 — examSummary 키를 요구할지 여부를 결정한다.
+    hasLinkedExam: boolean;
   },
   patient: ProgramTeachingPatientContext,
-): Promise<string> {
+): Promise<ProgramTeachingResult> {
   const noteHistory =
     patient.notes.length > 0
       ? patient.notes.map((n) => `- ${n.createdAt.toISOString().slice(0, 10)} ${n.content}`).join("\n")
@@ -521,25 +616,23 @@ export async function generateProgramTeachingText(
     ? `(${patient.latestConsultationNote.typeName}) ${patient.latestConsultationNote.text}`
     : "없음";
 
-  const userMessage = `환자 정보:
-- 이름: ${patient.name}
+  const examResult = program.hasLinkedExam
+    ? buildExamResultText(program.testValueSummary, program.examJudgementLabel, program.examTrend)
+    : "없음(이 프로그램은 검사와 무관 — examSummary 키를 생성하지 말 것)";
+
+  const userMessage = `[입력재료]
+- 환자 이름: ${patient.name}
 - 핵심프로필(원장이 정리한 사실관계 — 과거력/현재질환/주요니즈, 있으면 최우선 참고): ${formatCoreProfile(patient.coreProfile)}
 - 프로그램명: ${program.programName}
-- 증상 키워드(참고용 힌트, 없으면 무시): ${program.targetSymptomKeywords ?? "없음"}
-- 셀링포인트(이 중 가장 관련 있는 것 1~2개만 골라 완전히 새로운 문장으로 재작성할 것, 원문
-  복사·전체 나열 절대 금지):
+- 타겟 증상 키워드: ${program.targetSymptomKeywords ?? "없음"}
+- 직원 셀링포인트:
 ${program.sellingText}
-- 학술 근거(신뢰감 뒷받침용 배경지식으로 한 문장 정도만 참고, 직접 인용 금지):
+- 원장 학술문구:
 ${program.academicText}
-- 검사수치(있으면 완곡하게만 언급, 숫자 그대로 반복 금지, 없으면 무시): ${program.testValueSummary ?? "없음"}
-- 검사판정(있으면 톤 분기에 반드시 반영 — 양호=예방/관리 톤, 개선필요=공감 톤, 없으면 무시): ${program.examJudgementLabel ?? "없음"}
-- 검사 추이(직전 기록 대비 변화량, 의미 있으면 후킹 문장 1개만, 없으면 무시): ${program.examTrend ?? "없음"}
-- 최근 상담기록(이 프로그램과 관련 있는 부분만 선별 반영, 무관한 개인정보는 포함 금지, 없으면 무시): ${consultationNoteText}
-- 누적 메모(최근 디테일/뉘앙스 — 관련 있는 것만 선별해서 반영, 없으면 위 정보만으로 작성):
-${noteHistory}
+- 검사 최신값 및 판정: ${examResult}
+- 최근 상담메모(관련부분만): ${consultationNoteText}
+- 누적 환자메모:
+${noteHistory}`;
 
-요청: 위 [목적]/[출력 구조]/[금지사항]을 지켜 이 환자를 위한 3~5문장(1~2문단) 개인화 문구를
-써줘. 셀링포인트/학술 근거가 전부 "없음"이면 [폴백]을 따라줘.`;
-
-  return generateMessage(PROGRAM_TEACHING_SYSTEM_PROMPT, userMessage);
+  return callProgramTeachingModel(PROGRAM_TEACHING_SYSTEM_PROMPT, userMessage, program.hasLinkedExam);
 }

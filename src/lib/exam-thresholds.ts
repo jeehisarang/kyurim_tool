@@ -72,6 +72,55 @@ export function judgeGrip(gender: Gender, age: number, gripAvgKg: number): GripJ
   return "NORMAL";
 }
 
+// 티칭지(14-10) AI 프롬프트 전용 4단계 세분화 — 기존 judgeSmi/judgeGrip(2/3단계, /examinations
+// 화면 배지 등에서 계속 그대로 사용)와는 별개의 판정 체계다. 경계에 있는 환자를 "정상"으로
+// 뭉뚱그리지 않고 업셀링 기회로 짚어주기 위한 목적(task.md 배경 참고). /examinations 쪽 기존
+// 판정/배지/저장 컬럼은 이 변경과 무관하게 그대로 둔다.
+export type FourLevelJudgement = "WEAK" | "BORDERLINE" | "GOOD" | "EXCELLENT";
+
+export const FOUR_LEVEL_JUDGEMENT_LABEL: Record<FourLevelJudgement, string> = {
+  WEAK: "약함",
+  BORDERLINE: "경계",
+  GOOD: "양호",
+  EXCELLENT: "우수",
+};
+
+// ⚠️ 초안 수치 — 원장님 임상 검토 후 조정 예정(task.md 지시). 조정 시 이 상수만 고치면 됨.
+export const SMI_FOUR_LEVEL_BORDERLINE_RATIO = 1.1;
+export const SMI_FOUR_LEVEL_GOOD_RATIO = 1.25;
+
+// 성별 기준선(SMI_THRESHOLD) 대비 비율로 4단계 판정. smi < 기준선이면 약함, 기준선~×1.10이면
+// 경계, ×1.10~×1.25면 양호, ×1.25 이상이면 우수.
+export function computeSmiFourLevel(gender: Gender, smi: number): FourLevelJudgement {
+  const baseline = SMI_THRESHOLD[gender];
+  if (smi < baseline) return "WEAK";
+  if (smi < baseline * SMI_FOUR_LEVEL_BORDERLINE_RATIO) return "BORDERLINE";
+  if (smi < baseline * SMI_FOUR_LEVEL_GOOD_RATIO) return "GOOD";
+  return "EXCELLENT";
+}
+
+// ⚠️ 초안 수치 — 원장님 임상 검토 후 조정 예정(task.md 지시). 조정 시 이 상수만 고치면 됨.
+export const GRIP_FOUR_LEVEL_BORDERLINE_MARGIN = 0.05;
+
+// 기존 GRIP_STRENGTH_TABLE의 low/high 경계값은 그대로 두고, WEAK/NORMAL 경계(low)의 위아래
+// ±5%만 "경계" 밴드로 분리한다. NORMAL/STRONG 경계(high)는 그대로 유지하며 STRONG은 "우수"로
+// 매핑한다. 연령대 표를 벗어나면(judgeGrip의 UNKNOWN에 대응) null.
+export function computeGripFourLevel(
+  gender: Gender,
+  age: number,
+  gripAvgKg: number,
+): FourLevelJudgement | null {
+  const band = GRIP_STRENGTH_TABLE.find((b) => age >= b.minAge && age <= b.maxAge);
+  if (!band) return null;
+  const { low, high } = gender === "MALE" ? band.male : band.female;
+  const borderlineLow = low * (1 - GRIP_FOUR_LEVEL_BORDERLINE_MARGIN);
+  const borderlineHigh = low * (1 + GRIP_FOUR_LEVEL_BORDERLINE_MARGIN);
+  if (gripAvgKg < borderlineLow) return "WEAK";
+  if (gripAvgKg <= borderlineHigh) return "BORDERLINE";
+  if (gripAvgKg <= high) return "GOOD";
+  return "EXCELLENT";
+}
+
 // 근력나이(Grip Age): 평균악력을 또래 평균과 비교해 "환산 나이"로 보여주는 참고 지표.
 // SMI는 나이별 기준표가 없어 동일 방식을 적용하지 않는다(기존 정상/근감소증 판정만 유지).
 export type GripAgeOutOfRange = "young" | "old";

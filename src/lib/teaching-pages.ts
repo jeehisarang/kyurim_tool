@@ -1,6 +1,6 @@
 import crypto from "crypto";
 import { prisma } from "@/lib/db";
-import { generateProgramTeachingText } from "@/lib/ai-message";
+import { generateProgramTeachingContent } from "@/lib/ai-message";
 import {
   formatProgramTeachingContent,
   getExamTrend,
@@ -10,6 +10,12 @@ import {
   type LinkedTestType,
 } from "@/lib/program-teaching";
 import { EXAM_TYPE_LABEL, SMI_JUDGEMENT_LABEL, GRIP_JUDGEMENT_LABEL } from "@/lib/examination-format";
+import {
+  computeGripFourLevel,
+  computeSmiFourLevel,
+  FOUR_LEVEL_JUDGEMENT_LABEL,
+  type Gender,
+} from "@/lib/exam-thresholds";
 import { logActivity } from "@/lib/activity-log";
 import { withObjectParticle } from "@/lib/korean-particle";
 import { listConsultationNotesForPatient } from "@/lib/consultation-notes";
@@ -50,13 +56,22 @@ function formatTestValueSummary(snapshot: LatestExamSnapshot): string {
   return parts.join(", ");
 }
 
-// AI 프롬프트에 "판정에 따라 톤을 분기하라"고 명시적으로 전달할 라벨만 따로 뽑아낸다 —
-// BODY_COMPOSITION은 SMI를 계산 못했으면(키/성별 미입력 등) 판정 자체가 없어 null.
-function extractJudgementLabel(snapshot: LatestExamSnapshot): string | null {
+function isGender(value: string | null): value is Gender {
+  return value === "MALE" || value === "FEMALE";
+}
+
+// AI 프롬프트에 "판정에 따라 톤을 분기하라"고 명시적으로 전달할 4단계(약함/경계/양호/우수)
+// 라벨을 서버가 원본 수치로 재계산한다(클라이언트/과거 저장값 불신 원칙, exam-thresholds.ts
+// 참고) — /examinations 화면이 쓰는 기존 2/3단계 판정(smiJudgement/gripJudgement 컬럼)과는
+// 별개 체계다. 성별 미입력이거나(SMI를 계산 못한 경우) 연령대 표를 벗어나면 null.
+function extractFourLevelJudgementLabel(snapshot: LatestExamSnapshot, gender: string | null): string | null {
+  if (!isGender(gender)) return null;
   if (snapshot.examType === "BODY_COMPOSITION") {
-    return snapshot.smiJudgement ? (SMI_JUDGEMENT_LABEL[snapshot.smiJudgement] ?? snapshot.smiJudgement) : null;
+    if (snapshot.smi == null) return null;
+    return FOUR_LEVEL_JUDGEMENT_LABEL[computeSmiFourLevel(gender, snapshot.smi)];
   }
-  return GRIP_JUDGEMENT_LABEL[snapshot.gripJudgement] ?? snapshot.gripJudgement;
+  const level = computeGripFourLevel(gender, snapshot.measuredAge, snapshot.gripAvgKg);
+  return level ? FOUR_LEVEL_JUDGEMENT_LABEL[level] : null;
 }
 
 export type CreateTeachingPageInput = {
@@ -95,8 +110,9 @@ export async function createTeachingPage(input: CreateTeachingPageInput) {
     examTrend = await getExamTrend(input.patientId, program.linkedTestType);
   }
 
+  const hasLinkedExam = isLinkedTestType(program.linkedTestType);
   const testValueSummary = snapshot ? formatTestValueSummary(snapshot) : null;
-  const examJudgementLabel = snapshot ? extractJudgementLabel(snapshot) : null;
+  const examJudgementLabel = snapshot ? extractFourLevelJudgementLabel(snapshot, patient.gender) : null;
   const { sellingText, academicText } = formatProgramTeachingContent(program);
 
   // SOAP 변환본(convertedChartText)이 있으면 그쪽이 더 정리된 형태라 우선 사용, 없으면 원문.
@@ -108,7 +124,7 @@ export async function createTeachingPage(input: CreateTeachingPageInput) {
       }
     : undefined;
 
-  const aiPersonalizedText = await generateProgramTeachingText(
+  const content = await generateProgramTeachingContent(
     {
       programName: program.programName,
       targetSymptomKeywords: program.targetSymptomKeywords,
@@ -117,6 +133,7 @@ export async function createTeachingPage(input: CreateTeachingPageInput) {
       testValueSummary,
       examJudgementLabel,
       examTrend,
+      hasLinkedExam,
     },
     {
       name: patient.name,
@@ -136,7 +153,11 @@ export async function createTeachingPage(input: CreateTeachingPageInput) {
       patientId: input.patientId,
       programTeachingId: input.programTeachingId,
       snapshotTestValueJson: snapshot ? JSON.stringify(snapshot) : null,
-      aiPersonalizedText,
+      headline: content.headline,
+      personalSubtopic: content.personalSubtopic,
+      bodyText: content.bodyText,
+      examSummary: content.examSummary,
+      academicHook: content.academicHook,
       createdByStaffId: input.createdByStaffId,
     },
     include: { programTeaching: true },
@@ -144,7 +165,11 @@ export async function createTeachingPage(input: CreateTeachingPageInput) {
 
   return {
     token: page.token,
-    aiPersonalizedText: page.aiPersonalizedText,
+    headline: page.headline,
+    personalSubtopic: page.personalSubtopic,
+    bodyText: page.bodyText,
+    examSummary: page.examSummary,
+    academicHook: page.academicHook,
     programName: page.programTeaching.programName,
     testValueSummary,
     supportImagePath: page.programTeaching.supportImagePath,
@@ -154,7 +179,11 @@ export async function createTeachingPage(input: CreateTeachingPageInput) {
 export type PublicTeachingPageView = {
   programName: string;
   supportImagePath: string | null;
-  aiPersonalizedText: string;
+  headline: string;
+  personalSubtopic: string;
+  bodyText: string;
+  examSummary: string | null;
+  academicHook: string;
   testValueSummary: string | null;
   viewCount: number;
   ctaButtonLabel: string;
@@ -193,11 +222,44 @@ export async function getPublicTeachingPageByToken(
   return {
     programName: updated.programTeaching.programName,
     supportImagePath: updated.programTeaching.supportImagePath,
-    aiPersonalizedText: updated.aiPersonalizedText,
+    headline: updated.headline,
+    personalSubtopic: updated.personalSubtopic,
+    bodyText: updated.bodyText,
+    examSummary: updated.examSummary,
+    academicHook: updated.academicHook,
     testValueSummary,
     viewCount: updated.viewCount,
     ctaButtonLabel: updated.programTeaching.ctaButtonLabel ?? DEFAULT_CTA_LABEL,
   };
+}
+
+export type TeachingPageContentUpdateInput = {
+  headline: string;
+  personalSubtopic: string;
+  bodyText: string;
+  // undefined면 그대로 두고, examSummary가 원래 null이던 레코드는 값이 와도 계속 null로
+  // 고정한다(검사 무관 프로그램에 검사요약이 생기는 걸 막기 위함 — task.md 지시).
+  examSummary?: string;
+  academicHook: string;
+};
+
+/**
+ * 티칭지 5필드 수작업 편집 — 생성 직후 화면의 "수정" 버튼에서만 호출된다. 별도 수정 이력을
+ * 남기지 않고 현재 상태를 그대로 덮어쓴다(ConsultationNote와 달리 진료기록이 아니라 단순
+ * 마케팅 카피이기 때문 — task.md 지시).
+ */
+export async function updateTeachingPageContent(token: string, input: TeachingPageContentUpdateInput) {
+  const existing = await prisma.patientTeachingPage.findUniqueOrThrow({ where: { token } });
+  return prisma.patientTeachingPage.update({
+    where: { token },
+    data: {
+      headline: input.headline,
+      personalSubtopic: input.personalSubtopic,
+      bodyText: input.bodyText,
+      examSummary: existing.examSummary === null ? null : (input.examSummary ?? existing.examSummary),
+      academicHook: input.academicHook,
+    },
+  });
 }
 
 /**
