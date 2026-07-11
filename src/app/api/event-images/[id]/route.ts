@@ -32,11 +32,21 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     backgroundImagePath = saved.path;
   }
 
+  // "완성된 이미지 그대로 사용" 모드(task.md) — 텍스트 합성 없이 배경을 그대로
+  // compositeImagePath로 쓴다. 배경을 새로 안 올렸으면 기존 배경 경로를 그대로 쓴다.
+  const useRawImage = formData.get("useRawImage") === "true";
   let compositeImagePath: string | undefined;
-  const compositeImage = formData.get("compositeImage");
-  if (compositeImage instanceof File && compositeImage.size > 0) {
-    const saved = await saveCompositeImage(compositeImage);
-    compositeImagePath = saved.path;
+  if (useRawImage) {
+    const effectiveBackgroundPath = backgroundImagePath ?? existing.backgroundImagePath;
+    if (effectiveBackgroundPath !== existing.compositeImagePath) {
+      compositeImagePath = effectiveBackgroundPath;
+    }
+  } else {
+    const compositeImage = formData.get("compositeImage");
+    if (compositeImage instanceof File && compositeImage.size > 0) {
+      const saved = await saveCompositeImage(compositeImage);
+      compositeImagePath = saved.path;
+    }
   }
 
   if (

@@ -147,6 +147,20 @@
   display: block;
 }
 
+.rawImageToggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--color-ink);
+  margin: 4px 0 12px;
+  cursor: pointer;
+}
+
+.rawImageToggle input {
+  width: auto;
+}
+
 .copyOutBox {
   margin-top: 16px;
 }
