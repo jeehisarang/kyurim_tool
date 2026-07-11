@@ -673,7 +673,10 @@ const EVENT_COPY_SYSTEM_PROMPT = `당신은 한의원 이벤트 홍보 문구를
 [출력 형식]
 {
   "title": "이벤트 전체를 아우르는 임팩트 있는 타이틀",
-  "copy": "인트로 문구 + 원문의 카테고리·항목·숫자를 전부 담은 본문 전체(줄바꿈 포함 가능)"
+  "intro": "합성 이미지에 타이틀과 함께 얹힐 짧은 인트로 1~2문장 — 카테고리별 세부
+    항목/숫자는 넣지 말고 이벤트 전체를 대표하는 후킹 문장만 쓸 것",
+  "copy": "intro 문구 + 원문의 카테고리·항목·숫자를 전부 담은 본문 전체(줄바꿈 포함
+    가능) — 카카오톡 발송용 전체 안내문이므로 intro와 달리 세부 내용을 전부 포함할 것"
 }
 
 [짧은 이벤트일 경우]
@@ -693,9 +696,11 @@ const EVENT_COPY_SYSTEM_PROMPT = `당신은 한의원 이벤트 홍보 문구를
    남아있는가?
 3. 원문의 고유명사(프로그램명·시술명)가 임의로 바뀌거나 누락되지 않았는가?
 4. 위 중 하나라도 걸리면, 누락되거나 바뀐 부분을 원문 그대로 복원해 다시 작성한 뒤
-   최종 JSON만 출력할 것`;
+   최종 JSON만 출력할 것
+5. intro에 카테고리별 세부 항목/숫자가 실수로 들어가지 않았는가? (intro는 이미지용
+   짧은 문구 — 세부 내용은 copy에만 있어야 함)`;
 
-export type EventCopyResult = { title: string; copy: string };
+export type EventCopyResult = { title: string; intro: string; copy: string };
 
 export async function generateEventCopy(input: {
   rawIdea: string;
@@ -709,7 +714,7 @@ export async function generateEventCopy(input: {
 ${input.rawIdea}
 
 [직전 결과]
-{"title": ${JSON.stringify(input.previous.title)}, "copy": ${JSON.stringify(input.previous.copy)}}
+{"title": ${JSON.stringify(input.previous.title)}, "intro": ${JSON.stringify(input.previous.intro)}, "copy": ${JSON.stringify(input.previous.copy)}}
 
 [수정 지시]
 ${input.instruction?.trim() || "더 좋은 표현으로 다듬어줘"}`
@@ -741,8 +746,8 @@ ${input.rawIdea}`;
     throw new Error("AI 응답 형식이 올바르지 않습니다: " + raw);
   }
   const v = parsed as Record<string, unknown>;
-  if (!isNonEmptyString(v.title) || !isNonEmptyString(v.copy)) {
-    throw new Error("AI 응답 형식이 올바르지 않습니다(title/copy 필요): " + raw);
+  if (!isNonEmptyString(v.title) || !isNonEmptyString(v.intro) || !isNonEmptyString(v.copy)) {
+    throw new Error("AI 응답 형식이 올바르지 않습니다(title/intro/copy 필요): " + raw);
   }
-  return { title: v.title.trim(), copy: v.copy.trim() };
+  return { title: v.title.trim(), intro: v.intro.trim(), copy: v.copy.trim() };
 }

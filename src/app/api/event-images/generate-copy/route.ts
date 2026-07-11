@@ -9,8 +9,11 @@ export async function POST(request: Request) {
   }
 
   const previous =
-    body.previous && typeof body.previous.title === "string" && typeof body.previous.copy === "string"
-      ? { title: body.previous.title, copy: body.previous.copy }
+    body.previous &&
+    typeof body.previous.title === "string" &&
+    typeof body.previous.intro === "string" &&
+    typeof body.previous.copy === "string"
+      ? { title: body.previous.title, intro: body.previous.intro, copy: body.previous.copy }
       : null;
   const instruction = typeof body.instruction === "string" ? body.instruction : null;
 

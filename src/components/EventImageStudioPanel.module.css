@@ -141,6 +141,34 @@
   display: block;
 }
 
+.copyOutBox {
+  margin-top: 16px;
+}
+
+.copyOutHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+  font-size: 13px;
+  color: var(--color-celadon-dark);
+  font-weight: 500;
+}
+
+.copyOutTextarea {
+  width: 100%;
+  border: 1px solid rgba(110, 148, 140, 0.4);
+  border-radius: 4px;
+  background: var(--color-hanji-bg);
+  color: var(--color-ink);
+  padding: 10px;
+  font-size: 13px;
+  font-family: var(--font-body);
+  resize: vertical;
+  white-space: pre-wrap;
+}
+
 .muted {
   color: var(--color-ink);
   opacity: 0.55;
@@ -224,13 +252,6 @@
   font-size: 18px;
   color: var(--color-ink);
   margin-bottom: 6px;
-}
-
-.modalCopy {
-  font-size: 14px;
-  color: var(--color-ink);
-  margin-bottom: 10px;
-  white-space: pre-wrap;
 }
 
 .modalRawIdea {

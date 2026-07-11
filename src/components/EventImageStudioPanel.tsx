@@ -4,8 +4,9 @@ import { useEffect, useRef, useState } from "react";
 import styles from "./EventImageStudioPanel.module.css";
 import { useCurrentUserContext } from "@/lib/CurrentUserContext";
 import { composeEventImage } from "@/lib/event-image-canvas";
+import { copyToClipboard } from "@/lib/clipboard";
 
-type EventCopyResult = { title: string; copy: string };
+type EventCopyResult = { title: string; intro: string; copy: string };
 
 type EventImage = {
   id: number;
@@ -34,6 +35,7 @@ export default function EventImageStudioPanel() {
 
   const [rawIdea, setRawIdea] = useState("");
   const [title, setTitle] = useState("");
+  const [intro, setIntro] = useState("");
   const [copy, setCopy] = useState("");
   const [instruction, setInstruction] = useState("");
   const [generating, setGenerating] = useState(false);
@@ -44,6 +46,8 @@ export default function EventImageStudioPanel() {
   const [backgroundUrl, setBackgroundUrl] = useState<string | null>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [composing, setComposing] = useState(false);
+
+  const [bodyCopied, setBodyCopied] = useState(false);
 
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -61,13 +65,15 @@ export default function EventImageStudioPanel() {
     };
   }, [backgroundUrl]);
 
+  // 이미지에는 타이틀+짧은 인트로만 얹는다 — 카테고리별 전체 항목(copy)은 이미지가
+  // 아니라 아래 "카카오톡 본문" 텍스트 영역으로만 노출한다(task.md 결정).
   useEffect(() => {
-    if (!backgroundUrl || !confirmed || !canvasRef.current || !title.trim() || !copy.trim()) return;
+    if (!backgroundUrl || !confirmed || !canvasRef.current || !title.trim() || !intro.trim()) return;
     setComposing(true);
-    composeEventImage({ canvas: canvasRef.current, backgroundUrl, title, copy })
+    composeEventImage({ canvas: canvasRef.current, backgroundUrl, title, copy: intro })
       .catch(() => setSaveError("이미지 합성 중 문제가 발생했습니다."))
       .finally(() => setComposing(false));
-  }, [backgroundUrl, confirmed, title, copy]);
+  }, [backgroundUrl, confirmed, title, intro]);
 
   function refresh() {
     fetch("/api/event-images")
@@ -90,6 +96,7 @@ export default function EventImageStudioPanel() {
         return;
       }
       setTitle(data.title);
+      setIntro(data.intro);
       setCopy(data.copy);
     } catch {
       setCopyError("서버에 연결하지 못했습니다. 다시 시도해주세요.");
@@ -104,9 +111,19 @@ export default function EventImageStudioPanel() {
   }
 
   function handleRegenerate() {
-    if (!title.trim() || !copy.trim()) return;
-    requestCopy({ title, copy }, instruction.trim() || null);
+    if (!title.trim() || !intro.trim() || !copy.trim()) return;
+    requestCopy({ title, intro, copy }, instruction.trim() || null);
     setInstruction("");
+  }
+
+  async function handleCopyBody() {
+    const success = await copyToClipboard(copy);
+    if (!success) {
+      alert("복사에 실패했습니다. 텍스트를 직접 선택해서 복사해주세요.");
+      return;
+    }
+    setBodyCopied(true);
+    setTimeout(() => setBodyCopied(false), 1500);
   }
 
   function handleBackgroundChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -117,7 +134,8 @@ export default function EventImageStudioPanel() {
   }
 
   async function handleSave() {
-    if (!currentUser || !backgroundFile || !title.trim() || !copy.trim() || !canvasRef.current) return;
+    if (!currentUser || !backgroundFile || !title.trim() || !intro.trim() || !copy.trim() || !canvasRef.current)
+      return;
     setSaving(true);
     setSaveError(null);
     try {
@@ -145,6 +163,7 @@ export default function EventImageStudioPanel() {
 
       setRawIdea("");
       setTitle("");
+      setIntro("");
       setCopy("");
       setInstruction("");
       setConfirmed(false);
@@ -202,8 +221,12 @@ export default function EventImageStudioPanel() {
               <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} />
             </label>
             <label className={styles.fieldLabel}>
-              본문
-              <textarea value={copy} onChange={(e) => setCopy(e.target.value)} rows={3} />
+              인트로 (이미지에 타이틀과 함께 얹힐 짧은 문구, 1~2문장)
+              <textarea value={intro} onChange={(e) => setIntro(e.target.value)} rows={2} />
+            </label>
+            <label className={styles.fieldLabel}>
+              본문 전체 (카카오톡 발송용 — 카테고리별 항목/가격 전부 포함)
+              <textarea value={copy} onChange={(e) => setCopy(e.target.value)} rows={6} />
             </label>
 
             <div className={styles.reviseRow}>
@@ -227,7 +250,7 @@ export default function EventImageStudioPanel() {
               type="button"
               className={styles.primaryButton}
               onClick={() => setConfirmed(true)}
-              disabled={!title.trim() || !copy.trim()}
+              disabled={!title.trim() || !intro.trim() || !copy.trim()}
             >
               문구 확정
             </button>
@@ -247,6 +270,16 @@ export default function EventImageStudioPanel() {
               {composing && <p className={styles.muted}>합성 중...</p>}
             </div>
           )}
+
+          <div className={styles.copyOutBox}>
+            <div className={styles.copyOutHeader}>
+              <span>카카오톡 본문 (복사해서 붙여넣기)</span>
+              <button type="button" className={styles.secondaryButton} onClick={handleCopyBody}>
+                {bodyCopied ? "복사됨" : "복사"}
+              </button>
+            </div>
+            <textarea className={styles.copyOutTextarea} value={copy} readOnly rows={10} />
+          </div>
         </div>
       )}
 
@@ -297,7 +330,22 @@ export default function EventImageStudioPanel() {
           <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
             <img src={detail.compositeImagePath} alt="" className={styles.modalImage} />
             <div className={styles.modalTitle}>{detail.finalTitle}</div>
-            <p className={styles.modalCopy}>{detail.finalCopy}</p>
+            <div className={styles.copyOutBox}>
+              <div className={styles.copyOutHeader}>
+                <span>카카오톡 본문 (복사해서 붙여넣기)</span>
+                <button
+                  type="button"
+                  className={styles.secondaryButton}
+                  onClick={async () => {
+                    const success = await copyToClipboard(detail.finalCopy);
+                    if (!success) alert("복사에 실패했습니다. 텍스트를 직접 선택해서 복사해주세요.");
+                  }}
+                >
+                  복사
+                </button>
+              </div>
+              <textarea className={styles.copyOutTextarea} value={detail.finalCopy} readOnly rows={8} />
+            </div>
             <p className={styles.modalRawIdea}>원본 아이디어: {detail.rawIdea}</p>
             <p className={styles.cardMeta}>
               {formatDate(detail.createdAt)} · {detail.createdByStaff.name}
