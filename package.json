@@ -9,7 +9,8 @@
     "lint": "eslint",
     "db:seed": "tsx prisma/seed.ts",
     "db:seed-demo": "tsx prisma/seed-demo.ts",
-    "db:seed-prescriptions": "tsx prisma/seed-prescriptions.ts"
+    "db:seed-prescriptions": "tsx prisma/seed-prescriptions.ts",
+    "db:reclassify-dry-run": "tsx prisma/reclassify-selling-points.ts"
   },
   "dependencies": {
     "@googleapis/sheets": "^13.0.2",
@@ -33,5 +34,14 @@
     "prisma": "^7.8.0",
     "tsx": "^4.23.0",
     "typescript": "^5"
+  },
+  "allowScripts": {
+    "@prisma/engines@7.8.0": true,
+    "better-sqlite3@12.11.1": true,
+    "esbuild@0.28.1": true,
+    "sharp@0.34.5": true,
+    "sharp@0.35.3": true,
+    "prisma@7.8.0": true,
+    "unrs-resolver@1.12.2": true
   }
 }
