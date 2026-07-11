@@ -9,7 +9,7 @@ import {
 import { saveResizedImage } from "@/lib/image-upload";
 
 // 수정/이미지 교체/비활성화(내리기) 모두 이 PATCH 하나로 처리한다(announcements와 동일 원칙) —
-// 항상 FormData로 받는다. linkedTestType/셀링·학술 10개 필드는 아예 안 보내면 "변경 없음",
+// 항상 FormData로 받는다. linkedTestType/셀링·학술 6개 필드는 아예 안 보내면 "변경 없음",
 // 빈 문자열이면 "없음으로 변경"된다. 협업 입력이라 role 체크는 하지 않는다(task.md 지시).
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;

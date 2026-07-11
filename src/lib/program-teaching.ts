@@ -7,26 +7,20 @@ export function isLinkedTestType(value: unknown): value is LinkedTestType {
   return LINKED_TEST_TYPES.includes(value as LinkedTestType);
 }
 
-// 직원이 채우는 셀링포인트 7개 — 카테고리별 라벨은 UI/AI 프롬프트가 공유한다.
+// 직원이 채우는 셀링포인트 3개(환자/한의원/기타 관점) — 카테고리별 라벨은 UI/AI
+// 프롬프트가 공유한다. 기존 7개(접근성/편의성/차별성/효과체감/안전성/생활적합성/기타)를
+// AI로 재분류해 이 구조로 통합했다(2026-07-11).
 export const SELLING_FIELD_KEYS = [
-  "sellingAccessCost",
-  "sellingConvenience",
-  "sellingDifferentiation",
-  "sellingEffectiveness",
-  "sellingSafety",
-  "sellingLifestyleFit",
-  "sellingOther",
+  "patientSellingPoints",
+  "clinicSellingPoints",
+  "etcSellingPoints",
 ] as const;
 export type SellingFieldKey = (typeof SELLING_FIELD_KEYS)[number];
 
 export const SELLING_FIELD_LABEL: Record<SellingFieldKey, string> = {
-  sellingAccessCost: "접근성/비용",
-  sellingConvenience: "복용·시술 편의성",
-  sellingDifferentiation: "차별성",
-  sellingEffectiveness: "효과 체감",
-  sellingSafety: "안전성",
-  sellingLifestyleFit: "생활 적합성",
-  sellingOther: "기타",
+  patientSellingPoints: "환자 셀링포인트",
+  clinicSellingPoints: "한의원 셀링포인트",
+  etcSellingPoints: "기타",
 };
 
 // 원장이 채우는 학술 3개.

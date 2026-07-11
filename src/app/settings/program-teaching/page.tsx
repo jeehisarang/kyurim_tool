@@ -11,16 +11,13 @@ type LinkedTestType = "BODY_COMPOSITION" | "STRENGTH_TEST";
 // 서버 전용 모듈이라 클라이언트 컴포넌트에서 직접 import할 수 없어 안내문구용으로만 복제.
 const DEFAULT_CTA_LABEL_PLACEHOLDER = "본상담 예약하기";
 
-// 직원 셀링포인트 7개 + 원장 학술 3개 — src/lib/program-teaching.ts와 동일한 키/라벨
-// (서버 lib는 prisma를 물고 있어 클라이언트 컴포넌트에서 직접 import할 수 없어 여기 복제).
+// 직원 셀링포인트 3개(환자/한의원/기타 관점) + 원장 학술 3개 — src/lib/program-teaching.ts와
+// 동일한 키/라벨 (서버 lib는 prisma를 물고 있어 클라이언트 컴포넌트에서 직접 import할 수
+// 없어 여기 복제).
 const SELLING_FIELDS = [
-  { key: "sellingAccessCost", label: "접근성/비용" },
-  { key: "sellingConvenience", label: "복용·시술 편의성" },
-  { key: "sellingDifferentiation", label: "차별성" },
-  { key: "sellingEffectiveness", label: "효과 체감" },
-  { key: "sellingSafety", label: "안전성" },
-  { key: "sellingLifestyleFit", label: "생활 적합성" },
-  { key: "sellingOther", label: "기타" },
+  { key: "patientSellingPoints", label: "환자 셀링포인트" },
+  { key: "clinicSellingPoints", label: "한의원 셀링포인트" },
+  { key: "etcSellingPoints", label: "기타" },
 ] as const;
 
 const ACADEMIC_FIELDS = [
@@ -33,13 +30,9 @@ type FieldKey = (typeof SELLING_FIELDS)[number]["key"] | (typeof ACADEMIC_FIELDS
 type ContentFields = Record<FieldKey, string>;
 
 const EMPTY_CONTENT_FIELDS: ContentFields = {
-  sellingAccessCost: "",
-  sellingConvenience: "",
-  sellingDifferentiation: "",
-  sellingEffectiveness: "",
-  sellingSafety: "",
-  sellingLifestyleFit: "",
-  sellingOther: "",
+  patientSellingPoints: "",
+  clinicSellingPoints: "",
+  etcSellingPoints: "",
   academicDefinition: "",
   academicMechanism: "",
   academicEvidence: "",
@@ -173,13 +166,9 @@ export default function ProgramTeachingSettingsPage() {
     setEditLinkedTestType(item.linkedTestType ?? "");
     setEditCtaButtonLabel(item.ctaButtonLabel ?? "");
     setEditFields({
-      sellingAccessCost: item.sellingAccessCost ?? "",
-      sellingConvenience: item.sellingConvenience ?? "",
-      sellingDifferentiation: item.sellingDifferentiation ?? "",
-      sellingEffectiveness: item.sellingEffectiveness ?? "",
-      sellingSafety: item.sellingSafety ?? "",
-      sellingLifestyleFit: item.sellingLifestyleFit ?? "",
-      sellingOther: item.sellingOther ?? "",
+      patientSellingPoints: item.patientSellingPoints ?? "",
+      clinicSellingPoints: item.clinicSellingPoints ?? "",
+      etcSellingPoints: item.etcSellingPoints ?? "",
       academicDefinition: item.academicDefinition ?? "",
       academicMechanism: item.academicMechanism ?? "",
       academicEvidence: item.academicEvidence ?? "",
@@ -250,7 +239,7 @@ export default function ProgramTeachingSettingsPage() {
         <h1 className={styles.pageTitle}>프로그램 티칭 관리</h1>
       </div>
       <p className={styles.muted}>
-        핵심 프로그램별로 직원이 채우는 "셀링포인트" 7개와 원장이 채우는 "학술" 3개를
+        핵심 프로그램별로 직원이 채우는 "셀링포인트" 3개(환자/한의원/기타)와 원장이 채우는 "학술" 3개를
         등록해두면, 톡 생성 화면에서 환자를 선택해 개인화된 티칭지 링크를 바로 만들 수
         있습니다. 항목은 일부만 채워도 되고, 여러 사람이 나눠서 채워도 됩니다.
       </p>
@@ -287,7 +276,7 @@ export default function ProgramTeachingSettingsPage() {
             onChange={(e) => setNewCtaButtonLabel(e.target.value)}
           />
 
-          <div className={styles.contentSectionLabel}>셀링포인트 (직원 작성, 7개)</div>
+          <div className={styles.contentSectionLabel}>셀링포인트 (직원 작성, 3개)</div>
           <FieldGroup
             fields={SELLING_FIELDS}
             values={newFields}
@@ -355,7 +344,7 @@ export default function ProgramTeachingSettingsPage() {
                     onChange={(e) => setEditCtaButtonLabel(e.target.value)}
                   />
 
-                  <div className={styles.contentSectionLabel}>셀링포인트 (직원 작성, 7개)</div>
+                  <div className={styles.contentSectionLabel}>셀링포인트 (직원 작성, 3개)</div>
                   <FieldGroup
                     fields={SELLING_FIELDS}
                     values={editFields}

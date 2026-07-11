@@ -382,14 +382,12 @@ model ProgramTeaching {
   // BODY_COMPOSITION | STRENGTH_TEST | null(추나패키지처럼 검사와 무관한 순수 증상기반 프로그램)
   linkedTestType        String?
 
-  // 직원 셀링포인트 7개 — 전부 nullable, 일부만 채워도 무방(AI 생성 시 채워진 것만 사용).
-  sellingAccessCost        String? // 접근성/비용
-  sellingConvenience       String? // 복용·시술 편의성
-  sellingDifferentiation   String? // 차별성
-  sellingEffectiveness     String? // 효과 체감
-  sellingSafety            String? // 안전성
-  sellingLifestyleFit      String? // 생활 적합성
-  sellingOther             String? // 기타
+  // 직원 셀링포인트 3개(환자/한의원/기타 관점) — 전부 nullable, 일부만 채워도 무방
+  // (AI 생성 시 채워진 것만 사용). 기존 7필드(접근성/편의성/차별성/효과체감/안전성/
+  // 생활적합성/기타)를 AI 재분류해 이 3필드로 통합했다(2026-07-11).
+  patientSellingPoints String? // 환자 셀링포인트(환자가 망설이는 이유에 대응)
+  clinicSellingPoints  String? // 한의원 셀링포인트(한의원 마케팅 강점)
+  etcSellingPoints     String? // 기타
 
   // 원장 학술 3개 — 셀링포인트와 마찬가지로 전부 nullable.
   academicDefinition String? // 질환 정의(한의학적 정의)
