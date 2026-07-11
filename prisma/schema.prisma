@@ -112,6 +112,7 @@ model StaffUser {
   announcements           Announcement[]
   createdTeachingPages    PatientTeachingPage[] @relation("TeachingPageCreator")
   consultationNotes       ConsultationNote[]
+  createdEventImages      EventImage[]      @relation("EventImageCreator")
 }
 
 model Program {
@@ -466,4 +467,24 @@ model ActivityLog {
   actionType String // ANNOUNCEMENT_CREATE | WORK_CREATE | WORK_COMPLETE | TALK_CONFIRM | TEACHING_CTA_CLICK 등
   label      String
   createdAt  DateTime @default(now())
+}
+
+// 이벤트 이미지 생성기 1차 버전(AI 생성 > 이벤트 이미지 탭) — 문구를 AI로 완성한 뒤
+// 배경 이미지 위에 자동 배치로 합성한 결과를 저장한다. 톡생성기 연동/공개 URL 노출은
+// 이번 범위 밖(task.md 지시) — "만들고 저장"까지만.
+model EventImage {
+  id                  Int       @id @default(autoincrement())
+  rawIdea             String
+  finalTitle          String
+  finalCopy           String
+  // 업로드된 배경 원본 — ProgramTeaching.supportImagePath와 동일한 저장 방식(리사이즈 후 저장).
+  backgroundImagePath String
+  // 브라우저 Canvas로 문구를 합성한 최종 결과 이미지 — 텍스트 화질 손실 방지를 위해
+  // 재압축 없이 그대로 저장.
+  compositeImagePath  String
+  createdByStaffId    Int
+  createdByStaff      StaffUser @relation("EventImageCreator", fields: [createdByStaffId], references: [id])
+  createdAt           DateTime  @default(now())
+  // 소프트 삭제 원칙 — 삭제 대신 비활성화만.
+  isActive            Boolean   @default(true)
 }

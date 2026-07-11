@@ -645,3 +645,75 @@ ${noteHistory}`;
 
   return callProgramTeachingModel(PROGRAM_TEACHING_SYSTEM_PROMPT, userMessage, program.hasLinkedExam);
 }
+
+/**
+ * 이벤트 이미지 생성기(task.md) — 아이디어 텍스트 → 타이틀+본문 문구. 배경 이미지 위에
+ * 얹힐 문구라 짧고 임팩트 있게 쓰도록 요구하며, "재생성"(수정 지시) 시에는 직전 결과를
+ * 컨텍스트로 같이 전달해 대화형으로 반복 수정할 수 있게 한다.
+ */
+const EVENT_COPY_SYSTEM_PROMPT = `당신은 한의원 이벤트 홍보 이미지에 들어갈 문구를 쓰는 카피라이터입니다.
+아래 아이디어를 바탕으로 이미지에 실제로 얹힐 타이틀과 본문 문구를 JSON 형식으로만
+응답하세요. 다른 텍스트는 출력하지 마세요.
+
+[출력 형식]
+{
+  "title": "8~16자 내외 임팩트 있는 타이틀",
+  "copy": "본문 문구 1~2문장 (이미지에 들어갈 짧은 길이)"
+}
+
+[원칙]
+- 이미지 위에 큰 글씨로 얹히는 문구이므로 장황한 설명 대신 짧고 임팩트 있게 쓸 것
+- "100% 낫습니다", "완치" 등 과장/단정 표현 금지
+- 특정 한약재명(마황, 태음조위탕, 월비탕, 마포황금탕, 보광기화 등) 절대 언급 금지
+- 과도한 느낌표 남발 금지, 다정한 존댓말 톤 유지
+- [수정 지시]가 주어지면 [직전 결과]를 기반으로 그 지시만 반영해 수정할 것(관계없는
+  부분까지 임의로 바꾸지 말 것)`;
+
+export type EventCopyResult = { title: string; copy: string };
+
+export async function generateEventCopy(input: {
+  rawIdea: string;
+  previous?: EventCopyResult | null;
+  instruction?: string | null;
+}): Promise<EventCopyResult> {
+  assertOpenAiApiKeyConfigured();
+
+  const userMessage = input.previous
+    ? `[이벤트 아이디어]
+${input.rawIdea}
+
+[직전 결과]
+{"title": ${JSON.stringify(input.previous.title)}, "copy": ${JSON.stringify(input.previous.copy)}}
+
+[수정 지시]
+${input.instruction?.trim() || "더 좋은 표현으로 다듬어줘"}`
+    : `[이벤트 아이디어]
+${input.rawIdea}`;
+
+  const client = new OpenAI();
+  const response = await client.chat.completions.create({
+    model: MODEL,
+    messages: [
+      { role: "system", content: EVENT_COPY_SYSTEM_PROMPT },
+      { role: "user", content: userMessage },
+    ],
+    response_format: { type: "json_object" },
+    max_tokens: 300,
+  });
+
+  const raw = response.choices[0]?.message?.content?.trim() ?? "{}";
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    throw new Error("AI 응답을 JSON으로 파싱하지 못했습니다: " + raw);
+  }
+  if (typeof parsed !== "object" || parsed === null) {
+    throw new Error("AI 응답 형식이 올바르지 않습니다: " + raw);
+  }
+  const v = parsed as Record<string, unknown>;
+  if (!isNonEmptyString(v.title) || !isNonEmptyString(v.copy)) {
+    throw new Error("AI 응답 형식이 올바르지 않습니다(title/copy 필요): " + raw);
+  }
+  return { title: v.title.trim(), copy: v.copy.trim() };
+}

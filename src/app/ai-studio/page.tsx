@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import styles from "./page.module.css";
 import BackButton from "@/components/BackButton";
 import TalkStudioPanel from "@/components/TalkStudioPanel";
+import EventImageStudioPanel from "@/components/EventImageStudioPanel";
 
 const TABS = [
   { key: "talk", label: "톡 생성" },
@@ -64,7 +65,7 @@ function AiStudioPageInner() {
       </nav>
 
       {activeTab === "talk" && <TalkStudioPanel />}
-      {activeTab === "event-image" && <p className={styles.comingSoon}>준비 중입니다.</p>}
+      {activeTab === "event-image" && <EventImageStudioPanel />}
       {activeTab === "teaching" && <p className={styles.comingSoon}>준비 중입니다.</p>}
     </div>
   );

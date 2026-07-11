@@ -1,0 +1,277 @@
+.wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.section {
+  background: var(--color-hanji-card);
+  border: 1px solid rgba(110, 148, 140, 0.35);
+  border-radius: 6px;
+  box-shadow: 0 1px 2px rgba(43, 39, 35, 0.04);
+  padding: 20px;
+}
+
+.sectionTitle {
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--color-celadon-dark);
+  border-left: 3px solid var(--color-celadon);
+  padding-left: 8px;
+  margin-bottom: 16px;
+}
+
+.ideaTextarea,
+.draftBox textarea,
+.draftBox input,
+.reviseRow input {
+  border: 1px solid rgba(110, 148, 140, 0.4);
+  border-radius: 4px;
+  background: var(--color-hanji-bg);
+  color: var(--color-ink);
+  padding: 8px 10px;
+  font-size: 14px;
+  font-family: var(--font-body);
+  width: 100%;
+}
+
+.ideaTextarea {
+  margin-bottom: 10px;
+  resize: vertical;
+}
+
+.primaryButton {
+  border: none;
+  border-radius: 4px;
+  background: var(--color-celadon);
+  color: var(--color-hanji-card);
+  padding: 8px 18px;
+  font-size: 14px;
+  font-family: var(--font-body);
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.primaryButton:hover {
+  background: var(--color-celadon-dark);
+}
+
+.primaryButton:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.secondaryButton {
+  border: 1px solid var(--color-celadon);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--color-celadon-dark);
+  padding: 7px 14px;
+  font-size: 13px;
+  font-family: var(--font-body);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.secondaryButton:hover {
+  background: rgba(110, 148, 140, 0.1);
+}
+
+.secondaryButton:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.errorText {
+  color: var(--color-seal);
+  font-size: 13px;
+  margin: 8px 0 0;
+}
+
+.draftBox {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px dashed rgba(110, 148, 140, 0.35);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.fieldLabel {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--color-ink);
+  opacity: 0.75;
+}
+
+.fieldLabel textarea {
+  resize: vertical;
+}
+
+.reviseRow {
+  display: flex;
+  gap: 8px;
+}
+
+.reviseRow input {
+  flex: 1;
+}
+
+.confirmedBadge {
+  font-size: 12px;
+  color: var(--color-celadon-dark);
+  background: rgba(110, 148, 140, 0.12);
+  border-radius: 4px;
+  padding: 4px 10px;
+  align-self: flex-start;
+}
+
+.previewBox {
+  margin-top: 14px;
+}
+
+.previewCanvas {
+  max-width: 100%;
+  height: auto;
+  border-radius: 6px;
+  border: 1px solid rgba(110, 148, 140, 0.3);
+  display: block;
+}
+
+.muted {
+  color: var(--color-ink);
+  opacity: 0.55;
+  font-size: 13px;
+  margin-top: 8px;
+}
+
+.cardGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 14px;
+}
+
+.card {
+  border: 1px solid rgba(110, 148, 140, 0.3);
+  border-radius: 6px;
+  padding: 10px;
+  cursor: pointer;
+  transition: box-shadow 0.15s ease;
+}
+
+.card:hover {
+  box-shadow: 0 2px 6px rgba(43, 39, 35, 0.1);
+}
+
+.cardInactive {
+  opacity: 0.5;
+}
+
+.cardThumb {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  border-radius: 4px;
+  margin-bottom: 8px;
+  background: var(--color-hanji-bg);
+}
+
+.cardTitle {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--color-ink);
+  margin-bottom: 4px;
+}
+
+.cardMeta {
+  font-size: 12px;
+  color: var(--color-celadon-dark);
+}
+
+.modalOverlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(20, 18, 16, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  z-index: 50;
+}
+
+.modal {
+  background: var(--color-hanji-card);
+  border-radius: 8px;
+  padding: 20px;
+  max-width: 480px;
+  width: 100%;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+.modalImage {
+  width: 100%;
+  border-radius: 6px;
+  margin-bottom: 12px;
+}
+
+.modalTitle {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 18px;
+  color: var(--color-ink);
+  margin-bottom: 6px;
+}
+
+.modalCopy {
+  font-size: 14px;
+  color: var(--color-ink);
+  margin-bottom: 10px;
+  white-space: pre-wrap;
+}
+
+.modalRawIdea {
+  font-size: 12px;
+  color: var(--color-ink);
+  opacity: 0.6;
+  margin-bottom: 10px;
+}
+
+.modalActions {
+  display: flex;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.deactivateButton {
+  border: 1px solid var(--color-seal);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--color-seal);
+  padding: 6px 14px;
+  font-size: 13px;
+  font-family: var(--font-body);
+  cursor: pointer;
+}
+
+.deactivateButton:hover {
+  background: rgba(179, 60, 46, 0.1);
+}
+
+.activateButton {
+  border: 1px solid var(--color-celadon);
+  border-radius: 4px;
+  background: rgba(110, 148, 140, 0.15);
+  color: var(--color-celadon-dark);
+  padding: 6px 14px;
+  font-size: 13px;
+  font-family: var(--font-body);
+  cursor: pointer;
+}
+
+.activateButton:hover {
+  background: rgba(110, 148, 140, 0.25);
+}
