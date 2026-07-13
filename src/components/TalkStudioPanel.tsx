@@ -8,7 +8,7 @@ import PatientNotes from "@/components/PatientNotes";
 import TrialEventCard from "@/components/TrialEventCard";
 import TalkGroupManager from "@/components/TalkGroupManager";
 import ProgramTeachingCreator from "@/components/ProgramTeachingCreator";
-import ShareLinkPanel from "@/components/ShareLinkPanel";
+import ShareLinkPanel, { type ShareLinkMode } from "@/components/ShareLinkPanel";
 import { getCurrentUserId } from "@/lib/currentUser";
 import { copyToClipboard } from "@/lib/clipboard";
 import {
@@ -39,6 +39,13 @@ const MESSAGE_TYPE_LABEL: Record<MessageType, string> = {
   WELCOME: "웰컴 메시지",
   MEETING: "만남톡",
   ...TALK_MESSAGE_TYPE_LABEL,
+};
+
+// 링크 자동첨부 시 앞에 붙는 고정 안내문구(task.md) — AI 호출 없이 환자 이름만 치환.
+const SHARE_LINK_INTRO: Record<ShareLinkMode, (patientName: string) => string> = {
+  TEACHING: (name) => `${name}님의 검사 결과와 추천 프로그램을 아래 링크에서 확인해보세요 🙂`,
+  EVENT: (name) => `${name}님을 위한 특별한 혜택을 아래 링크에서 확인해보세요 🙂`,
+  COMBO: (name) => `${name}님의 검사 결과와 추천 혜택을 아래 링크에서 확인해보세요 🙂`,
 };
 
 type MessageStatus = {
@@ -121,7 +128,14 @@ function TalkStudioInner() {
   const [skippedFeedbackType, setSkippedFeedbackType] = useState<MessageType | null>(null);
   const [meetingTemplateIndex, setMeetingTemplateIndex] = useState<0 | 1>(0);
   // 공유링크 패널(14-11)에서 생성한 URL — 톡 문구 복사 시 하단에 자동으로 함께 복사된다.
+  // shareLinkMode는 어떤 안내문구 템플릿을 붙일지 결정한다(task.md).
   const [shareUrl, setShareUrl] = useState<string | null>(null);
+  const [shareLinkMode, setShareLinkMode] = useState<ShareLinkMode | null>(null);
+
+  function handleLinkGenerated(url: string, mode: ShareLinkMode) {
+    setShareUrl(url);
+    setShareLinkMode(mode);
+  }
 
   // "오늘 할 일"의 "톡생성 하기" 버튼에서 넘어온 경우: 환자 + 톡 유형을 미리 선택된 상태로 만든다.
   const preselectMessageType = searchParams.get("messageType");
@@ -171,6 +185,7 @@ function TalkStudioInner() {
     setDrafts({});
     setGenerateError(null);
     setShareUrl(null);
+    setShareLinkMode(null);
   }
 
   function clearSelectedPatient() {
@@ -178,6 +193,7 @@ function TalkStudioInner() {
     setStatuses(null);
     setDrafts({});
     setShareUrl(null);
+    setShareLinkMode(null);
   }
 
   async function handleGenerate(messageType: AiMessageType) {
@@ -217,7 +233,10 @@ function TalkStudioInner() {
   async function handleCopy(status: MessageStatus) {
     const text = contentFor(status);
     if (!text) return;
-    const fullText = shareUrl ? `${text}\n\n${shareUrl}` : text;
+    const fullText =
+      shareUrl && shareLinkMode && selectedPatient
+        ? `${text}\n\n${SHARE_LINK_INTRO[shareLinkMode](selectedPatient.name)}\n${shareUrl}`
+        : text;
     const success = await copyToClipboard(fullText);
     if (!success) {
       alert("복사에 실패했습니다. 텍스트를 직접 선택해서 복사해주세요.");
@@ -339,7 +358,9 @@ function TalkStudioInner() {
         )}
 
         {selectedPatient && <ProgramTeachingCreator patientId={selectedPatient.id} />}
-        {selectedPatient && <ShareLinkPanel patientId={selectedPatient.id} onLinkGenerated={setShareUrl} />}
+        {selectedPatient && (
+          <ShareLinkPanel patientId={selectedPatient.id} onLinkGenerated={handleLinkGenerated} />
+        )}
       </div>
 
       {selectedPatient && statuses && (

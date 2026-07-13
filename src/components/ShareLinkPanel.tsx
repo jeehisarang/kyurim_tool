@@ -6,7 +6,10 @@ import ProgramTeachingCreator from "@/components/ProgramTeachingCreator";
 import { getCurrentUserId } from "@/lib/currentUser";
 import { copyToClipboard } from "@/lib/clipboard";
 
-type LinkMode = "NONE" | "TEACHING" | "EVENT" | "COMBO";
+// NONE을 제외한 실제 링크 생성 모드 — 부모(TalkStudioPanel)가 안내문구 템플릿을
+// 고르는 데 사용한다(task.md).
+export type ShareLinkMode = "TEACHING" | "EVENT" | "COMBO";
+type LinkMode = "NONE" | ShareLinkMode;
 
 const MODE_OPTIONS: { key: LinkMode; label: string }[] = [
   { key: "NONE", label: "없음" },
@@ -39,7 +42,7 @@ export default function ShareLinkPanel({
   onLinkGenerated,
 }: {
   patientId: number;
-  onLinkGenerated: (url: string) => void;
+  onLinkGenerated: (url: string, mode: ShareLinkMode) => void;
 }) {
   const [mode, setMode] = useState<LinkMode>("NONE");
 
@@ -95,6 +98,7 @@ export default function ShareLinkPanel({
     (!needsEvent || selectedEventId !== null);
 
   async function handleGenerateLink() {
+    if (mode === "NONE") return;
     const createdByStaffId = getCurrentUserId();
     if (!createdByStaffId) {
       setLinkError("상단에서 현재 사용자를 먼저 선택하세요.");
@@ -120,7 +124,7 @@ export default function ShareLinkPanel({
       }
       const url = `${window.location.origin}/s/${data.token}`;
       setResultUrl(url);
-      onLinkGenerated(url);
+      onLinkGenerated(url, mode);
     } catch {
       setLinkError("서버에 연결하지 못했습니다. 다시 시도해주세요.");
     } finally {
