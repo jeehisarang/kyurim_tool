@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import styles from "@/app/messages/page.module.css";
 import cardStyles from "./TalkGroupManager.module.css";
 import SealStamp from "@/components/SealStamp";
+import ShareLinkPanel, { SHARE_LINK_INTRO, type ShareLinkMode } from "@/components/ShareLinkPanel";
 import { getCurrentUserId } from "@/lib/currentUser";
 import { copyToClipboard } from "@/lib/clipboard";
 import { TALK_MESSAGE_TYPE_LABEL, TRIAL_TASK_TYPE_LABEL } from "@/lib/message-templates";
@@ -58,6 +59,16 @@ export default function TalkGroupManager({ patientId, date }: { patientId: numbe
   const [copiedId, setCopiedId] = useState<number | null>(null);
   const [stampId, setStampId] = useState<number | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
+
+  // 링크 포함하기(task.md) — 환자 1명당 1개, TalkStudioPanel과 동일한 방식으로 복사 시
+  // 안내문구+URL을 톡 본문 뒤에 붙인다.
+  const [shareUrl, setShareUrl] = useState<string | null>(null);
+  const [shareLinkMode, setShareLinkMode] = useState<ShareLinkMode | null>(null);
+
+  function handleLinkGenerated(url: string, mode: ShareLinkMode) {
+    setShareUrl(url);
+    setShareLinkMode(mode);
+  }
 
   useEffect(() => {
     fetch(`/api/todo-tasks/patient-group?patientId=${patientId}&date=${date}`)
@@ -149,7 +160,12 @@ export default function TalkGroupManager({ patientId, date }: { patientId: numbe
   async function handleCopy(id: number) {
     const text = drafts[id]?.message ?? "";
     if (!text) return;
-    const success = await copyToClipboard(text);
+    const patientName = candidates?.find((c) => c.id === id)?.patient.name;
+    const fullText =
+      shareUrl && shareLinkMode && patientName
+        ? `${text}\n\n${SHARE_LINK_INTRO[shareLinkMode](patientName)}\n${shareUrl}`
+        : text;
+    const success = await copyToClipboard(fullText);
     if (!success) {
       alert("복사에 실패했습니다. 텍스트를 직접 선택해서 복사해주세요.");
       return;
@@ -255,6 +271,8 @@ export default function TalkGroupManager({ patientId, date }: { patientId: numbe
           );
         })}
       </ul>
+
+      <ShareLinkPanel patientId={patientId} onLinkGenerated={handleLinkGenerated} />
 
       <button
         type="button"

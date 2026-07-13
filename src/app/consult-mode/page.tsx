@@ -106,18 +106,28 @@ export default function ConsultModePage() {
     setSaveError(null);
   }
 
-  // 환자를 바꿔도 창(검색 상태 포함)은 그대로 유지된다 — 선택된 환자만 교체.
+  // 원문/AI변환결과는 "작성 중이던 콘텐츠"라 환자 선택 상태와 완전히 독립적으로 유지되어야
+  // 한다(task.md 버그 수정) — 여기서는 이제 막 해소된 안내 메시지(에러)만 지운다.
+  function clearTransientErrors() {
+    setConvertError(null);
+    setSaveError(null);
+  }
+
+  // 환자를 바꿔도 창(검색 상태 포함)은 그대로 유지된다 — 선택된 환자만 교체. 작성 중이던
+  // 원문/변환결과는 절대 초기화하지 않는다(resetForm 호출 금지, task.md).
   function selectPatient(patient: Patient) {
     setSelectedPatient(patient);
     setResults(null);
     setQuery("");
-    resetForm();
+    clearTransientErrors();
   }
 
+  // "다른 환자 선택" — 케이스4(task.md): 작성 중이던 내용은 일단 유지하는 방향으로
+  // 구현. 완전히 새 상담을 시작하려면 저장 후(자동 초기화) 또는 직접 지우면 된다.
   function clearSelectedPatient() {
     setSelectedPatient(null);
     setNotes(null);
-    resetForm();
+    clearTransientErrors();
   }
 
   async function handleConvert() {

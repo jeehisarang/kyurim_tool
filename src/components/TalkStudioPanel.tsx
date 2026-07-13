@@ -8,7 +8,7 @@ import PatientNotes from "@/components/PatientNotes";
 import TrialEventCard from "@/components/TrialEventCard";
 import TalkGroupManager from "@/components/TalkGroupManager";
 import ProgramTeachingCreator from "@/components/ProgramTeachingCreator";
-import ShareLinkPanel, { type ShareLinkMode } from "@/components/ShareLinkPanel";
+import ShareLinkPanel, { SHARE_LINK_INTRO, type ShareLinkMode } from "@/components/ShareLinkPanel";
 import { getCurrentUserId } from "@/lib/currentUser";
 import { copyToClipboard } from "@/lib/clipboard";
 import {
@@ -39,13 +39,6 @@ const MESSAGE_TYPE_LABEL: Record<MessageType, string> = {
   WELCOME: "웰컴 메시지",
   MEETING: "만남톡",
   ...TALK_MESSAGE_TYPE_LABEL,
-};
-
-// 링크 자동첨부 시 앞에 붙는 고정 안내문구(task.md) — AI 호출 없이 환자 이름만 치환.
-const SHARE_LINK_INTRO: Record<ShareLinkMode, (patientName: string) => string> = {
-  TEACHING: (name) => `${name}님의 검사 결과와 추천 프로그램을 아래 링크에서 확인해보세요 🙂`,
-  EVENT: (name) => `${name}님을 위한 특별한 혜택을 아래 링크에서 확인해보세요 🙂`,
-  COMBO: (name) => `${name}님의 검사 결과와 추천 혜택을 아래 링크에서 확인해보세요 🙂`,
 };
 
 type MessageStatus = {

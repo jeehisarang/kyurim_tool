@@ -18,6 +18,14 @@ const MODE_OPTIONS: { key: LinkMode; label: string }[] = [
   { key: "COMBO", label: "통합" },
 ];
 
+// 링크 자동첨부 시 앞에 붙는 고정 안내문구(task.md) — AI 호출 없이 환자 이름만 치환.
+// ShareLinkPanel을 쓰는 화면(TalkStudioPanel/TalkGroupManager)이 공통으로 재사용한다.
+export const SHARE_LINK_INTRO: Record<ShareLinkMode, (patientName: string) => string> = {
+  TEACHING: (name) => `${name}님의 검사 결과와 추천 프로그램을 아래 링크에서 확인해보세요 🙂`,
+  EVENT: (name) => `${name}님을 위한 특별한 혜택을 아래 링크에서 확인해보세요 🙂`,
+  COMBO: (name) => `${name}님의 검사 결과와 추천 혜택을 아래 링크에서 확인해보세요 🙂`,
+};
+
 type TeachingSummary = { id: number; token: string; programName: string; createdAt: string };
 type EventSummary = { id: number; finalTitle: string };
 
