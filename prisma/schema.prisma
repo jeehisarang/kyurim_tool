@@ -379,6 +379,10 @@ model Goal {
 // (환자 핵심프로필/Patient.pastHistory 등과 달리 원장 전용이 아님).
 model ProgramTeaching {
   id                    Int      @id @default(autoincrement())
+  // 원장실PC↔집PC 콘텐츠 자산 동기화(task.md)용 식별자 — autoincrement id는 PC마다 달라질
+  // 수 있어 "같은 레코드"를 판별하는 용도로는 못 쓴다. 화면 노출 없음, export/import
+  // 스크립트에서만 사용.
+  syncKey               String   @unique @default(cuid())
   programName           String
   // 담당자가 프로그램을 고를 때 참고하는 힌트용 자유텍스트(자동매칭 아님). 예: "허리, 무릎".
   targetSymptomKeywords String?
@@ -481,6 +485,8 @@ model ActivityLog {
 // 이번 범위 밖(task.md 지시) — "만들고 저장"까지만.
 model EventImage {
   id                  Int       @id @default(autoincrement())
+  // ProgramTeaching.syncKey와 동일한 용도(원장실PC↔집PC 동기화 식별자).
+  syncKey             String    @unique @default(cuid())
   rawIdea             String
   finalTitle          String
   finalCopy           String

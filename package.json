@@ -10,7 +10,9 @@
     "db:seed": "tsx prisma/seed.ts",
     "db:seed-demo": "tsx prisma/seed-demo.ts",
     "db:seed-prescriptions": "tsx prisma/seed-prescriptions.ts",
-    "db:reclassify-dry-run": "tsx prisma/reclassify-selling-points.ts"
+    "db:reclassify-dry-run": "tsx prisma/reclassify-selling-points.ts",
+    "db:export-shared": "tsx prisma/export-shared-data.ts",
+    "db:import-shared": "tsx prisma/import-shared-data.ts"
   },
   "dependencies": {
     "@googleapis/sheets": "^13.0.2",
