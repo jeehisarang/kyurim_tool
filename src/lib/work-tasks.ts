@@ -17,6 +17,9 @@ export async function createWorkTask(input: {
   assigneeId?: number;
   isSharedTask?: boolean;
   dueDate: Date | null;
+  // 특정 환자와 연관된 자동생성 업무(예: 본상담 예약 요청)에서만 채운다 — 직원이 직접
+  // 등록하는 일반 업무/요청은 환자와 무관할 수 있어 기존처럼 비워둔다.
+  patientId?: number;
 }) {
   const isSharedTask = input.isSharedTask ?? false;
   const assigneeId = isSharedTask ? undefined : input.assigneeId;
@@ -26,6 +29,7 @@ export async function createWorkTask(input: {
       taskType: WORK_TASK_TYPE,
       dueDate: input.dueDate,
       staffUserId: isSharedTask ? null : (assigneeId ?? input.creatorId),
+      patientId: input.patientId ?? null,
     },
   });
 

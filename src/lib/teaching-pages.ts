@@ -18,6 +18,8 @@ import {
 } from "@/lib/exam-thresholds";
 import { logActivity } from "@/lib/activity-log";
 import { withObjectParticle } from "@/lib/korean-particle";
+import { createWorkTask } from "@/lib/work-tasks";
+import { WORK_TASK_TYPE } from "@/lib/task-types";
 import { listConsultationNotesForPatient } from "@/lib/consultation-notes";
 
 // 티칭지에 개별 문구(ProgramTeaching.ctaButtonLabel)가 없을 때 쓰는 기본 전환버튼 문구.
@@ -371,4 +373,55 @@ export async function recordTeachingPageCtaClick(token: string): Promise<boolean
     label: `${page.patient.name}님이 [${page.programTeaching.programName}] ${withObjectParticle(ctaLabel)} 눌렀습니다`,
   });
   return true;
+}
+
+function startOfDay(date: Date): Date {
+  const d = new Date(date);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+// 자동생성 WorkTask(예: 본상담 예약 요청)의 creatorId 전용 시스템 계정 — prisma/seed.ts에서
+// 항상 비활성 상태로 생성해둔다(현재 사용자 선택 목록에 노출되지 않게).
+async function getSystemStaffUserId(): Promise<number> {
+  const systemUser = await prisma.staffUser.findUniqueOrThrow({ where: { name: "시스템" } });
+  return systemUser.id;
+}
+
+/**
+ * "본상담 예약하기" 버튼(task.md, /p/[token] 공개 페이지) — 콜백 업무(WORK)를 전체공통으로
+ * 자동 생성한다. 같은 환자에게 당일 이미 열려있는(미완료) 콜백 업무가 있으면 새로 만들지
+ * 않고 그대로 둔다 — 여러 번 눌러도 업무가 쌓이지 않게. 담당자를 특정 1인으로 좁히지
+ * 않는 이유: 아무 직원이나 먼저 본 사람이 처리하도록 하기 위함(isSharedTask).
+ */
+export async function requestConsultCallback(token: string): Promise<{ patientName: string } | null> {
+  const page = await prisma.patientTeachingPage.findUnique({
+    where: { token },
+    include: { patient: true, programTeaching: true },
+  });
+  if (!page) return null;
+
+  const existingOpen = await prisma.todoTask.findFirst({
+    where: {
+      taskType: WORK_TASK_TYPE,
+      patientId: page.patientId,
+      isDone: false,
+      createdAt: { gte: startOfDay(new Date()) },
+      workTask: { title: { contains: "본상담 예약 요청" } },
+    },
+  });
+
+  if (!existingOpen) {
+    const systemStaffId = await getSystemStaffUserId();
+    await createWorkTask({
+      title: `${page.patient.name}님 본상담 예약 요청 — 연락 필요`,
+      description: `프로그램티칭: ${page.programTeaching.programName}`,
+      creatorId: systemStaffId,
+      isSharedTask: true,
+      dueDate: null,
+      patientId: page.patientId,
+    });
+  }
+
+  return { patientName: page.patient.name };
 }
