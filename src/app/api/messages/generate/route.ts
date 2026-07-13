@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { generateMessageDraft, type ProgressLevel } from "@/lib/ai-message";
+import { listConsultationNotesForPatient } from "@/lib/consultation-notes";
 
 const AI_MESSAGE_TYPES = ["DAY2", "DAY7", "THIRD_VISIT"] as const;
 type AiMessageType = (typeof AI_MESSAGE_TYPES)[number];
@@ -31,7 +32,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "환자를 찾을 수 없습니다." }, { status: 404 });
   }
 
-  const [visits, notes] = await Promise.all([
+  const [visits, notes, consultationNotes] = await Promise.all([
     prisma.visit.findMany({
       where: { patientId: Number(patientId), isActive: true },
       include: { treatmentCategory: true, visitType: true },
@@ -42,7 +43,18 @@ export async function POST(request: Request) {
       where: { patientId: Number(patientId) },
       orderBy: { createdAt: "desc" },
     }),
+    listConsultationNotesForPatient(Number(patientId)),
   ]);
+
+  // SOAP 변환본(convertedChartText)이 있으면 그쪽이 더 정리된 형태라 우선 사용, 없으면 원문
+  // (program-teaching 프롬프트와 동일한 방식).
+  const latestNote = consultationNotes[0];
+  const latestConsultationNote = latestNote
+    ? {
+        typeName: latestNote.consultationType.name,
+        text: latestNote.convertedChartText ?? latestNote.rawText,
+      }
+    : undefined;
 
   try {
     const content = await generateMessageDraft(messageType, {
@@ -59,6 +71,7 @@ export async function POST(request: Request) {
         currentCondition: patient.currentCondition,
         mainNeeds: patient.mainNeeds,
       },
+      latestConsultationNote,
       extraKeywords: typeof extraKeywords === "string" ? extraKeywords : undefined,
       progressLevel:
         messageType === "THIRD_VISIT" && isProgressLevel(progressLevel) ? progressLevel : undefined,
