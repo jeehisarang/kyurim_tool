@@ -8,8 +8,9 @@ import { CurrentUserProvider } from "@/lib/CurrentUserContext";
 import styles from "@/app/layout.module.css";
 
 /**
- * /patient-view/*, /p/{token}(환자 티칭지 공개 페이지) 경로는 인증 없이 환자에게 그대로
- * 노출되는 완전 별도 화면이라 사이드바/내비게이션/"현재 사용자" 배지가 전혀 없어야 한다 —
+ * /patient-view/*, /p/{token}(환자 티칭지 공개 페이지), /s/{token}(환자별 통합
+ * 공유링크 공개 페이지, 14-11) 경로는 인증 없이 환자에게 그대로 노출되는 완전 별도
+ * 화면이라 사이드바/내비게이션/"현재 사용자" 배지가 전혀 없어야 한다 —
  * Next.js는 root layout을 경로별로 분리하려면 앱 전체 디렉토리 구조를 route group으로
  * 재편해야 해서(대규모 변경), 대신 이 얇은 클라이언트 래퍼에서 경로를 보고 기존 사이드바
  * 셸을 건너뛰는 쪽을 택했다.
@@ -24,7 +25,10 @@ import styles from "@/app/layout.module.css";
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const isPublicPatientFacing =
-    (pathname?.startsWith("/patient-view") || pathname?.startsWith("/p/")) ?? false;
+    (pathname?.startsWith("/patient-view") ||
+      pathname?.startsWith("/p/") ||
+      pathname?.startsWith("/s/")) ??
+    false;
   const isStandaloneStaffPage = pathname?.startsWith("/consult-mode") ?? false;
 
   if (isPublicPatientFacing) {
