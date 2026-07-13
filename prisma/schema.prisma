@@ -435,6 +435,10 @@ model PatientTeachingPage {
   createdByStaff        StaffUser       @relation("TeachingPageCreator", fields: [createdByStaffId], references: [id])
   expiresAt             DateTime?
   shareLinks            PatientShareLink[]
+  // 소프트 삭제 원칙(Patient/Program 등과 동일) — 생성목록/드롭다운에서만 숨기고, 이미
+  // 발송된 공개 링크(/p/[token], /s/[token])는 isActive와 무관하게 계속 정상 렌더링한다
+  // (task.md 지시 — 완전삭제 금지).
+  isActive              Boolean         @default(true)
 }
 
 // 원장 상담모드(14-5) — 초진뿐 아니라 한약상담/인바디상담 등 프로그램당 여러 차례 이어지는

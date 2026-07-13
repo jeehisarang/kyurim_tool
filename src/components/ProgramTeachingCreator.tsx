@@ -71,6 +71,8 @@ export default function ProgramTeachingCreator({
   const [needsExamNotice, setNeedsExamNotice] = useState<string | null>(null);
   const [created, setCreated] = useState<CreatedPage | null>(null);
   const [copied, setCopied] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const [editing, setEditing] = useState(false);
   const [editHeadline, setEditHeadline] = useState("");
@@ -129,6 +131,7 @@ export default function ProgramTeachingCreator({
     setNeedsExamNotice(null);
     setEditing(false);
     setEditError(null);
+    setDeleteError(null);
   }
 
   function toggleOpen() {
@@ -199,6 +202,28 @@ export default function ProgramTeachingCreator({
     }
     setCopied(true);
     setTimeout(() => setCopied(false), 1500);
+  }
+
+  // 소프트삭제(task.md) — 완전삭제가 아니라 isActive만 내린다. 이미 발송된 링크는 이후에도
+  // 계속 정상 렌더링되므로("이미 발송된 링크는 계속 유효합니다"), 확인창에서 그 점을 안내한다.
+  async function handleDelete() {
+    if (!created) return;
+    if (!confirm("이 티칭지를 목록에서 삭제하시겠어요? 이미 발송된 링크는 계속 유효합니다.")) return;
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      const res = await fetch(`/api/teaching-pages/${created.token}`, { method: "DELETE" });
+      if (!res.ok) {
+        const data = await res.json();
+        setDeleteError(data.error ?? "삭제에 실패했습니다.");
+        return;
+      }
+      reset();
+    } catch {
+      setDeleteError("서버에 연결하지 못했습니다. 다시 시도해주세요.");
+    } finally {
+      setDeleting(false);
+    }
   }
 
   function startEdit() {
@@ -349,6 +374,8 @@ export default function ProgramTeachingCreator({
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={created.supportImagePath} alt="" className={styles.thumbnail} />
               )}
+              {deleteError && <p className={styles.errorText}>{deleteError}</p>}
+
               <div className={styles.previewActions}>
                 <button type="button" className={styles.generateButton} onClick={handleCopyLink}>
                   {copied ? "링크 복사됨" : "링크 복사"}
@@ -358,6 +385,14 @@ export default function ProgramTeachingCreator({
                 </button>
                 <button type="button" className={styles.resetButton} onClick={reset}>
                   다른 프로그램으로 새로 만들기
+                </button>
+                <button
+                  type="button"
+                  className={styles.resetButton}
+                  onClick={handleDelete}
+                  disabled={deleting}
+                >
+                  {deleting ? "삭제 중..." : "삭제"}
                 </button>
               </div>
             </div>

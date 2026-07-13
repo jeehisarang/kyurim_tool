@@ -245,9 +245,12 @@ export type PatientTeachingPageSummary = {
 
 // 공유링크 패널(14-11)의 "기존 저장된 티칭지" 드롭다운용 — 환자에게 이미 생성된 티칭지를
 // 전부 나열한다(유실버그 대응: 생성 직후 UI를 벗어나 링크를 놓쳤어도 여기서 다시 찾을 수 있음).
+// 소프트삭제(isActive=false)된 티칭지는 목록/드롭다운에서 제외한다(task.md 지시) — 이미
+// 발송된 공개 링크는 별개로 계속 살아있는다(getPublicTeachingPageByToken/
+// getTeachingPageContentById는 isActive를 보지 않음).
 export async function listPatientTeachingPages(patientId: number): Promise<PatientTeachingPageSummary[]> {
   const pages = await prisma.patientTeachingPage.findMany({
-    where: { patientId },
+    where: { patientId, isActive: true },
     include: { programTeaching: true },
     orderBy: { createdAt: "desc" },
   });
@@ -257,6 +260,15 @@ export async function listPatientTeachingPages(patientId: number): Promise<Patie
     programName: p.programTeaching.programName,
     createdAt: p.createdAt.toISOString(),
   }));
+}
+
+// 소프트삭제(task.md) — 완전삭제 대신 isActive만 내려서, 이미 발송된 /p/[token]·/s/[token]
+// 링크는 계속 정상 렌더링되게 하면서 생성 화면 목록/드롭다운에서만 제외한다.
+export async function softDeleteTeachingPage(token: string) {
+  return prisma.patientTeachingPage.update({
+    where: { token },
+    data: { isActive: false },
+  });
 }
 
 export type TeachingPageContentForShare = {
