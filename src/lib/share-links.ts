@@ -50,6 +50,9 @@ export async function createOrReuseShareLink(input: CreateShareLinkInput) {
 export type ShareLinkEventView = {
   finalTitle: string;
   compositeImagePath: string;
+  // 카톡 발송용 본문 전체(줄바꿈 포함) — task.md 지시로 /s/[token] 이벤트 섹션에서
+  // 이미지 아래 일반 텍스트로 그대로 노출한다.
+  finalCopy: string;
 };
 
 export type PublicShareLinkView = {
@@ -81,7 +84,9 @@ export async function getShareLinkByToken(token: string): Promise<PublicShareLin
 
   return {
     teaching,
-    event: event ? { finalTitle: event.finalTitle, compositeImagePath: event.compositeImagePath } : null,
+    event: event
+      ? { finalTitle: event.finalTitle, compositeImagePath: event.compositeImagePath, finalCopy: event.finalCopy }
+      : null,
     viewCount: updated.viewCount,
   };
 }

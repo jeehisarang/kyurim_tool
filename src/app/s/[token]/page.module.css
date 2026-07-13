@@ -39,6 +39,20 @@
   border: 1px solid rgba(110, 148, 140, 0.25);
 }
 
+/* 이벤트 카톡 본문(EventImage.finalCopy) — 티칭지 examSummary와 동일한 카드형
+   텍스트박스 톤으로 이미지 아래에 표시한다(task.md 지시). */
+.eventCopy {
+  font-size: 15px;
+  line-height: 1.6;
+  color: var(--color-ink);
+  white-space: pre-wrap;
+  background: var(--color-hanji-bg);
+  border-left: 3px solid var(--color-celadon);
+  border-radius: 4px;
+  padding: 12px 14px;
+  margin-top: 16px;
+}
+
 .loadingText,
 .errorText {
   text-align: center;

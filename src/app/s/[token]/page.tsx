@@ -7,7 +7,7 @@ import TeachingPageContent, { type TeachingPageContentView } from "@/components/
 
 type ShareLinkView = {
   teaching: (TeachingPageContentView & { token: string }) | null;
-  event: { finalTitle: string; compositeImagePath: string } | null;
+  event: { finalTitle: string; compositeImagePath: string; finalCopy: string } | null;
 };
 
 /**
@@ -62,6 +62,7 @@ export default function ShareLinkPublicPage() {
             {view.event.finalTitle && <p className={styles.eventTitle}>{view.event.finalTitle}</p>}
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={view.event.compositeImagePath} alt="" className={styles.eventImage} />
+            {view.event.finalCopy && <p className={styles.eventCopy}>{view.event.finalCopy}</p>}
           </div>
         )}
       </div>
