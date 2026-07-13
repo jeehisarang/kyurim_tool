@@ -1,6 +1,6 @@
-import crypto from "crypto";
 import { prisma } from "@/lib/db";
 import { generateProgramTeachingContent } from "@/lib/ai-message";
+import { createWithShortToken } from "@/lib/short-token";
 import {
   formatProgramTeachingContent,
   getExamTrend,
@@ -147,21 +147,23 @@ export async function createTeachingPage(input: CreateTeachingPageInput) {
     },
   );
 
-  const page = await prisma.patientTeachingPage.create({
-    data: {
-      token: crypto.randomUUID(),
-      patientId: input.patientId,
-      programTeachingId: input.programTeachingId,
-      snapshotTestValueJson: snapshot ? JSON.stringify(snapshot) : null,
-      headline: content.headline,
-      personalSubtopic: content.personalSubtopic,
-      bodyText: content.bodyText,
-      examSummary: content.examSummary,
-      academicHook: content.academicHook,
-      createdByStaffId: input.createdByStaffId,
-    },
-    include: { programTeaching: true },
-  });
+  const page = await createWithShortToken((token) =>
+    prisma.patientTeachingPage.create({
+      data: {
+        token,
+        patientId: input.patientId,
+        programTeachingId: input.programTeachingId,
+        snapshotTestValueJson: snapshot ? JSON.stringify(snapshot) : null,
+        headline: content.headline,
+        personalSubtopic: content.personalSubtopic,
+        bodyText: content.bodyText,
+        examSummary: content.examSummary,
+        academicHook: content.academicHook,
+        createdByStaffId: input.createdByStaffId,
+      },
+      include: { programTeaching: true },
+    }),
+  );
 
   return {
     // 공유링크(PatientShareLink.teachingPageId)가 참조하는 내부 PK — 생성 직후 UI가

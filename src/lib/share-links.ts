@@ -1,7 +1,7 @@
-import crypto from "crypto";
 import { prisma } from "@/lib/db";
 import { getTeachingPageContentById, type TeachingPageContentForShare } from "@/lib/teaching-pages";
 import { getEventImage } from "@/lib/event-images";
+import { createWithShortToken } from "@/lib/short-token";
 
 export type CreateShareLinkInput = {
   patientId: number;
@@ -36,15 +36,17 @@ export async function createOrReuseShareLink(input: CreateShareLinkInput) {
   });
   if (existing) return existing;
 
-  return prisma.patientShareLink.create({
-    data: {
-      token: crypto.randomUUID(),
-      patientId: input.patientId,
-      teachingPageId: input.teachingPageId,
-      eventImageId: input.eventImageId,
-      createdByStaffId: input.createdByStaffId,
-    },
-  });
+  return createWithShortToken((token) =>
+    prisma.patientShareLink.create({
+      data: {
+        token,
+        patientId: input.patientId,
+        teachingPageId: input.teachingPageId,
+        eventImageId: input.eventImageId,
+        createdByStaffId: input.createdByStaffId,
+      },
+    }),
+  );
 }
 
 export type ShareLinkEventView = {
