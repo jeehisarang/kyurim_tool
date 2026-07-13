@@ -8,6 +8,7 @@ import PatientNotes from "@/components/PatientNotes";
 import TrialEventCard from "@/components/TrialEventCard";
 import TalkGroupManager from "@/components/TalkGroupManager";
 import ProgramTeachingCreator from "@/components/ProgramTeachingCreator";
+import ShareLinkPanel from "@/components/ShareLinkPanel";
 import { getCurrentUserId } from "@/lib/currentUser";
 import { copyToClipboard } from "@/lib/clipboard";
 import {
@@ -119,6 +120,8 @@ function TalkStudioInner() {
   const [copiedType, setCopiedType] = useState<MessageType | null>(null);
   const [skippedFeedbackType, setSkippedFeedbackType] = useState<MessageType | null>(null);
   const [meetingTemplateIndex, setMeetingTemplateIndex] = useState<0 | 1>(0);
+  // 공유링크 패널(14-11)에서 생성한 URL — 톡 문구 복사 시 하단에 자동으로 함께 복사된다.
+  const [shareUrl, setShareUrl] = useState<string | null>(null);
 
   // "오늘 할 일"의 "톡생성 하기" 버튼에서 넘어온 경우: 환자 + 톡 유형을 미리 선택된 상태로 만든다.
   const preselectMessageType = searchParams.get("messageType");
@@ -167,12 +170,14 @@ function TalkStudioInner() {
     setQuery("");
     setDrafts({});
     setGenerateError(null);
+    setShareUrl(null);
   }
 
   function clearSelectedPatient() {
     setSelectedPatient(null);
     setStatuses(null);
     setDrafts({});
+    setShareUrl(null);
   }
 
   async function handleGenerate(messageType: AiMessageType) {
@@ -212,7 +217,8 @@ function TalkStudioInner() {
   async function handleCopy(status: MessageStatus) {
     const text = contentFor(status);
     if (!text) return;
-    const success = await copyToClipboard(text);
+    const fullText = shareUrl ? `${text}\n\n${shareUrl}` : text;
+    const success = await copyToClipboard(fullText);
     if (!success) {
       alert("복사에 실패했습니다. 텍스트를 직접 선택해서 복사해주세요.");
       return;
@@ -333,6 +339,7 @@ function TalkStudioInner() {
         )}
 
         {selectedPatient && <ProgramTeachingCreator patientId={selectedPatient.id} />}
+        {selectedPatient && <ShareLinkPanel patientId={selectedPatient.id} onLinkGenerated={setShareUrl} />}
       </div>
 
       {selectedPatient && statuses && (

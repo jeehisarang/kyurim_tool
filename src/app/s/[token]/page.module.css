@@ -17,8 +17,27 @@
   align-self: flex-start;
 }
 
-/* 콘텐츠 전용 클래스(headline/personalSubtopic/.../ctaButton)는
-   src/components/TeachingPageContent.module.css로 이전됨 — /s/[token]과 공유. */
+/* 티칭지 + 이벤트가 둘 다 있을 때(통합) 둘을 시각적으로 분리하는 구분선. */
+.sectionDivider {
+  border: none;
+  border-top: 1px dashed rgba(110, 148, 140, 0.35);
+  margin: 24px 0;
+}
+
+.eventTitle {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 18px;
+  line-height: 1.4;
+  color: var(--color-ink);
+  margin-bottom: 12px;
+}
+
+.eventImage {
+  width: 100%;
+  border-radius: 8px;
+  border: 1px solid rgba(110, 148, 140, 0.25);
+}
 
 .loadingText,
 .errorText {

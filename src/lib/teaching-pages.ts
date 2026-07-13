@@ -164,6 +164,9 @@ export async function createTeachingPage(input: CreateTeachingPageInput) {
   });
 
   return {
+    // 공유링크(PatientShareLink.teachingPageId)가 참조하는 내부 PK — 생성 직후 UI가
+    // 공유링크 패널의 "새로 만든 티칭지" 드롭다운에 바로 선택 상태로 반영하기 위해 필요.
+    id: page.id,
     token: page.token,
     headline: page.headline,
     personalSubtopic: page.personalSubtopic,
@@ -230,6 +233,79 @@ export async function getPublicTeachingPageByToken(
     testValueSummary,
     viewCount: updated.viewCount,
     ctaButtonLabel: updated.programTeaching.ctaButtonLabel ?? DEFAULT_CTA_LABEL,
+  };
+}
+
+export type PatientTeachingPageSummary = {
+  id: number;
+  token: string;
+  programName: string;
+  createdAt: string;
+};
+
+// 공유링크 패널(14-11)의 "기존 저장된 티칭지" 드롭다운용 — 환자에게 이미 생성된 티칭지를
+// 전부 나열한다(유실버그 대응: 생성 직후 UI를 벗어나 링크를 놓쳤어도 여기서 다시 찾을 수 있음).
+export async function listPatientTeachingPages(patientId: number): Promise<PatientTeachingPageSummary[]> {
+  const pages = await prisma.patientTeachingPage.findMany({
+    where: { patientId },
+    include: { programTeaching: true },
+    orderBy: { createdAt: "desc" },
+  });
+  return pages.map((p) => ({
+    id: p.id,
+    token: p.token,
+    programName: p.programTeaching.programName,
+    createdAt: p.createdAt.toISOString(),
+  }));
+}
+
+export type TeachingPageContentForShare = {
+  // 기존 /p/{token} 단독 링크와 CTA클릭 로그(POST /api/teaching-pages/{token}/cta-click)를
+  // 그대로 재사용하기 위해 원래 token도 함께 내려준다.
+  token: string;
+  programName: string;
+  supportImagePath: string | null;
+  headline: string;
+  personalSubtopic: string;
+  bodyText: string;
+  examSummary: string | null;
+  academicHook: string;
+  testValueSummary: string | null;
+  ctaButtonLabel: string;
+};
+
+// 통합 공유링크(/s/{token}) 전용 조회 — PatientShareLink.teachingPageId(내부 PK)로 조회한다.
+// 조회수는 PatientTeachingPage 자신이 아니라 PatientShareLink 쪽에서 세므로(share-links.ts)
+// 여기서는 viewCount를 증가시키지 않는다(동일 티칭지에 /p/와 /s/ 링크가 둘 다 있을 때
+// 이중 집계 방지).
+export async function getTeachingPageContentById(id: number): Promise<TeachingPageContentForShare | null> {
+  const page = await prisma.patientTeachingPage.findUnique({
+    where: { id },
+    include: { programTeaching: true },
+  });
+  if (!page) return null;
+
+  let testValueSummary: string | null = null;
+  if (page.snapshotTestValueJson) {
+    try {
+      const parsed = JSON.parse(page.snapshotTestValueJson) as LatestExamSnapshot;
+      testValueSummary = formatTestValueSummary(parsed);
+    } catch {
+      testValueSummary = null;
+    }
+  }
+
+  return {
+    token: page.token,
+    programName: page.programTeaching.programName,
+    supportImagePath: page.programTeaching.supportImagePath,
+    headline: page.headline,
+    personalSubtopic: page.personalSubtopic,
+    bodyText: page.bodyText,
+    examSummary: page.examSummary,
+    academicHook: page.academicHook,
+    testValueSummary,
+    ctaButtonLabel: page.programTeaching.ctaButtonLabel ?? DEFAULT_CTA_LABEL,
   };
 }
 

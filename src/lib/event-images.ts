@@ -7,6 +7,15 @@ export async function listEventImages() {
   });
 }
 
+// 공유링크 패널(14-11)의 이벤트 드롭다운용 — 비활성화(isActive: false)된 이벤트는 이미
+// 종료된 이벤트라 새 공유링크에 노출하지 않는다.
+export async function listActiveEventImages() {
+  return prisma.eventImage.findMany({
+    where: { isActive: true },
+    orderBy: { id: "desc" },
+  });
+}
+
 export async function createEventImage(input: {
   rawIdea: string;
   finalTitle: string;

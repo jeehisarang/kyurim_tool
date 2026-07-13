@@ -1,9 +1,11 @@
 import { NextResponse } from "next/server";
-import { createEventImage, listEventImages } from "@/lib/event-images";
+import { createEventImage, listActiveEventImages, listEventImages } from "@/lib/event-images";
 import { saveCompositeImage, saveEventBackgroundImage } from "@/lib/image-upload";
 
-export async function GET() {
-  const rows = await listEventImages();
+export async function GET(request: Request) {
+  const { searchParams } = new URL(request.url);
+  const activeOnly = searchParams.get("activeOnly") === "1";
+  const rows = activeOnly ? await listActiveEventImages() : await listEventImages();
   return NextResponse.json(rows);
 }
 

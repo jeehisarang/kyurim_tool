@@ -13,6 +13,7 @@ type ProgramTeaching = {
 };
 
 type CreatedPage = {
+  id: number;
   token: string;
   headline: string;
   personalSubtopic: string;
@@ -47,8 +48,20 @@ function isRelatedProgramName(prescriptionProgramName: string, teachingProgramNa
  * 티칭지를 생성한 사례가 있어(김경자님 케이스), 진행 중 프로그램을 목록 상단에 배지로
  * 우선 노출하고, 다른 프로그램을 선택하면 생성 전에 확인 문구를 거치도록 한다.
  */
-export default function ProgramTeachingCreator({ patientId }: { patientId: number }) {
-  const [open, setOpen] = useState(false);
+export default function ProgramTeachingCreator({
+  patientId,
+  defaultOpen = false,
+  onCreated,
+}: {
+  patientId: number;
+  // 공유링크 패널(14-11)의 "새로 만들기" 인라인 슬롯에 끼워 넣을 때, 자체 토글 버튼을 다시
+  // 누르게 하지 않고 바로 펼쳐진 상태로 시작하기 위한 옵션 — 기존 TalkStudioPanel 단독
+  // 임베드(닫힌 채로 시작)는 그대로 유지된다.
+  defaultOpen?: boolean;
+  // 생성 완료 시 호출 — 공유링크 패널이 방금 만든 티칭지를 드롭다운에 자동 선택하는 데 쓴다.
+  onCreated?: (page: { id: number; token: string; programName: string }) => void;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
   const [programs, setPrograms] = useState<ProgramTeaching[] | null>(null);
   const [activePrescriptions, setActivePrescriptions] = useState<ActivePrescription[] | null>(null);
   const [selectedId, setSelectedId] = useState<number | null>(null);
@@ -168,6 +181,7 @@ export default function ProgramTeachingCreator({ patientId }: { patientId: numbe
         return;
       }
       setCreated(data);
+      onCreated?.({ id: data.id, token: data.token, programName: data.programName });
     } catch {
       setGenerateError("서버에 연결하지 못했습니다. 다시 시도해주세요.");
     } finally {

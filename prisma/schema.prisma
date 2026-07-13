@@ -40,6 +40,7 @@ model Patient {
   strengthTestRecords    StrengthTestRecord[]
   teachingPages          PatientTeachingPage[]
   consultationNotes      ConsultationNote[]
+  shareLinks             PatientShareLink[]
 }
 
 model TreatmentCategory {
@@ -113,6 +114,7 @@ model StaffUser {
   createdTeachingPages    PatientTeachingPage[] @relation("TeachingPageCreator")
   consultationNotes       ConsultationNote[]
   createdEventImages      EventImage[]      @relation("EventImageCreator")
+  createdShareLinks       PatientShareLink[] @relation("ShareLinkCreator")
 }
 
 model Program {
@@ -432,6 +434,7 @@ model PatientTeachingPage {
   createdByStaffId      Int
   createdByStaff        StaffUser       @relation("TeachingPageCreator", fields: [createdByStaffId], references: [id])
   expiresAt             DateTime?
+  shareLinks            PatientShareLink[]
 }
 
 // 원장 상담모드(14-5) — 초진뿐 아니라 한약상담/인바디상담 등 프로그램당 여러 차례 이어지는
@@ -487,4 +490,28 @@ model EventImage {
   createdAt           DateTime  @default(now())
   // 소프트 삭제 원칙 — 삭제 대신 비활성화만.
   isActive            Boolean   @default(true)
+  shareLinks          PatientShareLink[]
+}
+
+// 환자별 통합 공유링크(14-11) — 프로그램티칭(/p/{token})과 이벤트(EventImage)를 하나의
+// 링크(/s/{token})로 묶어서 톡생성기에서 발송 문구에 붙여넣을 수 있게 한다. teachingPageId/
+// eventImageId 둘 다 nullable이지만 최소 1개는 있어야 하며(서버단 검증, 둘 다 null이면
+// 애초에 링크가 필요 없는 케이스), 같은 조합(patientId+teachingPageId+eventImageId)으로
+// 재요청하면 새로 만들지 않고 기존 링크를 재사용한다(lib/share-links.ts).
+model PatientShareLink {
+  id               Int                  @id @default(autoincrement())
+  token            String               @unique
+  patientId        Int
+  patient          Patient              @relation(fields: [patientId], references: [id])
+  teachingPageId   Int?
+  teachingPage     PatientTeachingPage? @relation(fields: [teachingPageId], references: [id])
+  eventImageId     Int?
+  eventImage       EventImage?          @relation(fields: [eventImageId], references: [id])
+  createdByStaffId Int
+  createdByStaff   StaffUser            @relation("ShareLinkCreator", fields: [createdByStaffId], references: [id])
+  viewCount        Int                  @default(0)
+  firstViewedAt    DateTime?
+  createdAt        DateTime             @default(now())
+
+  @@index([patientId, teachingPageId, eventImageId])
 }

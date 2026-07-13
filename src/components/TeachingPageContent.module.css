@@ -1,0 +1,108 @@
+/* /p/[token]과 /s/[token]이 공유하는 티칭지 5필드 렌더링 스타일 —
+   원래 src/app/p/[token]/page.module.css에 있던 콘텐츠 전용 클래스를 그대로 옮겨왔다
+   (페이지 셸 스타일인 .page/.card/.loadingText/.errorText는 각 page.module.css에 남김). */
+
+.headline {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 22px;
+  line-height: 1.4;
+  color: var(--color-ink);
+  margin-bottom: 8px;
+}
+
+.personalSubtopic {
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--color-celadon-dark);
+  line-height: 1.5;
+  margin-bottom: 16px;
+}
+
+.bodyText {
+  font-family: var(--font-display);
+  font-size: 17px;
+  line-height: 1.6;
+  color: var(--color-ink);
+  white-space: pre-wrap;
+  margin-bottom: 16px;
+}
+
+.examSummary {
+  font-size: 15px;
+  line-height: 1.6;
+  color: var(--color-ink);
+  background: var(--color-hanji-bg);
+  border-left: 3px solid var(--color-celadon);
+  border-radius: 4px;
+  padding: 10px 14px;
+  margin-bottom: 16px;
+}
+
+.academicHook {
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--color-ink);
+  opacity: 0.75;
+  margin-bottom: 20px;
+}
+
+.testValueBox {
+  background: var(--color-hanji-bg);
+  border-left: 3px solid var(--color-celadon);
+  border-radius: 4px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+}
+
+.testValueLabel {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--color-celadon-dark);
+  margin-bottom: 4px;
+}
+
+.testValueBox p {
+  font-family: var(--font-mono);
+  font-size: 14px;
+  color: var(--color-ink);
+  line-height: 1.5;
+}
+
+.image {
+  width: 100%;
+  border-radius: 8px;
+  border: 1px solid rgba(110, 148, 140, 0.25);
+  margin-bottom: 16px;
+}
+
+.ctaButton {
+  width: 100%;
+  border: none;
+  border-radius: 8px;
+  background: var(--color-celadon);
+  color: var(--color-hanji-card);
+  padding: 14px 16px;
+  font-size: 16px;
+  font-weight: 500;
+  font-family: var(--font-body);
+  cursor: pointer;
+  margin-top: 20px;
+  transition: background-color 0.15s ease;
+}
+
+.ctaButton:hover {
+  background: var(--color-celadon-dark);
+}
+
+.ctaButton:disabled {
+  opacity: 0.7;
+  cursor: default;
+}
+
+.ctaConfirmText {
+  text-align: center;
+  font-size: 13px;
+  color: var(--color-celadon-dark);
+  margin-top: 10px;
+}
