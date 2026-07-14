@@ -7,6 +7,7 @@ import styles from "./layout.module.css";
 const TABS = [
   { label: "직원 관리", href: "/settings/staff" },
   { label: "공지사항 관리", href: "/settings/announcements" },
+  { label: "프로그램 관리", href: "/settings/programs" },
   { label: "프로그램 티칭 관리", href: "/settings/program-teaching" },
   { label: "상담유형 관리", href: "/settings/consultation-types" },
 ];
