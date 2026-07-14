@@ -41,8 +41,16 @@
   color: var(--color-ink);
 }
 
+/* PATIENT(환자 행동) 항목 강조 — 원장님 반응이 좋아 더 눈에 띄게(task.md 배경) 글자를
+   키우고 이모티콘을 붙인다. 기존 빨간 글씨(--color-seal)는 그대로 유지. */
 .itemPatient .label {
   color: var(--color-seal);
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.patientMark {
+  margin-right: 4px;
 }
 
 .time {
@@ -50,6 +58,37 @@
   font-size: 11px;
   color: var(--color-ink);
   opacity: 0.5;
+}
+
+.checkRow {
+  margin-top: 2px;
+}
+
+.checkButton {
+  border: 1px solid var(--color-seal);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--color-seal);
+  padding: 2px 10px;
+  font-size: 11px;
+  font-family: var(--font-body);
+  cursor: pointer;
+}
+
+.checkButton:hover:not(:disabled) {
+  background: rgba(179, 60, 46, 0.1);
+}
+
+.checkButton:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.checkedLabel {
+  display: inline-block;
+  font-size: 11px;
+  color: var(--color-celadon-dark);
+  opacity: 0.75;
 }
 
 .empty {

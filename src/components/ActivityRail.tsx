@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import styles from "./ActivityRail.module.css";
+import { useCurrentUserContext } from "@/lib/CurrentUserContext";
 
 type ActivityLogRow = {
   id: number;
@@ -10,6 +11,8 @@ type ActivityLogRow = {
   actionType: string;
   label: string;
   createdAt: string;
+  isChecked: boolean;
+  checkedByStaffName: string | null;
 };
 
 const POLL_INTERVAL_MS = 7000;
@@ -26,7 +29,9 @@ function formatTime(iso: string): string {
  * 아예 렌더링하지 않는다.
  */
 export default function ActivityRail() {
+  const { currentUser } = useCurrentUserContext();
   const [rows, setRows] = useState<ActivityLogRow[] | null>(null);
+  const [checkingId, setCheckingId] = useState<number | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -51,6 +56,34 @@ export default function ActivityRail() {
     };
   }, []);
 
+  // 체크 성공/실패(이미 다른 사람이 체크함) 둘 다 최신 목록을 다시 불러와 화면을 서버
+  // 상태와 맞춘다 — 동시 클릭 시 실패한 쪽 버튼도 곧바로 비활성 상태로 갱신되게 하기 위함.
+  async function handleCheck(id: number) {
+    if (!currentUser || checkingId !== null) return;
+    setCheckingId(id);
+    try {
+      const res = await fetch(`/api/activity-logs/${id}/check`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ staffId: currentUser.id }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        if (data?.checkedByStaffName) {
+          alert(`이미 ${data.checkedByStaffName}님이 확인했습니다.`);
+        } else {
+          alert("확인 처리에 실패했습니다.");
+        }
+      }
+      const refreshed = await fetch("/api/activity-log");
+      if (refreshed.ok) setRows(await refreshed.json());
+    } catch {
+      alert("서버에 연결하지 못했습니다. 다시 시도해주세요.");
+    } finally {
+      setCheckingId(null);
+    }
+  }
+
   return (
     <aside className={styles.rail}>
       <div className={styles.title}>실시간 활동</div>
@@ -63,7 +96,26 @@ export default function ActivityRail() {
             className={row.actorType === "PATIENT" ? styles.itemPatient : styles.itemStaff}
           >
             <span className={styles.time}>{formatTime(row.createdAt)}</span>
-            <span className={styles.label}>{row.label}</span>
+            <span className={styles.label}>
+              {row.actorType === "PATIENT" && <span className={styles.patientMark}>🔴</span>}
+              {row.label}
+            </span>
+            {row.actorType === "PATIENT" && (
+              <span className={styles.checkRow}>
+                {row.isChecked ? (
+                  <span className={styles.checkedLabel}>✓ {row.checkedByStaffName ?? "-"}님 확인</span>
+                ) : (
+                  <button
+                    type="button"
+                    className={styles.checkButton}
+                    disabled={!currentUser || checkingId !== null}
+                    onClick={() => handleCheck(row.id)}
+                  >
+                    확인
+                  </button>
+                )}
+              </span>
+            )}
           </div>
         ))}
       </div>
