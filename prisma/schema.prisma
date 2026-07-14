@@ -200,6 +200,9 @@ model BodyCompositionRecord {
   smi                  Float?
   smiJudgement         String? // NORMAL | SARCOPENIA
   note                 String?
+  // AI 해설 코멘트(task.md) — 저장 시점에 동기 생성해서 캐싱. 과거 레코드는 null로
+  // 남아있다가 "환자와 함께보기" 열람 시 즉석 생성 후 이 필드에 채워 재사용한다.
+  aiExplanation        String?
   staffUserId          Int
   staffUser            StaffUser     @relation(fields: [staffUserId], references: [id])
   createdAt            DateTime      @default(now())
@@ -228,6 +231,8 @@ model StrengthTestRecord {
   gripJudgement     String // WEAK | NORMAL | STRONG | UNKNOWN(판정불가, 예: 20세 미만)
   estimatedGripAge  Int? // 또래 평균 대비 환산 나이 — 범위초과 시 null(gripAgeOutOfRange만 채워짐)
   gripAgeOutOfRange String? // young(20세 미만) | old(80세 이상)
+  // AI 해설 코멘트(task.md) — BodyCompositionRecord.aiExplanation과 동일 원칙.
+  aiExplanation     String?
   staffUserId       Int
   staffUser         StaffUser     @relation(fields: [staffUserId], references: [id])
   createdAt         DateTime      @default(now())

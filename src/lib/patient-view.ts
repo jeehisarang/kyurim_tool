@@ -20,6 +20,8 @@ export type PatientSafeBodyComposition = {
   whr: number;
   smi: number | null;
   smiPatientLabel: string | null;
+  // AI 해설 코멘트(task.md) — 과거 레코드는 null일 수 있고, 그 경우 화면에서 즉석 생성 요청.
+  aiExplanation: string | null;
 };
 
 export type PatientSafeStrengthTest = {
@@ -30,6 +32,7 @@ export type PatientSafeStrengthTest = {
   gripAvgKg: number;
   gripJudgementLabel: string;
   gripAgeMessage: string;
+  aiExplanation: string | null;
 };
 
 export type PatientSafeExamView = PatientSafeBodyComposition | PatientSafeStrengthTest;
@@ -50,6 +53,7 @@ type RawBodyCompositionDetail = {
   smi: number | null;
   smiJudgement: "NORMAL" | "SARCOPENIA" | null;
   patient: { height: number | null };
+  aiExplanation: string | null;
 };
 
 type RawStrengthTestDetail = {
@@ -61,6 +65,7 @@ type RawStrengthTestDetail = {
   gripJudgement: "WEAK" | "NORMAL" | "STRONG" | "UNKNOWN";
   estimatedGripAge: number | null;
   gripAgeOutOfRange: GripAgeOutOfRange | null;
+  aiExplanation: string | null;
 };
 
 export function toPatientSafeExamView(
@@ -76,6 +81,7 @@ export function toPatientSafeExamView(
       whr: detail.whr,
       smi: detail.smi,
       smiPatientLabel: detail.smiJudgement ? SMI_PATIENT_LABEL[detail.smiJudgement] : null,
+      aiExplanation: detail.aiExplanation,
     };
   }
 
@@ -87,6 +93,7 @@ export function toPatientSafeExamView(
     gripAvgKg: detail.gripAvgKg,
     gripJudgementLabel: GRIP_JUDGEMENT_LABEL[detail.gripJudgement],
     gripAgeMessage: gripAgePatientMessage(detail.estimatedGripAge, detail.gripAgeOutOfRange),
+    aiExplanation: detail.aiExplanation,
   };
 }
 

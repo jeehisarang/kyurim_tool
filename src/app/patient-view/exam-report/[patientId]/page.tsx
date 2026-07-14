@@ -25,7 +25,13 @@ import type { ExaminationRow } from "@/lib/examination-format";
 type BodySection =
   | { kind: "none" }
   | { kind: "single"; result: PatientSafeBodyComposition }
-  | { kind: "trend"; points: { examDate: string; weightKg: number; bodyFatPercent: number }[] };
+  | {
+      kind: "trend";
+      points: { examDate: string; weightKg: number; bodyFatPercent: number }[];
+      // 가장 최근 검사의 AI 해설 코멘트(task.md) — 추이(2건 이상) 뷰는 상세 필드가 없어
+      // 별도로 최신 레코드 하나만 더 불러와 채운다.
+      aiExplanation: string | null;
+    };
 
 type StrengthSection =
   | { kind: "none" }
@@ -33,7 +39,22 @@ type StrengthSection =
   | {
       kind: "trend";
       points: { examDate: string; gripAvgKg: number; estimatedGripAge: number | null }[];
+      aiExplanation: string | null;
     };
+
+async function ensureExplanation(
+  examType: "BODY_COMPOSITION" | "STRENGTH_TEST",
+  id: number,
+): Promise<string | null> {
+  try {
+    const res = await fetch(`/api/examinations/${examType}/${id}/explain`, { method: "POST" });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return typeof data?.aiExplanation === "string" ? data.aiExplanation : null;
+  } catch {
+    return null;
+  }
+}
 
 function formatShortDate(iso: string): string {
   const d = new Date(iso);
@@ -65,18 +86,25 @@ export default function PatientExamReportPage() {
         const rows: ExaminationRow[] = await rowsRes.json();
         const plan = planPatientExamReport(rows);
 
-        // "1건뿐" 케이스만 상세 API를 추가로 불러와 좌/우 악력 등 목록 API에 없는
-        // 필드까지 포함한 화이트리스트 뷰로 변환한다(patient-view.ts 주석 참고).
+        // "가장 최근 검사"의 상세(좌/우 악력 등 목록 API에 없는 필드 + AI 해설 코멘트)를
+        // 불러오기 위해, 목록(rows)에서 직접 최신 레코드 id를 구한다 — "1건뿐"(single)일
+        // 때는 그 1건이 곧 최신이고, "2건 이상"(trend)일 때도 해설 코멘트만은 최신 1건
+        // 것을 보여줘야 하므로(task.md) kind와 무관하게 항상 최신 id로 상세를 불러온다.
+        const bodyRowsAsc = rows
+          .filter((r): r is Extract<ExaminationRow, { examType: "BODY_COMPOSITION" }> => r.examType === "BODY_COMPOSITION")
+          .sort((a, b) => a.examDate.localeCompare(b.examDate));
+        const strengthRowsAsc = rows
+          .filter((r): r is Extract<ExaminationRow, { examType: "STRENGTH_TEST" }> => r.examType === "STRENGTH_TEST")
+          .sort((a, b) => a.examDate.localeCompare(b.examDate));
+        const latestBodyId = bodyRowsAsc.length > 0 ? bodyRowsAsc[bodyRowsAsc.length - 1].id : null;
+        const latestStrengthId = strengthRowsAsc.length > 0 ? strengthRowsAsc[strengthRowsAsc.length - 1].id : null;
+
         const [bodyDetail, strengthDetail] = await Promise.all([
-          plan.bodyComposition.kind === "single"
-            ? fetch(`/api/examinations/BODY_COMPOSITION/${plan.bodyComposition.id}`).then((r) =>
-                r.ok ? r.json() : null,
-              )
+          latestBodyId !== null
+            ? fetch(`/api/examinations/BODY_COMPOSITION/${latestBodyId}`).then((r) => (r.ok ? r.json() : null))
             : null,
-          plan.strengthTest.kind === "single"
-            ? fetch(`/api/examinations/STRENGTH_TEST/${plan.strengthTest.id}`).then((r) =>
-                r.ok ? r.json() : null,
-              )
+          latestStrengthId !== null
+            ? fetch(`/api/examinations/STRENGTH_TEST/${latestStrengthId}`).then((r) => (r.ok ? r.json() : null))
             : null,
         ]);
 
@@ -84,30 +112,64 @@ export default function PatientExamReportPage() {
 
         setPatientName(patient.name);
 
+        const bodySafe = bodyDetail ? (toPatientSafeExamView(bodyDetail) as PatientSafeBodyComposition) : null;
+        const strengthSafe = strengthDetail
+          ? (toPatientSafeExamView(strengthDetail) as PatientSafeStrengthTest)
+          : null;
+
         if (plan.bodyComposition.kind === "none") {
           setBodySection({ kind: "none" });
-        } else if (plan.bodyComposition.kind === "single" && bodyDetail) {
-          setBodySection({
-            kind: "single",
-            result: toPatientSafeExamView(bodyDetail) as PatientSafeBodyComposition,
-          });
+        } else if (plan.bodyComposition.kind === "single" && bodySafe) {
+          setBodySection({ kind: "single", result: bodySafe });
         } else if (plan.bodyComposition.kind === "trend") {
-          setBodySection({ kind: "trend", points: plan.bodyComposition.points });
+          setBodySection({
+            kind: "trend",
+            points: plan.bodyComposition.points,
+            aiExplanation: bodySafe?.aiExplanation ?? null,
+          });
         } else {
           setBodySection({ kind: "none" });
         }
 
         if (plan.strengthTest.kind === "none") {
           setStrengthSection({ kind: "none" });
-        } else if (plan.strengthTest.kind === "single" && strengthDetail) {
-          setStrengthSection({
-            kind: "single",
-            result: toPatientSafeExamView(strengthDetail) as PatientSafeStrengthTest,
-          });
+        } else if (plan.strengthTest.kind === "single" && strengthSafe) {
+          setStrengthSection({ kind: "single", result: strengthSafe });
         } else if (plan.strengthTest.kind === "trend") {
-          setStrengthSection({ kind: "trend", points: plan.strengthTest.points });
+          setStrengthSection({
+            kind: "trend",
+            points: plan.strengthTest.points,
+            aiExplanation: strengthSafe?.aiExplanation ?? null,
+          });
         } else {
           setStrengthSection({ kind: "none" });
+        }
+
+        // 과거 레코드(aiExplanation=null)는 즉석 생성 후 캐싱한다(task.md) — 실패해도
+        // 조용히 무시(설명 문단만 안 보임, /patient-view/exam 페이지와 동일 원칙).
+        if (bodySafe && bodySafe.aiExplanation === null && latestBodyId !== null) {
+          ensureExplanation("BODY_COMPOSITION", latestBodyId).then((explanation) => {
+            if (cancelled || !explanation) return;
+            setBodySection((prev) =>
+              prev?.kind === "single"
+                ? { kind: "single", result: { ...prev.result, aiExplanation: explanation } }
+                : prev?.kind === "trend"
+                  ? { ...prev, aiExplanation: explanation }
+                  : prev,
+            );
+          });
+        }
+        if (strengthSafe && strengthSafe.aiExplanation === null && latestStrengthId !== null) {
+          ensureExplanation("STRENGTH_TEST", latestStrengthId).then((explanation) => {
+            if (cancelled || !explanation) return;
+            setStrengthSection((prev) =>
+              prev?.kind === "single"
+                ? { kind: "single", result: { ...prev.result, aiExplanation: explanation } }
+                : prev?.kind === "trend"
+                  ? { ...prev, aiExplanation: explanation }
+                  : prev,
+            );
+          });
         }
       } catch {
         if (!cancelled) setLoadError(true);
@@ -165,6 +227,9 @@ export default function PatientExamReportPage() {
               {bodySection.result.smiPatientLabel && (
                 <div className={styles.messageBox}>{bodySection.result.smiPatientLabel}</div>
               )}
+              {bodySection.result.aiExplanation && (
+                <p className={styles.explanationBox}>{bodySection.result.aiExplanation}</p>
+              )}
             </div>
           ) : (
             <>
@@ -221,6 +286,9 @@ export default function PatientExamReportPage() {
                   />
                 </LineChart>
               </ResponsiveContainer>
+              {bodySection.aiExplanation && (
+                <p className={styles.explanationBox}>{bodySection.aiExplanation}</p>
+              )}
             </>
           )}
         </div>
@@ -247,6 +315,9 @@ export default function PatientExamReportPage() {
                 <span className={styles.resultValue}>{strengthSection.result.gripJudgementLabel}</span>
               </div>
               <div className={styles.messageBox}>{strengthSection.result.gripAgeMessage}</div>
+              {strengthSection.result.aiExplanation && (
+                <p className={styles.explanationBox}>{strengthSection.result.aiExplanation}</p>
+              )}
             </div>
           ) : (
             <>
@@ -304,6 +375,9 @@ export default function PatientExamReportPage() {
                   />
                 </LineChart>
               </ResponsiveContainer>
+              {strengthSection.aiExplanation && (
+                <p className={styles.explanationBox}>{strengthSection.aiExplanation}</p>
+              )}
             </>
           )}
         </div>

@@ -25,11 +25,34 @@ export default function PatientViewExamPage() {
   const [loadError, setLoadError] = useState(false);
 
   useEffect(() => {
+    let cancelled = false;
     setLoadError(false);
+
     fetch(`/api/examinations/${examType}/${id}`)
       .then((res) => (res.ok ? res.json() : Promise.reject(res)))
-      .then((data) => setView(toPatientSafeExamView(data)))
+      .then((data) => {
+        if (cancelled) return;
+        const safeView = toPatientSafeExamView(data);
+        setView(safeView);
+
+        // 과거 레코드(aiExplanation=null)는 열람 시점에 즉석 생성 후 캐싱한다(task.md 지시) —
+        // 실패해도 화면은 그대로(설명 문단만 안 보임), 신규 레코드 저장 실패 방지 원칙과 동일.
+        if (safeView.aiExplanation === null) {
+          fetch(`/api/examinations/${examType}/${id}/explain`, { method: "POST" })
+            .then((r) => (r.ok ? r.json() : null))
+            .then((result) => {
+              if (!cancelled && result?.aiExplanation) {
+                setView((prev) => (prev ? { ...prev, aiExplanation: result.aiExplanation } : prev));
+              }
+            })
+            .catch(() => {});
+        }
+      })
       .catch(() => setLoadError(true));
+
+    return () => {
+      cancelled = true;
+    };
   }, [examType, id]);
 
   const title = EXAM_TYPE_TITLE[examType] ?? "검사 결과";
@@ -79,6 +102,7 @@ export default function PatientViewExamPage() {
             </div>
           )}
           {view.smiPatientLabel && <div className={styles.messageBox}>{view.smiPatientLabel}</div>}
+          {view.aiExplanation && <p className={styles.explanationBox}>{view.aiExplanation}</p>}
         </div>
       ) : (
         <div className={styles.resultGrid}>
@@ -97,6 +121,7 @@ export default function PatientViewExamPage() {
             <span className={styles.resultValue}>{view.gripJudgementLabel}</span>
           </div>
           <div className={styles.messageBox}>{view.gripAgeMessage}</div>
+          {view.aiExplanation && <p className={styles.explanationBox}>{view.aiExplanation}</p>}
         </div>
       )}
     </PatientViewLayout>

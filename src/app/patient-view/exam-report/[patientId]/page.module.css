@@ -67,3 +67,15 @@
   font-weight: 500;
   color: var(--color-celadon-dark);
 }
+
+/* AI 해설 코멘트(task.md) — messageBox와 달리 2~4문장 산문이라 왼쪽정렬 + 일반 굵기. */
+.explanationBox {
+  margin-top: 8px;
+  padding: 14px 18px;
+  background: rgba(110, 148, 140, 0.08);
+  border-radius: 8px;
+  text-align: left;
+  font-size: 15px;
+  line-height: 1.6;
+  color: var(--color-ink);
+}

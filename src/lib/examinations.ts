@@ -1,5 +1,20 @@
 import { prisma } from "@/lib/db";
-import { computeSmi, judgeSmi, calcGripAvg, judgeGrip, computeGripAge, type Gender } from "@/lib/exam-thresholds";
+import {
+  computeSmi,
+  judgeSmi,
+  calcGripAvg,
+  judgeGrip,
+  computeGripAge,
+  computeBmi,
+  computeSmiFourLevel,
+  computeGripFourLevel,
+  FOUR_LEVEL_JUDGEMENT_LABEL,
+  gripAgePatientMessage,
+  type Gender,
+} from "@/lib/exam-thresholds";
+import { getExamTrend } from "@/lib/program-teaching";
+import { generateExamExplanation } from "@/lib/exam-explanation";
+import type { BodyCompositionRecord, StrengthTestRecord } from "@/generated/prisma/client";
 
 // height/gender는 Patient의 고정값 — 이번 요청에 값이 실려오면 Patient에도 반영해서
 // 다음 검사부터는 재입력 없이 재사용되게 한다. 인바디/근력검사 생성·수정 양쪽에서 공유.
@@ -77,6 +92,98 @@ function computeBodyCompositionDerived(
   return { limbMuscleMassKg: null, smi: null, smiJudgement: null };
 }
 
+// AI 해설 코멘트(task.md) — 실패해도 검사 저장 자체는 반드시 성공해야 하므로, 이 두
+// 헬퍼는 절대 throw하지 않는다(에러는 서버 로그로만 기록하고 null 반환). 신규 저장
+// 직후(createXxxRecord)와 과거 레코드 즉석 생성(ensureXxxExplanation) 양쪽에서 공유한다.
+async function tryGenerateBodyCompositionExplanation(
+  record: Pick<BodyCompositionRecord, "patientId" | "weightKg" | "bodyFatPercent" | "whr" | "smi">,
+  heightCm: number | undefined,
+  gender: Gender | undefined,
+): Promise<string | null> {
+  try {
+    const bmi = heightCm !== undefined ? computeBmi(record.weightKg, heightCm) : null;
+    const judgementLabel =
+      gender && record.smi != null ? FOUR_LEVEL_JUDGEMENT_LABEL[computeSmiFourLevel(gender, record.smi)] : null;
+    const trend = await getExamTrend(record.patientId, "BODY_COMPOSITION");
+    return await generateExamExplanation({
+      examType: "BODY_COMPOSITION",
+      weightKg: record.weightKg,
+      bmi,
+      bodyFatPercent: record.bodyFatPercent,
+      whr: record.whr,
+      smi: record.smi,
+      judgementLabel,
+      trend,
+    });
+  } catch (err) {
+    console.error("[exam-explanation] 인바디 해설 생성 실패:", err);
+    return null;
+  }
+}
+
+async function tryGenerateStrengthTestExplanation(
+  record: Pick<
+    StrengthTestRecord,
+    "patientId" | "measuredAge" | "gripLeftKg" | "gripRightKg" | "gripAvgKg" | "estimatedGripAge" | "gripAgeOutOfRange"
+  >,
+  gender: Gender,
+): Promise<string | null> {
+  try {
+    const fourLevel = computeGripFourLevel(gender, record.measuredAge, record.gripAvgKg);
+    const judgementLabel = fourLevel ? FOUR_LEVEL_JUDGEMENT_LABEL[fourLevel] : null;
+    const gripAgeMessage = gripAgePatientMessage(
+      record.estimatedGripAge,
+      record.gripAgeOutOfRange as ReturnType<typeof computeGripAge>["outOfRange"],
+    );
+    const trend = await getExamTrend(record.patientId, "STRENGTH_TEST");
+    return await generateExamExplanation({
+      examType: "STRENGTH_TEST",
+      gripLeftKg: record.gripLeftKg,
+      gripRightKg: record.gripRightKg,
+      gripAvgKg: record.gripAvgKg,
+      judgementLabel,
+      gripAgeMessage,
+      trend,
+    });
+  } catch (err) {
+    console.error("[exam-explanation] 근력검사 해설 생성 실패:", err);
+    return null;
+  }
+}
+
+// 과거(aiExplanation=null) 레코드를 "환자와 함께보기"에서 열람할 때 즉석 생성 후 캐싱한다
+// (task.md 지시 — 매번 새로 만들지 않고 한 번 생성되면 재사용). 이미 생성돼 있으면 그대로 반환.
+export async function ensureBodyCompositionExplanation(id: number): Promise<string | null> {
+  const record = await prisma.bodyCompositionRecord.findUnique({ where: { id }, include: { patient: true } });
+  if (!record) return null;
+  if (record.aiExplanation) return record.aiExplanation;
+
+  const explanation = await tryGenerateBodyCompositionExplanation(
+    record,
+    record.patient.height ?? undefined,
+    (record.patient.gender as Gender | null) ?? undefined,
+  );
+  if (!explanation) return null;
+
+  await prisma.bodyCompositionRecord.update({ where: { id }, data: { aiExplanation: explanation } });
+  return explanation;
+}
+
+export async function ensureStrengthTestExplanation(id: number): Promise<string | null> {
+  const record = await prisma.strengthTestRecord.findUnique({ where: { id }, include: { patient: true } });
+  if (!record) return null;
+  if (record.aiExplanation) return record.aiExplanation;
+
+  const gender = record.patient.gender as Gender | null;
+  if (!gender) return null; // 성별 미입력이면 4단계 판정을 못 내 생성 재료가 부족 — 조용히 스킵.
+
+  const explanation = await tryGenerateStrengthTestExplanation(record, gender);
+  if (!explanation) return null;
+
+  await prisma.strengthTestRecord.update({ where: { id }, data: { aiExplanation: explanation } });
+  return explanation;
+}
+
 type BodyCompositionInput = {
   patientId: number;
   prescriptionId?: number;
@@ -102,7 +209,7 @@ export async function createBodyCompositionRecord(input: BodyCompositionInput & 
   );
   const derived = computeBodyCompositionDerived(heightCm, input, gender);
 
-  return prisma.bodyCompositionRecord.create({
+  const record = await prisma.bodyCompositionRecord.create({
     data: {
       patientId: input.patientId,
       prescriptionId: input.prescriptionId,
@@ -119,6 +226,13 @@ export async function createBodyCompositionRecord(input: BodyCompositionInput & 
       staffUserId: input.staffUserId,
     },
   });
+
+  // 저장 시점에 동기적으로 함께 생성한다(task.md — 원장님이 저장 직후 바로 "환자와
+  // 함께보기"로 넘어가는 실사용 흐름이라 지연 없이 바로 보여야 함). 실패해도 위 create는
+  // 이미 끝난 뒤이므로 검사 저장 자체는 영향받지 않는다.
+  const explanation = await tryGenerateBodyCompositionExplanation(record, heightCm, gender);
+  if (!explanation) return record;
+  return prisma.bodyCompositionRecord.update({ where: { id: record.id }, data: { aiExplanation: explanation } });
 }
 
 // 인바디 수정. 생성과 동일한 원칙 — 원본 입력값만 받아 서버에서 재계산.
@@ -182,7 +296,7 @@ export async function createStrengthTestRecord(input: StrengthTestInput & { staf
   const gripJudgement = judgeGrip(gender, input.measuredAge, gripAvgKg);
   const { estimatedAge, outOfRange } = computeGripAge(gender, gripAvgKg);
 
-  return prisma.strengthTestRecord.create({
+  const record = await prisma.strengthTestRecord.create({
     data: {
       patientId: input.patientId,
       prescriptionId: input.prescriptionId,
@@ -197,6 +311,11 @@ export async function createStrengthTestRecord(input: StrengthTestInput & { staf
       staffUserId: input.staffUserId,
     },
   });
+
+  // BodyCompositionRecord와 동일한 원칙 — 저장 시점 동기 생성, 실패해도 저장엔 영향 없음.
+  const explanation = await tryGenerateStrengthTestExplanation(record, gender);
+  if (!explanation) return record;
+  return prisma.strengthTestRecord.update({ where: { id: record.id }, data: { aiExplanation: explanation } });
 }
 
 // 근력검사 수정. 생성과 동일한 원칙 — 원본 입력값만 받아 서버에서 재계산.
