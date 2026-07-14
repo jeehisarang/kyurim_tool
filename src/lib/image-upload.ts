@@ -6,10 +6,12 @@ import sharp from "sharp";
 const UPLOAD_DIR = path.join(process.cwd(), "public", "uploads", "teaching");
 const PUBLIC_PATH_PREFIX = "/uploads/teaching";
 
-// 원본 용량이 커도 웹에서 보기 적절한 수준으로만 축소해서 저장한다 — 가로 최대 1000px,
-// JPEG 품질 78 (티칭 이미지는 사진/도표 위주라 이 정도면 화질 손실이 육안으로 거의 안 보임).
-const MAX_WIDTH = 1000;
-const JPEG_QUALITY = 78;
+// 원장실에서 Claude Design 등으로 만든 5MB+ 고화질 원본을 그대로 올려도 되도록(task.md) —
+// 가로/세로 중 긴 변 기준 1080px, JPEG 품질 80%로 축소 저장한다(목표 200~500KB). width와
+// height를 함께 주고 fit:"inside"를 써야 세로가 긴 이미지(포트레이트)에서도 "긴 변"이
+// 실제로 1080px 이내로 제한된다 — width만 주면 세로 사진은 height가 1080을 넘어설 수 있다.
+const PROGRAM_TEACHING_MAX_DIMENSION = 1080;
+const PROGRAM_TEACHING_JPEG_QUALITY = 80;
 
 export type ResizedImage = {
   path: string;
@@ -17,13 +19,36 @@ export type ResizedImage = {
   resizedBytes: number;
 };
 
+// sharp가 손상/미지원 이미지 파일에서 던지는 예외를 그대로 흘려보내면 Next.js가 (dev에서는
+// HTML 에러 오버레이를) 응답해 클라이언트의 res.json()이 깨지고 "서버에 연결하지 못했습니다"
+// 같은 엉뚱한 메시지로 보인다(task.md 배경 — 실제 원인은 이거였다) — 원인을 알 수 있는
+// 전용 에러로 감싸서 라우트가 명확한 JSON 에러 응답을 내려줄 수 있게 한다.
+export class ImageResizeError extends Error {
+  constructor(cause?: unknown) {
+    super("이미지 처리 중 문제가 발생했습니다. 파일이 손상되지 않았는지 확인해주세요.");
+    this.name = "ImageResizeError";
+    if (cause !== undefined) this.cause = cause;
+  }
+}
+
 export async function saveResizedImage(file: File): Promise<ResizedImage> {
   const originalBuffer = Buffer.from(await file.arrayBuffer());
-  const resizedBuffer = await sharp(originalBuffer)
-    .rotate() // EXIF 방향 정보 보정 후 저장(회전된 채 저장되는 것 방지)
-    .resize({ width: MAX_WIDTH, withoutEnlargement: true })
-    .jpeg({ quality: JPEG_QUALITY })
-    .toBuffer();
+
+  let resizedBuffer: Buffer;
+  try {
+    resizedBuffer = await sharp(originalBuffer)
+      .rotate() // EXIF 방향 정보 보정 후 저장(회전된 채 저장되는 것 방지)
+      .resize({
+        width: PROGRAM_TEACHING_MAX_DIMENSION,
+        height: PROGRAM_TEACHING_MAX_DIMENSION,
+        fit: "inside",
+        withoutEnlargement: true,
+      })
+      .jpeg({ quality: PROGRAM_TEACHING_JPEG_QUALITY })
+      .toBuffer();
+  } catch (err) {
+    throw new ImageResizeError(err);
+  }
 
   await mkdir(UPLOAD_DIR, { recursive: true });
   const filename = `${crypto.randomUUID()}.jpg`;
@@ -37,16 +62,19 @@ export async function saveResizedImage(file: File): Promise<ResizedImage> {
 }
 
 // 이벤트 이미지 생성기(task.md) — 배경 원본은 티칭 이미지와 동일한 리사이즈 방식/저장
-// 규칙을 쓰되 폴더만 분리한다.
+// 규칙을 쓰되 폴더만 분리한다. 이번 이미지 업로드 개선(task.md)은 프로그램티칭 전용
+// 스코프라 이벤트 배경은 기존 값(가로 최대 1000px, 품질 78%)을 그대로 유지한다.
 const EVENT_UPLOAD_DIR = path.join(process.cwd(), "public", "uploads", "event-image");
 const EVENT_PUBLIC_PATH_PREFIX = "/uploads/event-image";
+const EVENT_MAX_WIDTH = 1000;
+const EVENT_JPEG_QUALITY = 78;
 
 export async function saveEventBackgroundImage(file: File): Promise<ResizedImage> {
   const originalBuffer = Buffer.from(await file.arrayBuffer());
   const resizedBuffer = await sharp(originalBuffer)
     .rotate()
-    .resize({ width: MAX_WIDTH, withoutEnlargement: true })
-    .jpeg({ quality: JPEG_QUALITY })
+    .resize({ width: EVENT_MAX_WIDTH, withoutEnlargement: true })
+    .jpeg({ quality: EVENT_JPEG_QUALITY })
     .toBuffer();
 
   await mkdir(EVENT_UPLOAD_DIR, { recursive: true });

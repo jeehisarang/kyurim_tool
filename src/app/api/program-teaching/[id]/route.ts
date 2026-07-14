@@ -6,7 +6,7 @@ import {
   updateProgramTeaching,
   type LinkedTestType,
 } from "@/lib/program-teaching";
-import { saveResizedImage } from "@/lib/image-upload";
+import { saveResizedImage, ImageResizeError } from "@/lib/image-upload";
 
 // 수정/이미지 교체/비활성화(내리기) 모두 이 PATCH 하나로 처리한다(announcements와 동일 원칙) —
 // 항상 FormData로 받는다. linkedTestType/셀링·학술 6개 필드는 아예 안 보내면 "변경 없음",
@@ -47,8 +47,15 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   let supportImagePath: string | null | undefined;
   const imageFile = formData.get("supportImage");
   if (imageFile instanceof File && imageFile.size > 0) {
-    const resized = await saveResizedImage(imageFile);
-    supportImagePath = resized.path;
+    try {
+      const resized = await saveResizedImage(imageFile);
+      supportImagePath = resized.path;
+    } catch (err) {
+      if (err instanceof ImageResizeError) {
+        return NextResponse.json({ error: err.message }, { status: 422 });
+      }
+      throw err;
+    }
   } else if (removeImageRaw === "true") {
     supportImagePath = null;
   }

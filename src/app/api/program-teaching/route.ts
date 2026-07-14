@@ -6,7 +6,7 @@ import {
   listProgramTeachings,
   readContentFieldsFromFormData,
 } from "@/lib/program-teaching";
-import { saveResizedImage } from "@/lib/image-upload";
+import { saveResizedImage, ImageResizeError } from "@/lib/image-upload";
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -38,8 +38,15 @@ export async function POST(request: Request) {
   let supportImagePath: string | null = null;
   const imageFile = formData.get("supportImage");
   if (imageFile instanceof File && imageFile.size > 0) {
-    const resized = await saveResizedImage(imageFile);
-    supportImagePath = resized.path;
+    try {
+      const resized = await saveResizedImage(imageFile);
+      supportImagePath = resized.path;
+    } catch (err) {
+      if (err instanceof ImageResizeError) {
+        return NextResponse.json({ error: err.message }, { status: 422 });
+      }
+      throw err;
+    }
   }
 
   const program = await createProgramTeaching({
