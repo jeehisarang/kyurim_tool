@@ -475,7 +475,7 @@ model ActivityLog {
   id         Int      @id @default(autoincrement())
   actorType  String // STAFF | PATIENT | SYSTEM
   actorId    Int?
-  actionType String // ANNOUNCEMENT_CREATE | WORK_CREATE | WORK_COMPLETE | TALK_CONFIRM | TEACHING_CTA_CLICK 등
+  actionType String // ANNOUNCEMENT_CREATE | WORK_CREATE | WORK_COMPLETE | TALK_CONFIRM | TEACHING_CTA_CLICK | EVENT_CTA_CLICK 등
   label      String
   createdAt  DateTime @default(now())
 }

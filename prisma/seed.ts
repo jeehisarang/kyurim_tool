@@ -93,7 +93,7 @@ async function main() {
     });
   }
 
-  // 공개 라우트(예: /p/[token] 본상담 예약하기)처럼 로그인한 직원 없이 자동 생성되는
+  // 공개 라우트(예: /p/[token] 프로그램문의하기)처럼 로그인한 직원 없이 자동 생성되는
   // WorkTask.creatorId(필수 FK) 전용 계정 — 실사용 "직원"이 아니므로 항상 비활성 상태로
   // 유지해 "현재 사용자" 선택 목록(활성 직원만 노출)에 뜨지 않게 한다.
   await prisma.staffUser.upsert({

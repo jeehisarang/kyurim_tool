@@ -53,6 +53,45 @@
   margin-top: 16px;
 }
 
+/* TeachingPageContent.module.css의 .ctaButton/.ctaConfirmText와 동일 스타일 — CSS 모듈이라
+   페이지별로 복제하는 기존 관례를 따른다(이 파일 상단 주석 참고). */
+.ctaButton {
+  width: 100%;
+  border: none;
+  border-radius: 8px;
+  background: var(--color-celadon);
+  color: var(--color-hanji-card);
+  padding: 14px 16px;
+  font-size: 16px;
+  font-weight: 500;
+  font-family: var(--font-body);
+  cursor: pointer;
+  margin-top: 20px;
+  transition: background-color 0.15s ease;
+}
+
+.ctaButton:hover {
+  background: var(--color-celadon-dark);
+}
+
+.ctaButton:disabled {
+  opacity: 0.7;
+  cursor: default;
+}
+
+.ctaConfirmText {
+  width: 100%;
+  box-sizing: border-box;
+  text-align: center;
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--color-celadon-dark);
+  background: rgba(110, 148, 140, 0.12);
+  border-radius: 8px;
+  padding: 14px 16px;
+  margin-top: 20px;
+}
+
 .loadingText,
 .errorText {
   text-align: center;

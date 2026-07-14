@@ -76,15 +76,20 @@ export default function TeachingPageContent({
         <img src={view.supportImagePath} alt="" className={styles.image} />
       )}
 
-      <button
-        type="button"
-        className={styles.ctaButton}
-        onClick={handleCtaClick}
-        disabled={ctaSubmitting}
-      >
-        {view.ctaButtonLabel}
-      </button>
-      {ctaClicked && <p className={styles.ctaConfirmText}>신청이 접수되었습니다. 곧 연락드리겠습니다.</p>}
+      {ctaClicked ? (
+        // 팝업이 차단돼도 환자가 안내를 놓치지 않도록, 토스트처럼 사라지는 대신 버튼
+        // 자리를 이 문구로 완전히 교체한다(task.md 지시, 재클릭 방지 겸용).
+        <p className={styles.ctaConfirmText}>카카오톡으로 상담 가능하십니다</p>
+      ) : (
+        <button
+          type="button"
+          className={styles.ctaButton}
+          onClick={handleCtaClick}
+          disabled={ctaSubmitting}
+        >
+          {view.ctaButtonLabel}
+        </button>
+      )}
     </>
   );
 }

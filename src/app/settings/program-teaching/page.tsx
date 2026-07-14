@@ -9,7 +9,7 @@ type LinkedTestType = "BODY_COMPOSITION" | "STRENGTH_TEST";
 
 // src/lib/teaching-pages.ts DEFAULT_CTA_LABEL과 동일한 값 — 그쪽은 prisma를 물고 있는
 // 서버 전용 모듈이라 클라이언트 컴포넌트에서 직접 import할 수 없어 안내문구용으로만 복제.
-const DEFAULT_CTA_LABEL_PLACEHOLDER = "본상담 예약하기";
+const DEFAULT_CTA_LABEL_PLACEHOLDER = "프로그램문의하기";
 
 // 직원 셀링포인트 3개(환자/한의원/기타 관점) + 원장 학술 3개 — src/lib/program-teaching.ts와
 // 동일한 키/라벨 (서버 lib는 prisma를 물고 있어 클라이언트 컴포넌트에서 직접 import할 수

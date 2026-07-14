@@ -101,8 +101,14 @@
 }
 
 .ctaConfirmText {
+  width: 100%;
+  box-sizing: border-box;
   text-align: center;
-  font-size: 13px;
+  font-size: 15px;
+  font-weight: 500;
   color: var(--color-celadon-dark);
-  margin-top: 10px;
+  background: rgba(110, 148, 140, 0.12);
+  border-radius: 8px;
+  padding: 14px 16px;
+  margin-top: 20px;
 }
