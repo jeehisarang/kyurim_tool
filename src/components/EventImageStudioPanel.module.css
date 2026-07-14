@@ -218,6 +218,23 @@
   opacity: 0.5;
 }
 
+.resolvedToggleButton {
+  display: block;
+  margin-top: 14px;
+  border: 1px solid rgba(110, 148, 140, 0.4);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--color-celadon-dark);
+  padding: 6px 14px;
+  font-size: 13px;
+  font-family: var(--font-body);
+  cursor: pointer;
+}
+
+.resolvedToggleButton:hover {
+  background: rgba(110, 148, 140, 0.1);
+}
+
 .cardThumb {
   width: 100%;
   aspect-ratio: 4 / 3;

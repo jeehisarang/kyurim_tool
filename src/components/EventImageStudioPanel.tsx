@@ -67,6 +67,7 @@ export default function EventImageStudioPanel() {
 
   const [items, setItems] = useState<EventImage[] | null>(null);
   const [detailId, setDetailId] = useState<number | null>(null);
+  const [showInactive, setShowInactive] = useState(false);
 
   useEffect(() => {
     refresh();
@@ -260,6 +261,28 @@ export default function EventImageStudioPanel() {
 
   const detail = items?.find((i) => i.id === detailId) ?? null;
 
+  // 비활성 항목은 기본으로 접어둔다("/todo" 완료 항목 접기/펼치기와 동일 패턴, task.md 결정)
+  // — 새 이벤트를 만들 때 화면이 번잡해지지 않도록 활성 항목만 우선 노출.
+  const activeItems = items?.filter((item) => item.isActive) ?? null;
+  const inactiveItems = items?.filter((item) => !item.isActive) ?? [];
+
+  function renderCard(item: EventImage) {
+    return (
+      <div
+        key={item.id}
+        className={item.isActive ? styles.card : `${styles.card} ${styles.cardInactive}`}
+        onClick={() => setDetailId(item.id)}
+      >
+        <img src={item.compositeImagePath} alt="" className={styles.cardThumb} />
+        <div className={styles.cardTitle}>{item.finalTitle || "(제목 없음)"}</div>
+        <div className={styles.cardMeta}>
+          {formatDate(item.createdAt)} · {item.createdByStaff.name}
+          {!item.isActive && " · 비활성"}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className={styles.wrap}>
       <div className={styles.section}>
@@ -396,28 +419,36 @@ export default function EventImageStudioPanel() {
       )}
 
       <div className={styles.section}>
-        <div className={styles.sectionTitle}>이벤트 목록 ({items?.length ?? 0}건)</div>
+        <div className={styles.sectionTitle}>이벤트 목록 ({activeItems?.length ?? 0}건)</div>
         {items === null ? (
           <p className={styles.muted}>불러오는 중...</p>
         ) : items.length === 0 ? (
           <p className={styles.muted}>아직 만든 이벤트가 없습니다.</p>
         ) : (
-          <div className={styles.cardGrid}>
-            {items.map((item) => (
-              <div
-                key={item.id}
-                className={item.isActive ? styles.card : `${styles.card} ${styles.cardInactive}`}
-                onClick={() => setDetailId(item.id)}
-              >
-                <img src={item.compositeImagePath} alt="" className={styles.cardThumb} />
-                <div className={styles.cardTitle}>{item.finalTitle || "(제목 없음)"}</div>
-                <div className={styles.cardMeta}>
-                  {formatDate(item.createdAt)} · {item.createdByStaff.name}
-                  {!item.isActive && " · 비활성"}
-                </div>
-              </div>
-            ))}
-          </div>
+          <>
+            {activeItems && activeItems.length > 0 ? (
+              <div className={styles.cardGrid}>{activeItems.map(renderCard)}</div>
+            ) : (
+              <p className={styles.muted}>활성화된 이벤트가 없습니다.</p>
+            )}
+
+            {inactiveItems.length > 0 && (
+              <>
+                <button
+                  type="button"
+                  className={styles.resolvedToggleButton}
+                  onClick={() => setShowInactive((v) => !v)}
+                >
+                  {showInactive
+                    ? "비활성화된 이벤트 숨기기"
+                    : `비활성화된 이벤트 보기 (${inactiveItems.length}건)`}
+                </button>
+                {showInactive && (
+                  <div className={styles.cardGrid}>{inactiveItems.map(renderCard)}</div>
+                )}
+              </>
+            )}
+          </>
         )}
       </div>
 
