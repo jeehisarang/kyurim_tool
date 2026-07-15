@@ -1,0 +1,39 @@
+.metricGrid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px 24px;
+  margin-top: 20px;
+}
+
+.metricRow {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid rgba(110, 148, 140, 0.2);
+}
+
+.metricLabel {
+  font-size: 15px;
+  color: var(--color-ink);
+  opacity: 0.75;
+}
+
+.metricValue {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 20px;
+  color: var(--color-celadon-dark);
+}
+
+.explanationBox {
+  margin-top: 20px;
+  padding: 18px 22px;
+  background: rgba(110, 148, 140, 0.08);
+  border-radius: 8px;
+  text-align: left;
+  font-size: 17px;
+  line-height: 1.6;
+  color: var(--color-ink);
+}

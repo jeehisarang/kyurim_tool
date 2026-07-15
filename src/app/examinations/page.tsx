@@ -66,6 +66,9 @@ function ExaminationListPageInner() {
     if (!rows) return [];
     const q = patientFilter.trim();
     return rows.filter((r) => {
+      // HRV는 이 화면(인바디/근력검사 전용 컬럼 구조)과 별개로 /examinations/patient/[id]
+      // 통합 타임라인에서만 노출한다(task2.md 범위) — 여기 표/필터탭에는 없음.
+      if (r.examType === "HRV") return false;
       if (examTypeFilter !== "ALL" && r.examType !== examTypeFilter) return false;
       if (q && !r.patient.name.includes(q) && !r.patient.chartNumber.includes(q)) return false;
       return true;

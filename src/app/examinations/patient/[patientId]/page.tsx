@@ -12,6 +12,7 @@ import {
   formatExamDate,
   gripAgeLabel,
   gripLabel,
+  hrvSummaryLabel,
   isSmiConcerning,
   rowKey,
   smiLabel,
@@ -126,6 +127,7 @@ export default function PatientExamHistoryPage() {
                 <th>SMI(판정)</th>
                 <th>악력(판정)</th>
                 <th>근력나이</th>
+                <th>HRV 요약</th>
                 <th>측정자</th>
               </tr>
             </thead>
@@ -134,7 +136,15 @@ export default function PatientExamHistoryPage() {
                 <tr
                   key={rowKey(row)}
                   className={styles.clickableRow}
-                  onClick={() => router.push(`/examinations/${row.examType}/${row.id}`)}
+                  onClick={() =>
+                    row.examType === "HRV"
+                      ? window.open(
+                          `/patient-view/exam/hrv/${row.id}`,
+                          "_blank",
+                          "noopener,noreferrer,width=760,height=900",
+                        )
+                      : router.push(`/examinations/${row.examType}/${row.id}`)
+                  }
                 >
                   <td>
                     <span className={styles.examTypeBadge}>{EXAM_TYPE_LABEL[row.examType]}</span>
@@ -155,6 +165,13 @@ export default function PatientExamHistoryPage() {
                     {gripLabel(row)}
                   </td>
                   <td>{gripAgeLabel(row)}</td>
+                  <td className={styles.hrvSummaryCell}>
+                    {row.examType === "HRV" && (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={row.sourceImagePath} alt="HRV 결과지 썸네일" className={styles.hrvThumbnail} />
+                    )}
+                    {hrvSummaryLabel(row)}
+                  </td>
                   <td>{row.staffUserName}</td>
                 </tr>
               ))}

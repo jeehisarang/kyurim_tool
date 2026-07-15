@@ -26,11 +26,24 @@ export type ExaminationRow =
       gripJudgement: "WEAK" | "NORMAL" | "STRONG" | "UNKNOWN";
       estimatedGripAge: number | null;
       gripAgeOutOfRange: GripAgeOutOfRange | null;
+    }
+  | {
+      id: number;
+      examType: "HRV";
+      patient: { id: number; name: string; chartNumber: string };
+      examDate: string;
+      staffUserName: string;
+      vascularHealthIndex: number;
+      vascularHealthType: string;
+      avgPulse: number;
+      stressIndex: number;
+      sourceImagePath: string;
     };
 
 export const EXAM_TYPE_LABEL = {
   BODY_COMPOSITION: "인바디",
   STRENGTH_TEST: "근력검사",
+  HRV: "HRV",
 };
 
 export const SMI_JUDGEMENT_LABEL: Record<string, string> = {
@@ -97,6 +110,12 @@ export function rowKey(row: ExaminationRow): string {
 
 export function isSmiConcerning(row: ExaminationRow): boolean {
   return row.examType === "BODY_COMPOSITION" && row.smiJudgement === "SARCOPENIA";
+}
+
+// HRV(자율신경맥파기) 요약 — 판정 계산 로직 없이 기기가 이미 낸 값 그대로 표시(task2.md).
+export function hrvSummaryLabel(row: ExaminationRow): string {
+  if (row.examType !== "HRV") return "-";
+  return `혈관건강지수 ${row.vascularHealthIndex}(${row.vascularHealthType}) · 맥박 ${row.avgPulse} · 스트레스 ${row.stressIndex}`;
 }
 
 /**

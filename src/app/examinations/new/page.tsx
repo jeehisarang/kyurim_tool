@@ -6,6 +6,7 @@ import { useSearchParams } from "next/navigation";
 import styles from "./page.module.css";
 import BackButton from "@/components/BackButton";
 import NewPatientForm from "@/components/NewPatientForm";
+import HrvImportModal, { type HrvDriveFile } from "@/components/HrvImportModal";
 import { getCurrentUserId } from "@/lib/currentUser";
 import {
   computeSmi,
@@ -56,7 +57,7 @@ const GRIP_AGE_TREND_LABEL: Record<GripAgeTrend, string> = {
   WORSENED: "악화 ↑",
 };
 
-type ExamType = "BODY_COMPOSITION" | "STRENGTH_TEST";
+type ExamType = "BODY_COMPOSITION" | "STRENGTH_TEST" | "HRV";
 
 type GripAgeResult = { estimatedAge: number | null; outOfRange: GripAgeOutOfRange | null };
 
@@ -149,11 +150,23 @@ function NewExaminationPageInner() {
   // 근력나이 추이(개선/유지/악화) 표시용 — 환자의 가장 최근 근력검사 기록.
   const [previousGripAge, setPreviousGripAge] = useState<GripAgeResult | null>(null);
 
+  // HRV(자율신경맥파기) 입력 — 기기가 이미 판정까지 끝낸 결과지 이미지 + 핵심 수치 4개만
+  // 옮겨 적는다(task2.md). 이미지는 구글드라이브 가져오기 또는 직접 파일 선택 둘 다 지원.
+  const [hrvImageFile, setHrvImageFile] = useState<File | null>(null);
+  const [hrvDriveFileId, setHrvDriveFileId] = useState<string | null>(null);
+  const [hrvImagePreviewUrl, setHrvImagePreviewUrl] = useState<string | null>(null);
+  const [showHrvImportModal, setShowHrvImportModal] = useState(false);
+  const [vascularHealthIndex, setVascularHealthIndex] = useState("");
+  const [vascularHealthType, setVascularHealthType] = useState("");
+  const [avgPulse, setAvgPulse] = useState("");
+  const [stressIndex, setStressIndex] = useState("");
+
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [lastResult, setLastResult] = useState<
     | { examType: "BODY_COMPOSITION"; patientId: number; patientName: string; weightKg: number }
     | ({ examType: "STRENGTH_TEST"; patientId: number; patientName: string } & StrengthResult)
+    | { examType: "HRV"; patientId: number; patientName: string; hrvRecordId: number; vascularHealthIndex: number }
     | null
   >(null);
   const [patientViewPopupBlocked, setPatientViewPopupBlocked] = useState(false);
@@ -253,6 +266,29 @@ function NewExaminationPageInner() {
     setGripLeftKg("");
     setGripRightKg("");
     setExamDate(TODAY_PARAM);
+    setHrvImageFile(null);
+    setHrvDriveFileId(null);
+    setHrvImagePreviewUrl(null);
+    setVascularHealthIndex("");
+    setVascularHealthType("");
+    setAvgPulse("");
+    setStressIndex("");
+  }
+
+  function handleHrvFileSelect(file: File | null) {
+    setHrvImageFile(file);
+    setHrvDriveFileId(null);
+    setHrvImagePreviewUrl(file ? URL.createObjectURL(file) : null);
+  }
+
+  function handleHrvDriveSelect(file: HrvDriveFile) {
+    setHrvImageFile(null);
+    setHrvDriveFileId(file.id);
+    setHrvImagePreviewUrl(file.thumbnailLink);
+    setShowHrvImportModal(false);
+    if (file.matchedPatient) {
+      selectPatient({ ...file.matchedPatient, height: null, gender: null });
+    }
   }
 
   const activePrescriptions = useMemo(
@@ -308,6 +344,56 @@ function NewExaminationPageInner() {
       ? computeGripAgeTrend(strengthPreview, previousGripAge)
       : null;
 
+  async function handleHrvSubmit() {
+    if (!selectedPatient || !staffUserId) return;
+
+    const index = toNumber(vascularHealthIndex);
+    const pulse = toNumber(avgPulse);
+    const stress = toNumber(stressIndex);
+    if (index === null || !vascularHealthType.trim() || pulse === null || stress === null) {
+      setSubmitError("혈관건강지수/혈관건강도/평균맥박/스트레스지수를 모두 입력하세요.");
+      return;
+    }
+    if (!hrvImageFile && !hrvDriveFileId) {
+      setSubmitError("결과지 이미지를 선택하거나 구글드라이브에서 가져오세요.");
+      return;
+    }
+
+    const formData = new FormData();
+    formData.set("patientId", String(selectedPatient.id));
+    formData.set("staffUserId", staffUserId);
+    formData.set("testDate", examDate);
+    formData.set("vascularHealthIndex", String(index));
+    formData.set("vascularHealthType", vascularHealthType.trim());
+    formData.set("avgPulse", String(pulse));
+    formData.set("stressIndex", String(stress));
+    if (hrvImageFile) formData.set("image", hrvImageFile);
+    if (hrvDriveFileId) formData.set("driveFileId", hrvDriveFileId);
+
+    setSubmitting(true);
+    try {
+      const res = await fetch("/api/hrv-records", { method: "POST", body: formData });
+      const data = await res.json();
+      if (!res.ok) {
+        setSubmitError(data.error ?? "HRV 검사 등록에 실패했습니다.");
+        return;
+      }
+      setLastResult({
+        examType: "HRV",
+        patientId: selectedPatient.id,
+        patientName: selectedPatient.name,
+        hrvRecordId: data.id,
+        vascularHealthIndex: data.vascularHealthIndex,
+      });
+      setPatientViewPopupBlocked(false);
+      resetForm();
+    } catch {
+      setSubmitError("서버에 연결하지 못했습니다. 검사 기록이 저장되지 않았으니 다시 시도해주세요.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setSubmitError(null);
@@ -318,6 +404,11 @@ function NewExaminationPageInner() {
     }
     if (examDate > TODAY_PARAM) {
       setSubmitError("검사일자는 미래 날짜를 선택할 수 없습니다.");
+      return;
+    }
+
+    if (examType === "HRV") {
+      await handleHrvSubmit();
       return;
     }
 
@@ -441,11 +532,11 @@ function NewExaminationPageInner() {
   function handleOpenPatientView() {
     if (!lastResult) return;
     setPatientViewPopupBlocked(false);
-    const win = window.open(
-      `/patient-view/exam-report/${lastResult.patientId}`,
-      "_blank",
-      "noopener,noreferrer,width=760,height=900",
-    );
+    const url =
+      lastResult.examType === "HRV"
+        ? `/patient-view/exam/hrv/${lastResult.hrvRecordId}`
+        : `/patient-view/exam-report/${lastResult.patientId}`;
+    const win = window.open(url, "_blank", "noopener,noreferrer,width=760,height=900");
     if (!win || win.closed) {
       setPatientViewPopupBlocked(true);
     }
@@ -465,12 +556,13 @@ function NewExaminationPageInner() {
 
       {lastResult && (
         <div className={styles.resultBanner}>
-          {lastResult.examType === "BODY_COMPOSITION" ? (
+          {lastResult.examType === "BODY_COMPOSITION" && (
             <>
               ✅ <strong>{lastResult.patientName}</strong>님 인바디 등록 완료 —{" "}
               <span className={styles.resultValue}>{lastResult.weightKg}kg</span>
             </>
-          ) : (
+          )}
+          {lastResult.examType === "STRENGTH_TEST" && (
             <div className={styles.resultGrid}>
               <div className={styles.resultTitle}>
                 ✅ <strong>{lastResult.patientName}</strong>님 근력검사 등록 완료
@@ -493,6 +585,12 @@ function NewExaminationPageInner() {
                 <span className={styles.resultValue}>{formatGripAge(lastResult)}</span>
               </div>
             </div>
+          )}
+          {lastResult.examType === "HRV" && (
+            <>
+              ✅ <strong>{lastResult.patientName}</strong>님 HRV 검사 등록 완료 —{" "}
+              <span className={styles.resultValue}>혈관건강지수 {lastResult.vascularHealthIndex}</span>
+            </>
           )}
           <div>
             <button
@@ -577,6 +675,7 @@ function NewExaminationPageInner() {
                   <option value="">선택</option>
                   <option value="BODY_COMPOSITION">인바디</option>
                   <option value="STRENGTH_TEST">근력검사</option>
+                  <option value="HRV">자율신경맥파기(HRV)</option>
                 </select>
               </label>
 
@@ -839,6 +938,72 @@ function NewExaminationPageInner() {
               </>
             )}
 
+            {examType === "HRV" && (
+              <>
+                <div className={styles.checkboxRow}>
+                  <button
+                    type="button"
+                    className={styles.submitButton}
+                    onClick={() => setShowHrvImportModal(true)}
+                  >
+                    구글드라이브에서 가져오기
+                  </button>
+                  <label>
+                    또는 직접 파일 선택{" "}
+                    <input
+                      type="file"
+                      accept="image/*,application/pdf"
+                      onChange={(e) => handleHrvFileSelect(e.target.files?.[0] ?? null)}
+                    />
+                  </label>
+                </div>
+
+                {hrvImagePreviewUrl && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={hrvImagePreviewUrl} alt="HRV 결과지 미리보기" className={styles.hrvPreviewImage} />
+                )}
+
+                <div className={styles.fieldGrid}>
+                  <label>
+                    혈관건강지수
+                    <input
+                      type="number"
+                      step="0.1"
+                      value={vascularHealthIndex}
+                      onChange={(e) => setVascularHealthIndex(e.target.value)}
+                    />
+                  </label>
+                  <label>
+                    혈관건강도
+                    <input
+                      type="text"
+                      placeholder="예: 양호"
+                      value={vascularHealthType}
+                      onChange={(e) => setVascularHealthType(e.target.value)}
+                    />
+                  </label>
+                  <label>
+                    평균맥박
+                    <input
+                      type="number"
+                      step="0.1"
+                      value={avgPulse}
+                      onChange={(e) => setAvgPulse(e.target.value)}
+                    />
+                  </label>
+                  <label>
+                    스트레스지수
+                    <input
+                      type="number"
+                      step="0.1"
+                      value={stressIndex}
+                      onChange={(e) => setStressIndex(e.target.value)}
+                    />
+                  </label>
+                </div>
+              </>
+            )}
+
             {submitError && <p className={styles.errorText}>{submitError}</p>}
 
             {examType && (
@@ -848,6 +1013,10 @@ function NewExaminationPageInner() {
             )}
           </form>
         </div>
+      )}
+
+      {showHrvImportModal && (
+        <HrvImportModal onSelect={handleHrvDriveSelect} onClose={() => setShowHrvImportModal(false)} />
       )}
     </div>
   );

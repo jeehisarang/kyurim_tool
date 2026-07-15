@@ -15,6 +15,7 @@
     "db:import-shared": "tsx prisma/import-shared-data.ts"
   },
   "dependencies": {
+    "@googleapis/drive": "^20.2.0",
     "@googleapis/sheets": "^13.0.2",
     "@prisma/adapter-better-sqlite3": "^7.8.0",
     "@prisma/client": "^7.8.0",

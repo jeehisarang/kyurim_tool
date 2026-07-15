@@ -354,7 +354,7 @@ export async function deleteStrengthTestRecord(id: number) {
 }
 
 export async function listExaminations(patientId?: number) {
-  const [bodyRecords, strengthRecords] = await Promise.all([
+  const [bodyRecords, strengthRecords, hrvRecords] = await Promise.all([
     prisma.bodyCompositionRecord.findMany({
       where: patientId ? { patientId } : undefined,
       include: { patient: true, staffUser: true },
@@ -362,6 +362,10 @@ export async function listExaminations(patientId?: number) {
     prisma.strengthTestRecord.findMany({
       where: patientId ? { patientId } : undefined,
       include: { patient: true, staffUser: true },
+    }),
+    prisma.hrvTestRecord.findMany({
+      where: patientId ? { patientId } : undefined,
+      include: { patient: true, measuredByStaff: true },
     }),
   ]);
 
@@ -398,6 +402,18 @@ export async function listExaminations(patientId?: number) {
       gripJudgement: r.gripJudgement,
       estimatedGripAge: r.estimatedGripAge,
       gripAgeOutOfRange: r.gripAgeOutOfRange,
+    })),
+    ...hrvRecords.map((r) => ({
+      id: r.id,
+      examType: "HRV" as const,
+      patient: { id: r.patient.id, name: r.patient.name, chartNumber: r.patient.chartNumber },
+      examDate: r.testDate,
+      staffUserName: r.measuredByStaff.name,
+      vascularHealthIndex: r.vascularHealthIndex,
+      vascularHealthType: r.vascularHealthType,
+      avgPulse: r.avgPulse,
+      stressIndex: r.stressIndex,
+      sourceImagePath: r.sourceImagePath,
     })),
   ];
 

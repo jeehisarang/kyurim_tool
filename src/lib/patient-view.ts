@@ -97,6 +97,40 @@ export function toPatientSafeExamView(
   };
 }
 
+// "환자와 함께보기"(/patient-view/exam/hrv/[id], task2.md) 전용 화이트리스트 변환 —
+// measuredByStaff 등 직원 전용 필드는 여기서 아예 조립하지 않는다.
+export type PatientSafeHrvView = {
+  testDate: string;
+  vascularHealthIndex: number;
+  vascularHealthType: string;
+  avgPulse: number;
+  stressIndex: number;
+  sourceImagePath: string;
+  aiCommentary: string | null;
+};
+
+type RawHrvDetail = {
+  testDate: string;
+  vascularHealthIndex: number;
+  vascularHealthType: string;
+  avgPulse: number;
+  stressIndex: number;
+  sourceImagePath: string;
+  aiCommentary: string | null;
+};
+
+export function toPatientSafeHrvView(detail: RawHrvDetail): PatientSafeHrvView {
+  return {
+    testDate: detail.testDate,
+    vascularHealthIndex: detail.vascularHealthIndex,
+    vascularHealthType: detail.vascularHealthType,
+    avgPulse: detail.avgPulse,
+    stressIndex: detail.stressIndex,
+    sourceImagePath: detail.sourceImagePath,
+    aiCommentary: detail.aiCommentary,
+  };
+}
+
 // "환자 검사 종합 리포트"(/patient-view/exam-report/[patientId], 14-6) 전용 —
 // 검사종류별로 몇 건 있는지에 따라 화면에서 무엇을 보여줘야 하는지만 판단한다(순수 함수).
 // - 0건: 섹션 자체를 숨김

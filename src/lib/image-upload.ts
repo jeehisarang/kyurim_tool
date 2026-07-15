@@ -88,6 +88,42 @@ export async function saveEventBackgroundImage(file: File): Promise<ResizedImage
   };
 }
 
+// HRV 결과지(task2.md) — 마케팅 사진과 달리 작은 숫자/그래프가 담긴 데이터 문서라, 다른
+// 업로드보다 해상도/화질을 높게 유지한다("환자와 함께보기"의 줌 기능으로 더 확대해서 볼
+// 수 있긴 하지만, 원본 자체가 너무 뭉개지면 줌해도 읽히지 않는다).
+const HRV_UPLOAD_DIR = path.join(process.cwd(), "public", "uploads", "hrv");
+const HRV_PUBLIC_PATH_PREFIX = "/uploads/hrv";
+const HRV_MAX_DIMENSION = 1600;
+const HRV_JPEG_QUALITY = 88;
+
+export async function saveHrvResultImage(buffer: Buffer): Promise<ResizedImage> {
+  let resizedBuffer: Buffer;
+  try {
+    resizedBuffer = await sharp(buffer)
+      .rotate()
+      .resize({
+        width: HRV_MAX_DIMENSION,
+        height: HRV_MAX_DIMENSION,
+        fit: "inside",
+        withoutEnlargement: true,
+      })
+      .jpeg({ quality: HRV_JPEG_QUALITY })
+      .toBuffer();
+  } catch (err) {
+    throw new ImageResizeError(err);
+  }
+
+  await mkdir(HRV_UPLOAD_DIR, { recursive: true });
+  const filename = `${crypto.randomUUID()}.jpg`;
+  await writeFile(path.join(HRV_UPLOAD_DIR, filename), resizedBuffer);
+
+  return {
+    path: `${HRV_PUBLIC_PATH_PREFIX}/${filename}`,
+    originalBytes: buffer.length,
+    resizedBytes: resizedBuffer.length,
+  };
+}
+
 // 합성 결과(문구가 얹힌 최종 이미지)는 브라우저 Canvas가 이미 적정 해상도로 렌더링해
 // 보낸 PNG를 그대로 저장한다 — sharp로 재압축하면 텍스트 가장자리가 뭉개질 수 있어 피한다.
 export async function saveCompositeImage(file: File): Promise<{ path: string }> {
