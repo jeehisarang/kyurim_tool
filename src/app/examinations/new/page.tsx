@@ -974,13 +974,15 @@ function NewExaminationPageInner() {
                     />
                   </label>
                   <label>
-                    혈관건강도
-                    <input
-                      type="text"
-                      placeholder="예: 양호"
-                      value={vascularHealthType}
-                      onChange={(e) => setVascularHealthType(e.target.value)}
-                    />
+                    혈관건강도(A~G)
+                    <select value={vascularHealthType} onChange={(e) => setVascularHealthType(e.target.value)}>
+                      <option value="">선택</option>
+                      {["A", "B", "C", "D", "E", "F", "G"].map((grade) => (
+                        <option key={grade} value={grade}>
+                          {grade}
+                        </option>
+                      ))}
+                    </select>
                   </label>
                   <label>
                     평균맥박

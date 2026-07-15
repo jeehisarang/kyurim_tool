@@ -20,6 +20,29 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ ex
   }
 
   const content = typeof body.content === "string" ? body.content : "";
-  const guide = await upsertExamAcademicGuide(examType, content);
+
+  let tcmPatternMapJson: string | null | undefined;
+  if (body.tcmPatternMap !== undefined) {
+    if (!Array.isArray(body.tcmPatternMap)) {
+      return NextResponse.json({ error: "한의학적 매핑표 형식이 올바르지 않습니다." }, { status: 400 });
+    }
+    const valid = body.tcmPatternMap.every(
+      (e: unknown) =>
+        e !== null &&
+        typeof e === "object" &&
+        typeof (e as Record<string, unknown>).symptoms === "string" &&
+        typeof (e as Record<string, unknown>).pattern === "string" &&
+        typeof (e as Record<string, unknown>).phrase === "string",
+    );
+    if (!valid) {
+      return NextResponse.json(
+        { error: "한의학적 매핑표는 symptoms/pattern/phrase를 모두 채워야 합니다." },
+        { status: 400 },
+      );
+    }
+    tcmPatternMapJson = body.tcmPatternMap.length > 0 ? JSON.stringify(body.tcmPatternMap) : null;
+  }
+
+  const guide = await upsertExamAcademicGuide(examType, content, tcmPatternMapJson);
   return NextResponse.json(guide);
 }

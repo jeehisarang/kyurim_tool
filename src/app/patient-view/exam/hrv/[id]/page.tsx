@@ -7,6 +7,7 @@ import PatientViewLayout from "@/components/PatientViewLayout";
 import layoutStyles from "@/components/PatientViewLayout.module.css";
 import ImageZoomPan from "@/components/ImageZoomPan";
 import { toPatientSafeHrvView, type PatientSafeHrvView } from "@/lib/patient-view";
+import { HRV_SAFETY_NOTICE } from "@/lib/hrv-constants";
 
 function formatDate(iso: string): string {
   const d = new Date(iso);
@@ -96,6 +97,13 @@ export default function PatientViewHrvPage() {
       </div>
 
       {view.aiCommentary && <p className={styles.explanationBox}>{view.aiCommentary}</p>}
+
+      {/* 5단계 "안전 안내"(task.md) — AI가 생성한 텍스트가 아니라 고정 문구를 항상 별도
+          블록으로 붙인다. aiCommentary와 시각적으로 명확히 구분되게 스타일을 다르게 둔다. */}
+      <div className={styles.safetyNoticeBox}>
+        <div className={styles.safetyNoticeLabel}>안전 안내</div>
+        <p>{HRV_SAFETY_NOTICE}</p>
+      </div>
     </PatientViewLayout>
   );
 }

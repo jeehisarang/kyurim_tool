@@ -37,3 +37,24 @@
   line-height: 1.6;
   color: var(--color-ink);
 }
+
+/* AI가 생성한 텍스트(explanationBox)와 명확히 구분되도록 인장색(seal) 강조 — 이 블록은
+   항상 고정 문구가 그대로 붙는 것이라 AI 코멘트로 오해되지 않게 스타일을 다르게 둔다. */
+.safetyNoticeBox {
+  margin-top: 14px;
+  padding: 16px 20px;
+  background: rgba(179, 60, 46, 0.06);
+  border: 1px solid rgba(179, 60, 46, 0.3);
+  border-radius: 8px;
+  text-align: left;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--color-ink);
+}
+
+.safetyNoticeLabel {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--color-seal);
+  margin-bottom: 6px;
+}

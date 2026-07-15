@@ -287,6 +287,9 @@ model ExamAcademicGuide {
   id        Int      @id @default(autoincrement())
   examType  String   @unique // 현재는 "HRV" 고정값
   content   String
+  // 한의학적 가능성 매핑표(task.md 최종 통합본) — [{symptoms, pattern, phrase}] JSON 배열.
+  // AI 코멘트 4단계(한의학적 해석)에서 환자 증상기록과 대조할 때만 참고재료로 쓰인다.
+  tcmPatternMapJson String?
   updatedAt DateTime @updatedAt
 }
 

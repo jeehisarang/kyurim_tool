@@ -64,6 +64,9 @@ export async function POST(request: Request) {
       { status: 400 },
     );
   }
+  if (!["A", "B", "C", "D", "E", "F", "G"].includes(vascularHealthType)) {
+    return NextResponse.json({ error: "혈관건강도는 A~G 중에서 선택하세요." }, { status: 400 });
+  }
 
   let imageBuffer: Buffer;
   if (typeof driveFileId === "string" && driveFileId) {

@@ -1,8 +1,65 @@
 import { prisma } from "@/lib/db";
 import { saveHrvResultImage } from "@/lib/image-upload";
-import { generateHrvExplanation } from "@/lib/hrv-explanation";
+import { generateHrvExplanation, type TcmPatternMapEntry } from "@/lib/hrv-explanation";
 import { getExamAcademicGuide } from "@/lib/exam-academic-guide";
+import { listConsultationNotesForPatient } from "@/lib/consultation-notes";
 import type { HrvTestRecord } from "@/generated/prisma/client";
+
+const RECENT_PATIENT_NOTE_LIMIT = 5;
+
+function parseTcmPatternMap(json: string | null | undefined): TcmPatternMapEntry[] {
+  if (!json) return [];
+  try {
+    const parsed = JSON.parse(json);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter(
+      (e): e is TcmPatternMapEntry =>
+        e && typeof e.symptoms === "string" && typeof e.pattern === "string" && typeof e.phrase === "string",
+    );
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * 한의학적 해석(4단계) 재료용 환자 증상기록 — 핵심프로필(과거력/현재질환/주요니즈) +
+ * 최신 상담노트 + 최근 PatientNote를 하나의 텍스트로 조립한다(teaching-pages.ts의
+ * createTeachingPage와 동일한 재료 조합 원칙). 관련성 판단은 AI 프롬프트가 담당하므로
+ * 여기서는 후보 재료를 있는 그대로만 모은다.
+ */
+async function buildPatientSymptomMaterial(patientId: number): Promise<string | null> {
+  const [patient, consultationNotes, patientNotes] = await Promise.all([
+    prisma.patient.findUnique({ where: { id: patientId } }),
+    listConsultationNotesForPatient(patientId),
+    prisma.patientNote.findMany({
+      where: { patientId },
+      orderBy: { createdAt: "desc" },
+      take: RECENT_PATIENT_NOTE_LIMIT,
+    }),
+  ]);
+  if (!patient) return null;
+
+  const parts: string[] = [];
+
+  const coreProfileParts = [
+    patient.pastHistory ? `과거력: ${patient.pastHistory}` : null,
+    patient.currentCondition ? `현재질환/주요증상: ${patient.currentCondition}` : null,
+    patient.mainNeeds ? `주요니즈: ${patient.mainNeeds}` : null,
+  ].filter((v): v is string => v !== null);
+  if (coreProfileParts.length > 0) parts.push(`[핵심프로필]\n${coreProfileParts.join("\n")}`);
+
+  const latestNote = consultationNotes[0];
+  if (latestNote) {
+    const text = latestNote.convertedChartText ?? latestNote.rawText;
+    parts.push(`[최신 상담노트(${latestNote.consultationType.name})]\n${text}`);
+  }
+
+  if (patientNotes.length > 0) {
+    parts.push(`[최근 메모]\n${patientNotes.map((n) => n.content).join("\n")}`);
+  }
+
+  return parts.length > 0 ? parts.join("\n\n") : null;
+}
 
 function formatSignedDiff(diff: number): string {
   const rounded = Math.round(diff * 10) / 10;
@@ -32,8 +89,11 @@ async function tryGenerateHrvCommentary(
   record: Pick<HrvTestRecord, "patientId" | "vascularHealthIndex" | "vascularHealthType" | "avgPulse" | "stressIndex">,
 ): Promise<string | null> {
   try {
-    const trend = await getHrvTrend(record.patientId);
-    const guide = await getExamAcademicGuide("HRV");
+    const [trend, guide, patientSymptomMaterial] = await Promise.all([
+      getHrvTrend(record.patientId),
+      getExamAcademicGuide("HRV"),
+      buildPatientSymptomMaterial(record.patientId),
+    ]);
     return await generateHrvExplanation({
       vascularHealthIndex: record.vascularHealthIndex,
       vascularHealthType: record.vascularHealthType,
@@ -41,6 +101,8 @@ async function tryGenerateHrvCommentary(
       stressIndex: record.stressIndex,
       trend,
       academicGuide: guide?.content ?? null,
+      tcmPatternMap: parseTcmPatternMap(guide?.tcmPatternMapJson),
+      patientSymptomMaterial,
     });
   } catch (err) {
     console.error("[hrv] AI 해설 생성 실패:", err);

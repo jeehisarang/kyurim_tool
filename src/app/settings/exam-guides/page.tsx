@@ -5,7 +5,24 @@ import styles from "./page.module.css";
 import BackButton from "@/components/BackButton";
 import { useCurrentUserContext } from "@/lib/CurrentUserContext";
 
-type ExamAcademicGuide = { examType: string; content: string; updatedAt: string } | null;
+type TcmPatternMapEntry = { symptoms: string; pattern: string; phrase: string };
+
+type ExamAcademicGuide = {
+  examType: string;
+  content: string;
+  tcmPatternMapJson: string | null;
+  updatedAt: string;
+} | null;
+
+function parseTcmPatternMap(json: string | null | undefined): TcmPatternMapEntry[] {
+  if (!json) return [];
+  try {
+    const parsed = JSON.parse(json);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
 
 const EXAM_TYPE_LABEL: Record<string, string> = { HRV: "자율신경맥파기(HRV)" };
 
@@ -21,6 +38,7 @@ export default function ExamGuidesSettingsPage() {
   const examType = "HRV";
   const [guide, setGuide] = useState<ExamAcademicGuide>(null);
   const [content, setContent] = useState("");
+  const [tcmRows, setTcmRows] = useState<TcmPatternMapEntry[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -32,9 +50,22 @@ export default function ExamGuidesSettingsPage() {
       .then((data: ExamAcademicGuide) => {
         setGuide(data);
         setContent(data?.content ?? "");
+        setTcmRows(parseTcmPatternMap(data?.tcmPatternMapJson));
         setLoaded(true);
       });
   }, []);
+
+  function updateTcmRow(index: number, field: keyof TcmPatternMapEntry, value: string) {
+    setTcmRows((rows) => rows.map((row, i) => (i === index ? { ...row, [field]: value } : row)));
+  }
+
+  function addTcmRow() {
+    setTcmRows((rows) => [...rows, { symptoms: "", pattern: "", phrase: "" }]);
+  }
+
+  function removeTcmRow(index: number) {
+    setTcmRows((rows) => rows.filter((_, i) => i !== index));
+  }
 
   async function handleSave() {
     if (!currentUser) return;
@@ -42,10 +73,11 @@ export default function ExamGuidesSettingsPage() {
     setSaveError(null);
     setSaved(false);
     try {
+      const validRows = tcmRows.filter((r) => r.symptoms.trim() && r.pattern.trim() && r.phrase.trim());
       const res = await fetch(`/api/exam-guides/${examType}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ staffUserId: currentUser.id, content }),
+        body: JSON.stringify({ staffUserId: currentUser.id, content, tcmPatternMap: validRows }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -53,6 +85,7 @@ export default function ExamGuidesSettingsPage() {
         return;
       }
       setGuide(data);
+      setTcmRows(parseTcmPatternMap(data.tcmPatternMapJson));
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
     } catch {
@@ -90,6 +123,47 @@ export default function ExamGuidesSettingsPage() {
               placeholder="예: 자율신경맥파기(HRV) 검사는 자율신경 균형과 혈관 탄성도를 측정하여..."
               rows={10}
             />
+            <div className={styles.tcmSectionTitle}>한의학적 가능성 매핑표</div>
+            <p className={styles.muted}>
+              증상 키워드가 실제 환자 기록과 관련 있을 때만 AI가 참고해서 "가능성 시사" 문구로
+              언급합니다 — 관련 증상이 없으면 억지로 끼워맞추지 않습니다.
+            </p>
+            {tcmRows.map((row, i) => (
+              <div key={i} className={styles.tcmRow}>
+                <input
+                  type="text"
+                  placeholder="증상 키워드 (예: 흉민, 한숨, 예민함)"
+                  value={row.symptoms}
+                  onChange={(e) => updateTcmRow(i, "symptoms", e.target.value)}
+                  disabled={!isDirector}
+                />
+                <input
+                  type="text"
+                  placeholder="패턴명 (예: 간기울결)"
+                  value={row.pattern}
+                  onChange={(e) => updateTcmRow(i, "pattern", e.target.value)}
+                  disabled={!isDirector}
+                />
+                <input
+                  type="text"
+                  placeholder="언급 문구 (예: 정서적 긴장과 기의 울체가 동반된 패턴 가능성)"
+                  value={row.phrase}
+                  onChange={(e) => updateTcmRow(i, "phrase", e.target.value)}
+                  disabled={!isDirector}
+                />
+                {isDirector && (
+                  <button type="button" className={styles.removeRowButton} onClick={() => removeTcmRow(i)}>
+                    삭제
+                  </button>
+                )}
+              </div>
+            ))}
+            {isDirector && (
+              <button type="button" className={styles.addRowButton} onClick={addTcmRow}>
+                + 패턴 추가
+              </button>
+            )}
+
             {guide && (
               <p className={styles.muted}>
                 마지막 수정: {new Date(guide.updatedAt).toLocaleString("ko-KR")}

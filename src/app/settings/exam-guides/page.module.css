@@ -87,3 +87,58 @@
   font-size: 13px;
   margin: 4px 0 0;
 }
+
+.tcmSectionTitle {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--color-celadon-dark);
+  margin: 20px 0 4px;
+}
+
+.tcmRow {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1.4fr auto;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.tcmRow input {
+  border: 1px solid rgba(110, 148, 140, 0.4);
+  border-radius: 4px;
+  background: var(--color-hanji-bg);
+  color: var(--color-ink);
+  padding: 6px 8px;
+  font-size: 13px;
+  font-family: var(--font-body);
+}
+
+.removeRowButton {
+  border: 1px solid var(--color-seal);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--color-seal);
+  padding: 0 10px;
+  font-size: 12px;
+  font-family: var(--font-body);
+  cursor: pointer;
+}
+
+.removeRowButton:hover {
+  background: rgba(179, 60, 46, 0.1);
+}
+
+.addRowButton {
+  border: 1px solid var(--color-celadon);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--color-celadon-dark);
+  padding: 5px 12px;
+  font-size: 13px;
+  font-family: var(--font-body);
+  cursor: pointer;
+  margin-bottom: 16px;
+}
+
+.addRowButton:hover {
+  background: rgba(110, 148, 140, 0.1);
+}

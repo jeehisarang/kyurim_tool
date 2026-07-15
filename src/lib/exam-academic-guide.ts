@@ -5,10 +5,14 @@ export async function getExamAcademicGuide(examType: string) {
   return prisma.examAcademicGuide.findUnique({ where: { examType } });
 }
 
-export async function upsertExamAcademicGuide(examType: string, content: string) {
+export async function upsertExamAcademicGuide(
+  examType: string,
+  content: string,
+  tcmPatternMapJson?: string | null,
+) {
   return prisma.examAcademicGuide.upsert({
     where: { examType },
-    update: { content },
-    create: { examType, content },
+    update: { content, ...(tcmPatternMapJson !== undefined ? { tcmPatternMapJson } : {}) },
+    create: { examType, content, tcmPatternMapJson: tcmPatternMapJson ?? null },
   });
 }

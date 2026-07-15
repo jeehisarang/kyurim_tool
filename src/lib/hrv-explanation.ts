@@ -1,36 +1,51 @@
 import OpenAI from "openai";
 import { assertOpenAiApiKeyConfigured } from "@/lib/ai-message";
+export { HRV_SAFETY_NOTICE } from "@/lib/hrv-constants";
 
 const MODEL = "gpt-4o-mini";
 
+export type TcmPatternMapEntry = { symptoms: string; pattern: string; phrase: string };
+
 /**
- * 자율신경맥파기(HRV) 검사 AI 해설 코멘트(task2.md) — exam-explanation.ts의 3원칙(실제
- * 수치 인용 강제/창작 금지/신중한 어조)을 그대로 따르되, 여기는 원장이 작성한 학술 근거
- * (ExamAcademicGuide)가 입력재료로 추가된다 — "재구성만 허용, 새 창작 금지" 원칙이 이
- * 학술 근거 텍스트에 적용된다. 학술 근거가 없으면(원장 미작성) 수치만으로 담백하게 작성.
+ * 자율신경맥파기(HRV) 검사 AI 코멘트(task.md 최종 통합본) — 4단 고정구조로 생성한다
+ * (①기기판독 ②임상적의미 ③생활관리 ④한의학적해석). 5단계 "안전 안내"는 AI가 만들지
+ * 않고 시스템이 고정 텍스트를 그대로 붙이므로(HRV_SAFETY_NOTICE, 아래 export) 여기서는
+ * 다루지 않는다. exam-explanation.ts의 3원칙(실제 수치 인용/창작 금지/신중한 어조)을
+ * 그대로 따르되, 학술 근거·한의학적 매핑표·환자 증상기록까지 재료로 추가했다.
  */
-const HRV_EXPLANATION_SYSTEM_PROMPT = `당신은 한의원에서 환자에게 검사 결과를 설명하는 원장을 돕는 카피라이터입니다.
-아래 입력재료(이 환자의 실제 측정값 + 원장이 작성한 학술 근거)를 바탕으로 환자 친화적인 짧은 해설 코멘트를 작성하세요.
-다른 텍스트 없이 해설 코멘트 본문만 출력하세요.
+const HRV_EXPLANATION_SYSTEM_PROMPT = `당신은 한의원에서 환자에게 HRV(자율신경맥파기) 검사 결과를 설명하는 원장을 돕는 카피라이터입니다.
+아래 입력재료를 바탕으로 반드시 4단 구조로 코멘트를 작성하세요. 소제목 없이 자연스러운
+문단으로 이어 쓰되, 단계 순서와 각 단계의 역할은 반드시 지키세요. 다른 텍스트 없이 코멘트
+본문만 출력하세요(안전 안내는 시스템이 별도로 붙이므로 여기서 쓰지 마세요).
+
+[4단 구조]
+1) 기기 판독 요약 — 이 환자의 실제 수치(혈관건강지수/혈관건강도/평균맥박/스트레스지수)를
+   있는 그대로 인용
+2) 임상적 의미 — "기기 기준상"이라는 표현을 명시하고, 혈관건강지수/혈관건강도/스트레스지수를
+   각각 별도 축으로 설명할 것. 확정형 진단 표현 대신 "~일 수 있습니다", "~가능성이 있습니다"
+   같은 신중한 어조를 유지할 것
+3) 생활관리 포인트 — [학술 근거]에 있는 내용만 근거로 재구성. 그 안에 없는 새로운 의학적
+   효능/통계를 창작하지 말 것. [학술 근거]가 "없음"이면 구체적 방법을 창작하지 말고 아주
+   짧고 담백하게만 쓸 것
+4) 한의학적 해석 — [환자 증상기록]과 [한의학적 매핑표]를 대조해서, 매핑표의 symptoms와
+   실제로 관련 있는 내용이 확인되면 그 pattern의 phrase를 자연스럽게 인용하며 "가능성을
+   시사합니다" 톤으로 언급하고, 반드시 "최종적인 변증은 문진·설진·맥진을 통해 확정됩니다"
+   같은 문구를 덧붙일 것. 관련 증상이 확인되지 않으면 특정 패턴을 절대 억지로 끼워맞추지
+   말고 "동반 증상을 함께 확인하면 더 정확한 판단이 가능합니다" 정도로 유보적으로 마무리할
+   것. [한의학적 매핑표]에 없는 새로운 한의학적 병증/변증명을 스스로 창작하지 말 것
 
 [핵심 원칙]
-1. 실제 수치 인용 강제 — 혈관건강지수/평균맥박/스트레스지수 등 이 환자의 실제 숫자를
-   반드시 하나 이상 그대로 언급할 것
-2. 학술 근거는 "재구성"만, "창작" 금지 — [학술 근거]가 주어졌다면 그 내용만 환자 친화적으로
-   풀어써서 반영하고, 거기 없는 새로운 의학적 효능/통계/기전을 스스로 만들어내지 말 것.
-   [학술 근거]가 "없음"이면 학술적 설명 없이 수치와 추이만으로 담백하게 작성할 것
-3. 신중한 어조 유지 — 확언 대신 "~일 수 있습니다", "~에 도움이 될 수 있습니다" 같은 신중한
-   표현을 쓸 것. 학술 근거에 이미 신중한 단서가 있다면 임의로 확신형으로 바꾸지 말 것
-4. 환자 친화적 어조 — 전문용어는 풀어서 설명하고, 2~4문장 이내로 짧게 쓸 것
-5. 수치가 안 좋아 보이는 경우에도 불안 조성 금지 — 있는 그대로 설명하되 다음 단계(재검/
-   생활습관 등)로 자연스럽게 이어지는 긍정적 톤을 유지할 것
-6. 직전 검사 대비 변화(추이)가 주어졌다면 자연스럽게 반영하되, 없다고 언급하거나 아쉬워
-   하지 말 것(첫 검사이거나 변화가 없을 수 있음)
+- 실제 수치 인용 강제, 창작 금지(학술 근거/매핑표에 없는 내용 만들어내지 않기)
+- 신중한 어조 유지(확정형으로 임의 전환 금지)
+- 관련성 없는 내용은 억지로 끼워넣지 않기
+- 직전 검사 대비 변화(추이)가 주어졌으면 자연스럽게 반영하되, 없다고 아쉬워하지 않기
 
 [자체검토 — 출력 전 스스로 점검]
-- 이 환자의 실제 수치를 하나 이상 그대로 인용했는가?
-- [학술 근거]에 없는 새로운 의학적 효능/통계/진단을 창작하지 않았는가?
-- 신중한 어조(~일 수 있습니다)를 유지했는가, 임의로 확신형으로 바꾸지 않았는가?
+- 4단 구조 순서를 그대로 지켰는가?
+- 이 환자의 실제 수치를 하나 이상 인용했는가?
+- [학술 근거]/[한의학적 매핑표]에 없는 내용을 창작하지 않았는가?
+- 한의학적 해석에서 관련 증상이 없는데 특정 패턴을 억지로 끼워맞추지 않았는가?
+- 관련 패턴을 언급했다면 "최종 변증은 문진·설진·맥진 후 확정" 취지 문구를 포함했는가?
 위 기준에 걸리면 반드시 고친 뒤 최종 코멘트만 출력하세요.`;
 
 export type HrvExplanationInput = {
@@ -42,17 +57,31 @@ export type HrvExplanationInput = {
   trend: string | null;
   // 원장 작성 학술 근거(ExamAcademicGuide.content) — 미작성이면 null.
   academicGuide: string | null;
+  // 원장 작성 한의학적 매핑표(ExamAcademicGuide.tcmPatternMapJson 파싱값) — 미작성이면 빈 배열.
+  tcmPatternMap: TcmPatternMapEntry[];
+  // 핵심프로필 + 최신 상담노트 + 최근 PatientNote를 하나로 조립한 텍스트(hrv.ts에서 구성) —
+  // 아무 재료도 없으면 null.
+  patientSymptomMaterial: string | null;
 };
+
+function formatTcmPatternMap(entries: TcmPatternMapEntry[]): string {
+  if (entries.length === 0) return "없음";
+  return entries
+    .map((e) => `- symptoms: ${e.symptoms} / pattern: ${e.pattern} / phrase: ${e.phrase}`)
+    .join("\n");
+}
 
 function buildUserMessage(input: HrvExplanationInput): string {
   return `[검사 종류] 자율신경맥파기(HRV) 검사
-[실제 측정값] 혈관건강지수 ${input.vascularHealthIndex}, 혈관건강도 ${input.vascularHealthType}, 평균맥박 ${input.avgPulse}, 스트레스지수 ${input.stressIndex}
+[실제 측정값] 혈관건강지수 ${input.vascularHealthIndex}, 혈관건강도 ${input.vascularHealthType}등급, 평균맥박 ${input.avgPulse}, 스트레스지수 ${input.stressIndex}
 [직전 검사 대비 변화] ${input.trend ?? "없음(첫 검사이거나 변화 없음)"}
-[학술 근거] ${input.academicGuide ?? "없음 — 수치만으로 담백하게 작성할 것"}`;
+[학술 근거] ${input.academicGuide ?? "없음 — 생활관리 포인트는 아주 짧고 담백하게만 작성할 것"}
+[한의학적 매핑표] ${formatTcmPatternMap(input.tcmPatternMap)}
+[환자 증상기록] ${input.patientSymptomMaterial ?? "없음 — 한의학적 해석은 유보적으로 마무리할 것"}`;
 }
 
 // 실패 시 그대로 throw한다 — 호출측(hrv.ts)이 "저장은 반드시 성공" 원칙에 맞춰 try/catch로
-// 감싸고 null로 대체하는 책임을 진다(exam-explanation.ts와 동일한 분리 원칙).
+// 감싸고 null로 대체하는 책임을 진다.
 export async function generateHrvExplanation(input: HrvExplanationInput): Promise<string> {
   assertOpenAiApiKeyConfigured();
   const client = new OpenAI();
@@ -63,7 +92,7 @@ export async function generateHrvExplanation(input: HrvExplanationInput): Promis
       { role: "system", content: HRV_EXPLANATION_SYSTEM_PROMPT },
       { role: "user", content: buildUserMessage(input) },
     ],
-    max_tokens: 200,
+    max_tokens: 500,
   });
 
   const text = response.choices[0]?.message?.content?.trim();
