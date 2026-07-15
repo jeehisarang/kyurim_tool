@@ -15,6 +15,7 @@ import {
   formatExamDate,
   gripAgeLabel,
   gripLabel,
+  hrvSummaryLabel,
   isSmiConcerning,
   rowKey,
   smiLabel,
@@ -24,16 +25,19 @@ import {
 
 const PAGE_SIZE = 10;
 
-type ExamTypeFilter = "ALL" | "BODY_COMPOSITION" | "STRENGTH_TEST";
+type ExamTypeFilter = "ALL" | "BODY_COMPOSITION" | "STRENGTH_TEST" | "HRV";
 
 const EXAM_TYPE_FILTER_TABS: { key: ExamTypeFilter; label: string }[] = [
   { key: "ALL", label: "전체보기" },
   { key: "BODY_COMPOSITION", label: "인바디" },
   { key: "STRENGTH_TEST", label: "근력검사" },
+  { key: "HRV", label: "자율신경맥파(HRV)" },
 ];
 
 function isExamTypeFilter(value: string | null): value is ExamTypeFilter {
-  return value === "ALL" || value === "BODY_COMPOSITION" || value === "STRENGTH_TEST";
+  return (
+    value === "ALL" || value === "BODY_COMPOSITION" || value === "STRENGTH_TEST" || value === "HRV"
+  );
 }
 
 export default function ExaminationListPage() {
@@ -66,9 +70,6 @@ function ExaminationListPageInner() {
     if (!rows) return [];
     const q = patientFilter.trim();
     return rows.filter((r) => {
-      // HRV는 이 화면(인바디/근력검사 전용 컬럼 구조)과 별개로 /examinations/patient/[id]
-      // 통합 타임라인에서만 노출한다(task2.md 범위) — 여기 표/필터탭에는 없음.
-      if (r.examType === "HRV") return false;
       if (examTypeFilter !== "ALL" && r.examType !== examTypeFilter) return false;
       if (q && !r.patient.name.includes(q) && !r.patient.chartNumber.includes(q)) return false;
       return true;
@@ -113,6 +114,13 @@ function ExaminationListPageInner() {
   }
 
   function goToDetail(row: ExaminationRow) {
+    // HRV는 [examType]/[id](인바디/근력검사 전용 구조) 대신 별도 정적 라우트
+    // /examinations/hrv/[id](원장 확인 화면)로 간다 — /api/examinations/[examType]/[id]가
+    // HRV를 지원하지 않아 그대로 붙이면 400이 난다(task2.md).
+    if (row.examType === "HRV") {
+      router.push(`/examinations/hrv/${row.id}`);
+      return;
+    }
     // 현재 검색/필터/페이지 상태를 함께 실어 보내 상세보기의 "← 검사 목록"이
     // 정확히 이 상태로 복귀할 수 있게 한다.
     const from = currentQueryString ? `?from=${encodeURIComponent(currentQueryString)}` : "";
@@ -173,6 +181,7 @@ function ExaminationListPageInner() {
                   <th>SMI(판정)</th>
                   <th>악력(판정)</th>
                   <th>근력나이(추이)</th>
+                  <th>HRV 요약</th>
                   <th>측정자</th>
                 </tr>
               </thead>
@@ -217,6 +226,7 @@ function ExaminationListPageInner() {
                         {gripAgeLabel(row)}
                         {trend && ` (${GRIP_AGE_TREND_LABEL[trend]})`}
                       </td>
+                      <td>{hrvSummaryLabel(row)}</td>
                       <td>{row.staffUserName}</td>
                     </tr>
                   );
