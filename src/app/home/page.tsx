@@ -18,12 +18,9 @@ import TodoTaskTable, {
 import ExamButton from "@/components/ExamButton";
 import ProgramBadge from "@/components/ProgramBadge";
 import { getCurrentUserId } from "@/lib/currentUser";
+import { useActivePrescriptionsByPatient } from "@/lib/useActivePrescriptionsByPatient";
 
 type TreatmentCategory = { id: number; name: string };
-type ActivePrescriptionGroup = {
-  patient: { id: number };
-  prescriptions: { program: { id: number; name: string } }[];
-};
 type VisitType = { id: number; name: string };
 type StaffUser = { id: number; name: string; role: string };
 type VisitRecord = {
@@ -135,27 +132,12 @@ function HomePageInner() {
   const [staffUsers, setStaffUsers] = useState<StaffUser[]>([]);
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   // 환자별 진행중 치료처방 배지 표시용 — /prescriptions 목록과 동일한 데이터 재사용.
-  const [activePrescByPatientId, setActivePrescByPatientId] = useState<
-    Map<number, { id: number; name: string }[]>
-  >(new Map());
+  const activePrescByPatientId = useActivePrescriptionsByPatient();
 
   useEffect(() => {
     fetch("/api/staff-users")
       .then((res) => res.json())
       .then(setStaffUsers);
-
-    fetch("/api/prescriptions/list")
-      .then((res) => res.json())
-      .then((groups: ActivePrescriptionGroup[]) => {
-        const map = new Map<number, { id: number; name: string }[]>();
-        for (const g of groups) {
-          map.set(
-            g.patient.id,
-            g.prescriptions.map((p) => p.program),
-          );
-        }
-        setActivePrescByPatientId(map);
-      });
   }, []);
 
   // 공지사항은 화면에서 넘겨보는 selectedDate와 무관하게 항상 실제 "오늘" 기준으로
@@ -543,7 +525,11 @@ function HomePageInner() {
                         </Link>
                         {(activePrescByPatientId.get(v.patient.id) ?? []).map((program) => (
                           <span key={program.id} className={styles.inlineBadge}>
-                            <ProgramBadge id={program.id} name={program.name} />
+                            <ProgramBadge
+                              id={program.id}
+                              name={program.name}
+                              onClick={() => router.push(`/prescriptions/${program.prescriptionId}`)}
+                            />
                           </span>
                         ))}
                       </td>

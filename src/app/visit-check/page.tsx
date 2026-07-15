@@ -2,7 +2,7 @@
 
 import { Fragment, Suspense, useEffect, useState } from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import styles from "./page.module.css";
 import BackButton from "@/components/BackButton";
 import ExamButton from "@/components/ExamButton";
@@ -13,11 +13,7 @@ import CategoryBadge from "@/components/CategoryBadge";
 import VisitTypeTag from "@/components/VisitTypeTag";
 import ProgramBadge from "@/components/ProgramBadge";
 import { getCurrentUserId } from "@/lib/currentUser";
-
-type ActivePrescriptionGroup = {
-  patient: { id: number };
-  prescriptions: { program: { id: number; name: string } }[];
-};
+import { useActivePrescriptionsByPatient } from "@/lib/useActivePrescriptionsByPatient";
 
 type Patient = { id: number; chartNumber: string; name: string };
 type TreatmentCategory = { id: number; name: string };
@@ -77,6 +73,7 @@ export default function VisitCheckPage() {
 }
 
 function VisitCheckPageInner() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const [selectedDate, setSelectedDate] = useState(() => parseDateParam(searchParams.get("date")));
 
@@ -110,9 +107,7 @@ function VisitCheckPageInner() {
   const [currentUserId, setCurrentUserIdState] = useState<number | null>(null);
   const [expandedNotePatientId, setExpandedNotePatientId] = useState<number | null>(null);
   // 환자별 진행중 치료처방 배지 표시용 — /prescriptions 목록과 동일한 데이터 재사용.
-  const [activePrescByPatientId, setActivePrescByPatientId] = useState<
-    Map<number, { id: number; name: string }[]>
-  >(new Map());
+  const activePrescByPatientId = useActivePrescriptionsByPatient();
 
   const [editingVisitId, setEditingVisitId] = useState<number | null>(null);
   const [editVisitCategoryId, setEditVisitCategoryId] = useState("");
@@ -135,19 +130,6 @@ function VisitCheckPageInner() {
     fetch("/api/staff-users")
       .then((res) => res.json())
       .then(setStaffUsers);
-
-    fetch("/api/prescriptions/list")
-      .then((res) => res.json())
-      .then((groups: ActivePrescriptionGroup[]) => {
-        const map = new Map<number, { id: number; name: string }[]>();
-        for (const g of groups) {
-          map.set(
-            g.patient.id,
-            g.prescriptions.map((p) => p.program),
-          );
-        }
-        setActivePrescByPatientId(map);
-      });
   }, []);
 
   useEffect(() => {
@@ -559,7 +541,11 @@ function VisitCheckPageInner() {
                       </Link>
                       {(activePrescByPatientId.get(v.patient.id) ?? []).map((program) => (
                         <span key={program.id} className={styles.inlineBadge}>
-                          <ProgramBadge id={program.id} name={program.name} />
+                          <ProgramBadge
+                            id={program.id}
+                            name={program.name}
+                            onClick={() => router.push(`/prescriptions/${program.prescriptionId}`)}
+                          />
                         </span>
                       ))}
                     </td>
