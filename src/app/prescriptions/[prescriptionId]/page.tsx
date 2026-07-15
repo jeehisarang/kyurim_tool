@@ -12,7 +12,13 @@ import {
   PROGRAM_CATEGORY_ICON,
 } from "@/lib/program-categories";
 
-type RoundEntry = { round: number; dueDate: string; isDone: boolean; completedAt: string | null };
+type RoundEntry = {
+  round: number;
+  dueDate: string;
+  isDone: boolean;
+  completedAt: string | null;
+  isOverridden: boolean;
+};
 type EventEntry = {
   taskType: string;
   dueDate: string;
@@ -91,6 +97,11 @@ export default function PrescriptionDetailPage() {
   const [editSaving, setEditSaving] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
 
+  const [editingRound, setEditingRound] = useState<number | null>(null);
+  const [roundOverrideDate, setRoundOverrideDate] = useState("");
+  const [roundOverrideSaving, setRoundOverrideSaving] = useState(false);
+  const [roundOverrideError, setRoundOverrideError] = useState<string | null>(null);
+
   function refresh() {
     fetch(`/api/prescriptions/${prescriptionId}`)
       .then((res) => (res.ok ? res.json() : Promise.reject(res)))
@@ -140,6 +151,57 @@ export default function PrescriptionDetailPage() {
       setEditError("서버에 연결하지 못했습니다. 다시 시도해주세요.");
     } finally {
       setEditSaving(false);
+    }
+  }
+
+  function startRoundEdit(round: RoundEntry) {
+    setEditingRound(round.round);
+    setRoundOverrideDate(toDateInputValue(round.dueDate));
+    setRoundOverrideError(null);
+  }
+
+  function cancelRoundEdit() {
+    setEditingRound(null);
+    setRoundOverrideError(null);
+  }
+
+  async function saveRoundOverride(round: number) {
+    setRoundOverrideSaving(true);
+    setRoundOverrideError(null);
+    try {
+      const res = await fetch(`/api/prescriptions/${prescriptionId}/rounds/${round}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ overrideDate: roundOverrideDate }),
+      });
+      const result = await res.json();
+      if (!res.ok) {
+        setRoundOverrideError(result.error ?? "수정에 실패했습니다.");
+        return;
+      }
+      setEditingRound(null);
+      setData(result);
+    } catch {
+      setRoundOverrideError("서버에 연결하지 못했습니다. 다시 시도해주세요.");
+    } finally {
+      setRoundOverrideSaving(false);
+    }
+  }
+
+  async function resetRoundOverride(round: number) {
+    try {
+      const res = await fetch(`/api/prescriptions/${prescriptionId}/rounds/${round}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reset: true }),
+      });
+      if (!res.ok) {
+        alert("되돌리기에 실패했습니다. 다시 시도해주세요.");
+        return;
+      }
+      setData(await res.json());
+    } catch {
+      alert("서버에 연결하지 못했습니다. 다시 시도해주세요.");
     }
   }
 
@@ -278,19 +340,64 @@ export default function PrescriptionDetailPage() {
                 <th>예정일</th>
                 <th>완료여부</th>
                 <th>완료일</th>
+                {data.status === "ACTIVE" && <th>관리</th>}
               </tr>
             </thead>
             <tbody>
               {data.rounds.map((r) => (
                 <tr key={r.round}>
                   <td>{r.round}차</td>
-                  <td className={styles.mono}>{formatDate(r.dueDate)}</td>
+                  <td className={styles.mono}>
+                    {editingRound === r.round ? (
+                      <input
+                        type="date"
+                        value={roundOverrideDate}
+                        onChange={(e) => setRoundOverrideDate(e.target.value)}
+                      />
+                    ) : (
+                      <>
+                        {formatDate(r.dueDate)}
+                        {r.isOverridden && <span className={styles.overriddenBadge}>수정됨</span>}
+                      </>
+                    )}
+                  </td>
                   <td>{r.isDone ? "완료" : "예정"}</td>
                   <td className={styles.mono}>{r.completedAt ? formatDate(r.completedAt) : "-"}</td>
+                  {data.status === "ACTIVE" && (
+                    <td>
+                      {r.isDone ? null : editingRound === r.round ? (
+                        <div className={styles.roundEditActions}>
+                          <button
+                            type="button"
+                            className={styles.actionButton}
+                            onClick={() => saveRoundOverride(r.round)}
+                            disabled={roundOverrideSaving}
+                          >
+                            저장
+                          </button>
+                          <button type="button" className={styles.actionButton} onClick={cancelRoundEdit}>
+                            취소
+                          </button>
+                        </div>
+                      ) : (
+                        <div className={styles.roundEditActions}>
+                          <button type="button" className={styles.actionButton} onClick={() => startRoundEdit(r)}>
+                            날짜 수정
+                          </button>
+                          {r.isOverridden && (
+                            <button type="button" className={styles.actionButton} onClick={() => resetRoundOverride(r.round)}>
+                              되돌리기
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>
           </table>
+          {roundOverrideError && <p className={styles.errorText}>{roundOverrideError}</p>}
         </div>
       )}
 

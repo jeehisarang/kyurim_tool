@@ -100,8 +100,13 @@ function startOfDay(date: Date): Date {
 // SPLIT 타입 처방을 과거 startDate로 소급 등록(또는 startDate 수정)할 때, 오늘까지
 // 경과한 간격 수만큼 currentRound를 미리 진행시켜서 직원이 지난 라운드를 하나하나
 // "완료" 클릭하지 않아도 되게 한다 — 다음 회차 TodoTask 1건만 정확한 예정일로 생성.
-// (등록 당일 = referenceDate = startDate인 기존 흐름에서는 elapsedRounds=0이라
-// currentRound=1, nextDueDate=start+interval로 기존 동작과 동일하게 귀결된다.)
+//
+// 1차 = 등록일(startDate) 당일 이미 처방을 받은 것으로 간주해 자동완료 처리한다
+// (task.md 회차계산 버그 수정 — 예전에는 등록일+간격을 1차로 계산해 전체 스케줄이
+// 한 텀씩 밀리면서 총기간을 초과했다). 그래서 액션이 필요한 "현재 회차"는 항상
+// 2차부터 시작하고, N차 예정일은 start+(N-1)*간격이다. (등록 당일 = referenceDate =
+// startDate인 기본 흐름에서는 elapsedRounds=0이라 currentRound=2, nextDueDate=
+// start+간격로 귀결된다.)
 export function computeSplitSchedule(
   startDate: Date,
   splitIntervalDays: number,
@@ -112,7 +117,7 @@ export function computeSplitSchedule(
     (startOfDay(referenceDate).getTime() - startOfDay(startDate).getTime()) / (1000 * 60 * 60 * 24),
   );
   const elapsedRounds = Math.max(0, Math.floor(elapsedDays / splitIntervalDays));
-  const rawRound = 1 + elapsedRounds;
+  const rawRound = 2 + elapsedRounds;
 
   if (rawRound > totalRounds) {
     return { currentRound: totalRounds, nextDueDate: null, isCompleted: true };
@@ -120,7 +125,7 @@ export function computeSplitSchedule(
 
   return {
     currentRound: rawRound,
-    nextDueDate: addDays(startDate, rawRound * splitIntervalDays),
+    nextDueDate: addDays(startDate, (rawRound - 1) * splitIntervalDays),
     isCompleted: false,
   };
 }
@@ -303,12 +308,20 @@ export async function completeTodoTask(taskId: number, doneByUserId: number) {
         data: { currentRound: nextRound },
       });
 
+      // 다음 회차 예정일은 항상 등록일 기준 계산값(start+(nextRound-1)*간격)에서
+      // 출발한다 — 이전 회차의 override가 있어도 그 뒤 회차로 연쇄되지 않게 하기 위함
+      // (task.md: "수정한 회차만 바뀌고 나머지는 원래 계산대로 유지"). 직원이 그 회차에
+      // 직접 지정해둔 수동 조정 날짜(PrescriptionRoundOverride)가 있으면 그 값을 대신 쓴다.
+      const override = await prisma.prescriptionRoundOverride.findUnique({
+        where: { prescriptionId_roundNumber: { prescriptionId: prescription.id, roundNumber: nextRound } },
+      });
+      const calculatedDueDate = addDays(prescription.startDate, (nextRound - 1) * (program.splitIntervalDays ?? 14));
+
       await prisma.todoTask.create({
         data: {
           prescriptionId: prescription.id,
           taskType: TASK_TYPE_NEXT_DOSE,
-          // NEXT_DOSE는 WORK와 달리 항상 dueDate가 채워지는 체크형 타입이라 non-null 단언.
-          dueDate: addDays(task.dueDate!, program.splitIntervalDays ?? 14),
+          dueDate: override?.overrideDate ?? calculatedDueDate,
           staffUserId: task.staffUserId,
         },
       });
@@ -326,6 +339,7 @@ export type PrescriptionRoundEntry = {
   dueDate: Date;
   isDone: boolean;
   completedAt: Date | null;
+  isOverridden: boolean;
 };
 
 export type PrescriptionEventEntry = {
@@ -366,10 +380,15 @@ export type PrescriptionDetail = {
   taskHistory: PrescriptionTaskHistoryEntry[];
 };
 
-// SPLIT 타입 회차 리스트 재구성. 소급 등록으로 인해 currentRound가 곧바로 앞당겨진
-// 초창기 라운드(1 ~ 최초 TodoTask 생성 시점의 currentRound-1)는 실제 TodoTask 기록이
-// 없으므로 완료일은 알 수 없다(completedAt=null) — 나머지는 실제 NEXT_DOSE TodoTask의
-// dueDate로 라운드 번호를 역산해 매칭하고 doneAt을 완료일로 사용한다.
+// SPLIT 타입 회차 리스트 재구성. 1차는 등록일 당일 처방을 이미 받은 것으로 간주해
+// 항상 자동완료 처리한다(computeSplitSchedule과 동일한 회차계산 원칙 — task.md
+// 버그 수정). 실제 TodoTask가 있는 회차는 그 TodoTask의 dueDate를 그대로 표시한다
+// ("오늘 할 일" 화면과 상세페이지가 절대 어긋나지 않도록 — task.md 2단계 요구사항).
+// 미완료 TodoTask는 체인 구조상 항상 currentRound 1건만 존재하므로 그대로 매칭하고,
+// 완료된 TodoTask는 dueDate로 라운드 번호를 역산해 매칭한다. 소급 등록으로
+// currentRound가 곧바로 앞당겨져 실제 TodoTask 기록이 없는 초창기 회차는 완료일을
+// 알 수 없다(completedAt=null). 아직 TodoTask가 생성되지 않은 미래 회차만 override
+// 또는 계산값으로 미리보기 예정일을 보여준다.
 function buildSplitRounds(input: {
   startDate: Date;
   splitIntervalDays: number;
@@ -377,30 +396,39 @@ function buildSplitRounds(input: {
   currentRound: number;
   status: string;
   nextDoseTasks: { dueDate: Date | null; isDone: boolean; doneAt: Date | null }[];
+  overrides: Map<number, Date>;
 }): PrescriptionRoundEntry[] {
   const start = startOfDay(input.startDate);
-  const taskByRound = new Map<number, { isDone: boolean; doneAt: Date | null }>();
+  const taskByRound = new Map<number, { dueDate: Date; isDone: boolean; doneAt: Date | null }>();
   for (const task of input.nextDoseTasks) {
     if (!task.dueDate) continue;
+    if (!task.isDone) {
+      taskByRound.set(input.currentRound, { dueDate: task.dueDate, isDone: false, doneAt: null });
+      continue;
+    }
     const elapsedDays = Math.round((startOfDay(task.dueDate).getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
-    const round = Math.round(elapsedDays / input.splitIntervalDays);
-    if (round >= 1 && round <= input.totalRounds) {
-      taskByRound.set(round, { isDone: task.isDone, doneAt: task.doneAt });
+    const round = Math.round(elapsedDays / input.splitIntervalDays) + 1;
+    if (round >= 2 && round <= input.totalRounds) {
+      taskByRound.set(round, { dueDate: task.dueDate, isDone: true, doneAt: task.doneAt });
     }
   }
 
-  const rounds: PrescriptionRoundEntry[] = [];
-  for (let n = 1; n <= input.totalRounds; n++) {
-    const dueDate = addDays(input.startDate, n * input.splitIntervalDays);
+  const rounds: PrescriptionRoundEntry[] = [
+    { round: 1, dueDate: input.startDate, isDone: true, completedAt: input.startDate, isOverridden: false },
+  ];
+  for (let n = 2; n <= input.totalRounds; n++) {
+    const override = input.overrides.get(n);
     const matched = taskByRound.get(n);
     if (matched) {
-      rounds.push({ round: n, dueDate, isDone: matched.isDone, completedAt: matched.doneAt });
+      rounds.push({ round: n, dueDate: matched.dueDate, isDone: matched.isDone, completedAt: matched.doneAt, isOverridden: Boolean(override) });
     } else {
+      const dueDate = override ?? addDays(input.startDate, (n - 1) * input.splitIntervalDays);
       rounds.push({
         round: n,
         dueDate,
         isDone: n < input.currentRound || input.status === STATUS_COMPLETED,
         completedAt: null,
+        isOverridden: Boolean(override),
       });
     }
   }
@@ -459,6 +487,8 @@ export async function getPrescriptionDetail(prescriptionId: number): Promise<Pre
   let events: PrescriptionEventEntry[] | null = null;
 
   if (program.type === PROGRAM_TYPE_SPLIT && prescription.totalRounds != null && prescription.currentRound != null) {
+    const overrideRows = await prisma.prescriptionRoundOverride.findMany({ where: { prescriptionId } });
+    const overrides = new Map(overrideRows.map((o) => [o.roundNumber, o.overrideDate]));
     rounds = buildSplitRounds({
       startDate: prescription.startDate,
       splitIntervalDays: program.splitIntervalDays ?? 14,
@@ -468,6 +498,7 @@ export async function getPrescriptionDetail(prescriptionId: number): Promise<Pre
       nextDoseTasks: tasks
         .filter((t) => t.taskType === TASK_TYPE_NEXT_DOSE)
         .map((t) => ({ dueDate: t.dueDate, isDone: t.isDone, doneAt: t.doneAt })),
+      overrides,
     });
   } else if (program.type === PROGRAM_TYPE_FIXED_SEQUENCE_ROW) {
     events = await buildFixedSequenceEvents(prescriptionId, program.id, prescription.startDate);
@@ -480,6 +511,7 @@ export async function getPrescriptionDetail(prescriptionId: number): Promise<Pre
       dueDate,
       isDone: followUpTask?.isDone ?? false,
       completedAt: followUpTask?.doneAt ?? null,
+      isOverridden: false,
     };
   }
 
@@ -513,4 +545,88 @@ export async function getPrescriptionDetail(prescriptionId: number): Promise<Pre
     events,
     taskHistory,
   };
+}
+
+export type RoundOverrideResult = { ok: true } | { ok: false; error: string };
+
+/**
+ * 회차별 예정일 수동 조정(task.md 2단계) — 완료된 회차는 수정 불가, 수정한 회차만
+ * 바뀌고 나머지 회차는 원래 계산대로 유지된다(연쇄 재계산 없음). currentRound에
+ * 해당하는 회차는 실제로 대기 중인 NEXT_DOSE TodoTask가 있으므로 그 dueDate도 함께
+ * 갱신한다 — 그보다 미래 회차는 아직 TodoTask가 없어 completeTodoTask가 체인을
+ * 이어갈 때 이 override를 조회해서 반영한다.
+ */
+export async function setPrescriptionRoundOverride(
+  prescriptionId: number,
+  roundNumber: number,
+  overrideDate: Date,
+): Promise<RoundOverrideResult> {
+  const prescription = await prisma.prescription.findUnique({
+    where: { id: prescriptionId },
+    include: { program: true },
+  });
+  if (!prescription) return { ok: false, error: "치료처방을 찾을 수 없습니다." };
+  if (prescription.program.type !== PROGRAM_TYPE_SPLIT) {
+    return { ok: false, error: "회차 날짜 수정은 SPLIT 타입 처방에서만 가능합니다." };
+  }
+  if (prescription.status !== STATUS_ACTIVE) {
+    return { ok: false, error: "진행중인 처방만 회차 날짜를 수정할 수 있습니다." };
+  }
+  const { totalRounds, currentRound } = prescription;
+  if (totalRounds == null || currentRound == null) {
+    return { ok: false, error: "회차 정보가 없는 처방입니다." };
+  }
+  if (roundNumber < 2 || roundNumber > totalRounds) {
+    return { ok: false, error: "수정할 수 없는 회차입니다." };
+  }
+  if (roundNumber < currentRound) {
+    return { ok: false, error: "이미 완료된 회차는 수정할 수 없습니다." };
+  }
+
+  await prisma.prescriptionRoundOverride.upsert({
+    where: { prescriptionId_roundNumber: { prescriptionId, roundNumber } },
+    update: { overrideDate },
+    create: { prescriptionId, roundNumber, overrideDate },
+  });
+
+  if (roundNumber === currentRound) {
+    const pendingTask = await prisma.todoTask.findFirst({
+      where: { prescriptionId, taskType: TASK_TYPE_NEXT_DOSE, isDone: false },
+    });
+    if (pendingTask) {
+      await prisma.todoTask.update({ where: { id: pendingTask.id }, data: { dueDate: overrideDate } });
+    }
+  }
+
+  return { ok: true };
+}
+
+/** 수동 조정한 회차를 계산값으로 되돌린다. */
+export async function resetPrescriptionRoundOverride(
+  prescriptionId: number,
+  roundNumber: number,
+): Promise<RoundOverrideResult> {
+  const prescription = await prisma.prescription.findUnique({
+    where: { id: prescriptionId },
+    include: { program: true },
+  });
+  if (!prescription) return { ok: false, error: "치료처방을 찾을 수 없습니다." };
+  if (prescription.program.type !== PROGRAM_TYPE_SPLIT) {
+    return { ok: false, error: "회차 날짜 수정은 SPLIT 타입 처방에서만 가능합니다." };
+  }
+
+  await prisma.prescriptionRoundOverride.deleteMany({ where: { prescriptionId, roundNumber } });
+
+  if (roundNumber === prescription.currentRound) {
+    const splitIntervalDays = prescription.program.splitIntervalDays ?? 14;
+    const calculatedDueDate = addDays(prescription.startDate, (roundNumber - 1) * splitIntervalDays);
+    const pendingTask = await prisma.todoTask.findFirst({
+      where: { prescriptionId, taskType: TASK_TYPE_NEXT_DOSE, isDone: false },
+    });
+    if (pendingTask) {
+      await prisma.todoTask.update({ where: { id: pendingTask.id }, data: { dueDate: calculatedDueDate } });
+    }
+  }
+
+  return { ok: true };
 }

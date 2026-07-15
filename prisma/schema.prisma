@@ -169,6 +169,23 @@ model Prescription {
   todoTasks              TodoTask[]
   bodyCompositionRecords BodyCompositionRecord[]
   strengthTestRecords    StrengthTestRecord[]
+  roundOverrides         PrescriptionRoundOverride[]
+}
+
+// SPLIT 타입 처방의 회차별 예정일을 직원이 개별 수동 조정한 값 — roundNumber당 최대
+// 1건, 있으면 computeSplitSchedule 계산값 대신 이 날짜를 쓴다. 실사용 중 환자가 정확히
+// 2주 간격으로 안 오는 경우가 흔해서(task.md) 도입 — 수정한 회차 하나만 바뀌고
+// 앞뒤 다른 회차는 원래 계산대로 유지되는 것이 핵심(연쇄 재계산 없음).
+model PrescriptionRoundOverride {
+  id             Int          @id @default(autoincrement())
+  prescriptionId Int
+  prescription   Prescription @relation(fields: [prescriptionId], references: [id])
+  roundNumber    Int
+  overrideDate   DateTime
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@unique([prescriptionId, roundNumber])
 }
 
 // 13-6 검사: 인바디(체성분) 기록. 핵심 입력은 체중/체지방율/WHR 3개이고, 사지골격근량
