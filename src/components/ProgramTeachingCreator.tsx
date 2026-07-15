@@ -194,7 +194,8 @@ export default function ProgramTeachingCreator({
 
   async function handleCopyLink() {
     if (!created) return;
-    const url = `${window.location.origin}/p/${created.token}`;
+    const baseUrl = process.env.NEXT_PUBLIC_SHARE_BASE_URL || window.location.origin;
+    const url = `${baseUrl}/p/${created.token}`;
     const success = await copyToClipboard(url);
     if (!success) {
       alert("복사에 실패했습니다. 링크를 직접 선택해서 복사해주세요.");

@@ -48,6 +48,9 @@ export async function POST(request: Request) {
   const stressIndex = toNumber(formData.get("stressIndex"));
   const driveFileId = formData.get("driveFileId");
   const imageFile = formData.get("image");
+  // 2페이지(상세결과) — 기기 리포트가 항상 2장이라 선택적으로 함께 받는다(task.md).
+  const driveFileId2 = formData.get("driveFileId2");
+  const imageFile2 = formData.get("image2");
 
   if (!patientId || !staffUserId) {
     return NextResponse.json({ error: "환자와 담당자를 선택하세요." }, { status: 400 });
@@ -82,6 +85,19 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "결과지 이미지를 선택하거나 구글드라이브에서 가져오세요." }, { status: 400 });
   }
 
+  // 2페이지는 선택사항 — 없어도 등록 자체는 진행한다(과거 1장짜리 관행과 동일하게 허용).
+  let imageBuffer2: Buffer | null = null;
+  if (typeof driveFileId2 === "string" && driveFileId2) {
+    try {
+      imageBuffer2 = await downloadDriveFileBuffer(driveFileId2);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "구글드라이브에서 2페이지 결과지를 가져오지 못했습니다.";
+      return NextResponse.json({ error: message }, { status: 502 });
+    }
+  } else if (imageFile2 instanceof File && imageFile2.size > 0) {
+    imageBuffer2 = Buffer.from(await imageFile2.arrayBuffer());
+  }
+
   try {
     const record = await createHrvTestRecord({
       patientId,
@@ -91,6 +107,7 @@ export async function POST(request: Request) {
       avgPulse,
       stressIndex,
       imageBuffer,
+      imageBuffer2,
       measuredByStaffId: staffUserId,
     });
     return NextResponse.json(record, { status: 201 });

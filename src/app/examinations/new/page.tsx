@@ -8,6 +8,7 @@ import BackButton from "@/components/BackButton";
 import NewPatientForm from "@/components/NewPatientForm";
 import HrvImportModal, { type HrvDriveFile } from "@/components/HrvImportModal";
 import { getCurrentUserId } from "@/lib/currentUser";
+import { openPatientViewPopup, HRV_PATIENT_VIEW_POPUP_SIZE } from "@/lib/patient-view-popup";
 import {
   computeSmi,
   computeBmi,
@@ -152,10 +153,16 @@ function NewExaminationPageInner() {
 
   // HRV(자율신경맥파기) 입력 — 기기가 이미 판정까지 끝낸 결과지 이미지 + 핵심 수치 4개만
   // 옮겨 적는다(task2.md). 이미지는 구글드라이브 가져오기 또는 직접 파일 선택 둘 다 지원.
+  // 기기 리포트는 항상 2장(1p 요약/2p 상세)이라 두 슬롯을 각각 관리한다(task.md 1번) —
+  // 2페이지는 선택사항이라 비워도 등록 가능.
   const [hrvImageFile, setHrvImageFile] = useState<File | null>(null);
   const [hrvDriveFileId, setHrvDriveFileId] = useState<string | null>(null);
   const [hrvImagePreviewUrl, setHrvImagePreviewUrl] = useState<string | null>(null);
-  const [showHrvImportModal, setShowHrvImportModal] = useState(false);
+  const [hrvImageFile2, setHrvImageFile2] = useState<File | null>(null);
+  const [hrvDriveFileId2, setHrvDriveFileId2] = useState<string | null>(null);
+  const [hrvImagePreviewUrl2, setHrvImagePreviewUrl2] = useState<string | null>(null);
+  // 어느 슬롯을 채우는 중인지(1페이지/2페이지) — 모달 하나를 공유하고 선택 결과만 분기한다.
+  const [hrvImportTarget, setHrvImportTarget] = useState<1 | 2 | null>(null);
   const [vascularHealthIndex, setVascularHealthIndex] = useState("");
   const [vascularHealthType, setVascularHealthType] = useState("");
   const [avgPulse, setAvgPulse] = useState("");
@@ -269,6 +276,10 @@ function NewExaminationPageInner() {
     setHrvImageFile(null);
     setHrvDriveFileId(null);
     setHrvImagePreviewUrl(null);
+    setHrvImageFile2(null);
+    setHrvDriveFileId2(null);
+    setHrvImagePreviewUrl2(null);
+    setHrvImportTarget(null);
     setVascularHealthIndex("");
     setVascularHealthType("");
     setAvgPulse("");
@@ -281,14 +292,29 @@ function NewExaminationPageInner() {
     setHrvImagePreviewUrl(file ? URL.createObjectURL(file) : null);
   }
 
+  function handleHrvFileSelect2(file: File | null) {
+    setHrvImageFile2(file);
+    setHrvDriveFileId2(null);
+    setHrvImagePreviewUrl2(file ? URL.createObjectURL(file) : null);
+  }
+
+  // 구글드라이브 모달은 슬롯(1페이지/2페이지) 하나를 공유하고, 어느 버튼으로 열었는지에
+  // 따라 선택 결과를 해당 슬롯에 반영한다(task.md 1번). 환자 자동매칭은 1페이지 선택
+  // 시에만 적용한다 — 기존 동작 그대로 유지.
   function handleHrvDriveSelect(file: HrvDriveFile) {
-    setHrvImageFile(null);
-    setHrvDriveFileId(file.id);
-    setHrvImagePreviewUrl(file.thumbnailLink);
-    setShowHrvImportModal(false);
-    if (file.matchedPatient) {
-      selectPatient({ ...file.matchedPatient, height: null, gender: null });
+    if (hrvImportTarget === 2) {
+      setHrvImageFile2(null);
+      setHrvDriveFileId2(file.id);
+      setHrvImagePreviewUrl2(file.thumbnailLink);
+    } else {
+      setHrvImageFile(null);
+      setHrvDriveFileId(file.id);
+      setHrvImagePreviewUrl(file.thumbnailLink);
+      if (file.matchedPatient) {
+        selectPatient({ ...file.matchedPatient, height: null, gender: null });
+      }
     }
+    setHrvImportTarget(null);
   }
 
   const activePrescriptions = useMemo(
@@ -369,6 +395,8 @@ function NewExaminationPageInner() {
     formData.set("stressIndex", String(stress));
     if (hrvImageFile) formData.set("image", hrvImageFile);
     if (hrvDriveFileId) formData.set("driveFileId", hrvDriveFileId);
+    if (hrvImageFile2) formData.set("image2", hrvImageFile2);
+    if (hrvDriveFileId2) formData.set("driveFileId2", hrvDriveFileId2);
 
     setSubmitting(true);
     try {
@@ -536,8 +564,11 @@ function NewExaminationPageInner() {
       lastResult.examType === "HRV"
         ? `/patient-view/exam/hrv/${lastResult.hrvRecordId}`
         : `/patient-view/exam-report/${lastResult.patientId}`;
-    const win = window.open(url, "_blank", "noopener,noreferrer,width=760,height=900");
-    if (!win || win.closed) {
+    const blocked = openPatientViewPopup(
+      url,
+      lastResult.examType === "HRV" ? HRV_PATIENT_VIEW_POPUP_SIZE : undefined,
+    );
+    if (blocked) {
       setPatientViewPopupBlocked(true);
     }
   }
@@ -940,11 +971,14 @@ function NewExaminationPageInner() {
 
             {examType === "HRV" && (
               <>
+                {/* 기기 리포트는 항상 2장(1p 요약/2p 상세)이라 슬롯을 분리했다(task.md 1번) —
+                    2페이지는 없을 수도 있어 선택사항으로 둔다. */}
                 <div className={styles.checkboxRow}>
+                  <span className={styles.muted}>1페이지(필수)</span>
                   <button
                     type="button"
                     className={styles.submitButton}
-                    onClick={() => setShowHrvImportModal(true)}
+                    onClick={() => setHrvImportTarget(1)}
                   >
                     구글드라이브에서 가져오기
                   </button>
@@ -960,7 +994,31 @@ function NewExaminationPageInner() {
 
                 {hrvImagePreviewUrl && (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={hrvImagePreviewUrl} alt="HRV 결과지 미리보기" className={styles.hrvPreviewImage} />
+                  <img src={hrvImagePreviewUrl} alt="HRV 결과지 1페이지 미리보기" className={styles.hrvPreviewImage} />
+                )}
+
+                <div className={styles.checkboxRow}>
+                  <span className={styles.muted}>2페이지(선택)</span>
+                  <button
+                    type="button"
+                    className={styles.submitButton}
+                    onClick={() => setHrvImportTarget(2)}
+                  >
+                    구글드라이브에서 가져오기
+                  </button>
+                  <label>
+                    또는 직접 파일 선택{" "}
+                    <input
+                      type="file"
+                      accept="image/*,application/pdf"
+                      onChange={(e) => handleHrvFileSelect2(e.target.files?.[0] ?? null)}
+                    />
+                  </label>
+                </div>
+
+                {hrvImagePreviewUrl2 && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={hrvImagePreviewUrl2} alt="HRV 결과지 2페이지 미리보기" className={styles.hrvPreviewImage} />
                 )}
 
                 <div className={styles.fieldGrid}>
@@ -1017,8 +1075,8 @@ function NewExaminationPageInner() {
         </div>
       )}
 
-      {showHrvImportModal && (
-        <HrvImportModal onSelect={handleHrvDriveSelect} onClose={() => setShowHrvImportModal(false)} />
+      {hrvImportTarget !== null && (
+        <HrvImportModal onSelect={handleHrvDriveSelect} onClose={() => setHrvImportTarget(null)} />
       )}
     </div>
   );

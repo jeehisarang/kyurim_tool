@@ -130,7 +130,8 @@ export default function ShareLinkPanel({
         setLinkError(data.error ?? "공유링크 생성에 실패했습니다.");
         return;
       }
-      const url = `${window.location.origin}/s/${data.token}`;
+      const baseUrl = process.env.NEXT_PUBLIC_SHARE_BASE_URL || window.location.origin;
+      const url = `${baseUrl}/s/${data.token}`;
       setResultUrl(url);
       onLinkGenerated(url, mode);
     } catch {

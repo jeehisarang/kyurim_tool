@@ -6,6 +6,23 @@ const MODEL = "gpt-4o-mini";
 
 export type TcmPatternMapEntry = { symptoms: string; pattern: string; phrase: string };
 
+// 4단 구조 각 섹션을 구분하는 마커 — AI 응답을 이 마커 기준으로 파싱해 필드별로 저장한다
+// (ProgramTeachingCreator처럼 섹션별 수작업 편집을 지원하려면 하나의 문단이 아니라 필드가
+// 분리돼 있어야 하므로, task.md 요청에 따라 소제목 없는 이어쓰기 방식에서 전환했다).
+const SECTION_MARKERS = {
+  deviceReading: "[기기판독]",
+  clinicalMeaning: "[임상적의미]",
+  lifestyleGuide: "[생활관리]",
+  tcmInterpretation: "[한의학적해석]",
+} as const;
+
+export type HrvExplanationSections = {
+  deviceReading: string;
+  clinicalMeaning: string;
+  lifestyleGuide: string;
+  tcmInterpretation: string;
+};
+
 /**
  * 자율신경맥파기(HRV) 검사 AI 코멘트(task.md 최종 통합본) — 4단 고정구조로 생성한다
  * (①기기판독 ②임상적의미 ③생활관리 ④한의학적해석). 5단계 "안전 안내"는 AI가 만들지
@@ -14,9 +31,20 @@ export type TcmPatternMapEntry = { symptoms: string; pattern: string; phrase: st
  * 그대로 따르되, 학술 근거·한의학적 매핑표·환자 증상기록까지 재료로 추가했다.
  */
 const HRV_EXPLANATION_SYSTEM_PROMPT = `당신은 한의원에서 환자에게 HRV(자율신경맥파기) 검사 결과를 설명하는 원장을 돕는 카피라이터입니다.
-아래 입력재료를 바탕으로 반드시 4단 구조로 코멘트를 작성하세요. 소제목 없이 자연스러운
-문단으로 이어 쓰되, 단계 순서와 각 단계의 역할은 반드시 지키세요. 다른 텍스트 없이 코멘트
-본문만 출력하세요(안전 안내는 시스템이 별도로 붙이므로 여기서 쓰지 마세요).
+아래 입력재료를 바탕으로 반드시 4단 구조로 코멘트를 작성하세요. 각 단계는 반드시 아래 마커를
+정확히 그대로 각자 줄의 맨 앞에 쓰고, 그 다음 줄부터 자연스러운 문단(소제목 없이)으로
+내용을 이어 쓰세요. 마커 4개와 그 본문 외에 다른 텍스트는 절대 출력하지 마세요(안전 안내는
+시스템이 별도로 붙이므로 여기서 쓰지 마세요).
+
+[출력 형식 — 이 순서와 마커 문자열을 정확히 지킬 것]
+${SECTION_MARKERS.deviceReading}
+(1단계 본문)
+${SECTION_MARKERS.clinicalMeaning}
+(2단계 본문)
+${SECTION_MARKERS.lifestyleGuide}
+(3단계 본문)
+${SECTION_MARKERS.tcmInterpretation}
+(4단계 본문)
 
 [4단 구조]
 1) 기기 판독 요약 — 이 환자의 실제 수치(혈관건강지수/혈관건강도/평균맥박/스트레스지수)를
@@ -80,9 +108,39 @@ function buildUserMessage(input: HrvExplanationInput): string {
 [환자 증상기록] ${input.patientSymptomMaterial ?? "없음 — 한의학적 해석은 유보적으로 마무리할 것"}`;
 }
 
+// AI 응답을 SECTION_MARKERS 기준으로 4개 필드로 분리한다. 마커 하나라도 빠지거나 순서가
+// 어긋나면(모델이 형식을 안 지킨 드문 경우) throw해서 호출측이 실패로 처리하게 한다 —
+// 섹션이 뒤섞인 채로 저장되는 것보다 재생성 실패가 낫다.
+function parseHrvExplanationSections(text: string): HrvExplanationSections {
+  const order = [
+    ["deviceReading", SECTION_MARKERS.deviceReading],
+    ["clinicalMeaning", SECTION_MARKERS.clinicalMeaning],
+    ["lifestyleGuide", SECTION_MARKERS.lifestyleGuide],
+    ["tcmInterpretation", SECTION_MARKERS.tcmInterpretation],
+  ] as const;
+
+  const indices = order.map(([, marker]) => text.indexOf(marker));
+  if (indices.some((idx) => idx === -1)) {
+    throw new Error("AI 응답에서 4단 구조 마커를 찾지 못했습니다.");
+  }
+  for (let i = 1; i < indices.length; i++) {
+    if (indices[i] <= indices[i - 1]) {
+      throw new Error("AI 응답의 4단 구조 순서가 올바르지 않습니다.");
+    }
+  }
+
+  const result = {} as HrvExplanationSections;
+  order.forEach(([key, marker], i) => {
+    const start = indices[i] + marker.length;
+    const end = i + 1 < indices.length ? indices[i + 1] : text.length;
+    result[key] = text.slice(start, end).trim();
+  });
+  return result;
+}
+
 // 실패 시 그대로 throw한다 — 호출측(hrv.ts)이 "저장은 반드시 성공" 원칙에 맞춰 try/catch로
 // 감싸고 null로 대체하는 책임을 진다.
-export async function generateHrvExplanation(input: HrvExplanationInput): Promise<string> {
+export async function generateHrvExplanation(input: HrvExplanationInput): Promise<HrvExplanationSections> {
   assertOpenAiApiKeyConfigured();
   const client = new OpenAI();
 
@@ -92,10 +150,10 @@ export async function generateHrvExplanation(input: HrvExplanationInput): Promis
       { role: "system", content: HRV_EXPLANATION_SYSTEM_PROMPT },
       { role: "user", content: buildUserMessage(input) },
     ],
-    max_tokens: 500,
+    max_tokens: 700,
   });
 
   const text = response.choices[0]?.message?.content?.trim();
   if (!text) throw new Error("AI가 빈 응답을 반환했습니다.");
-  return text;
+  return parseHrvExplanationSections(text);
 }

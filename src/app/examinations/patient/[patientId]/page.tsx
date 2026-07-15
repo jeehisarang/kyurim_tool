@@ -137,13 +137,9 @@ export default function PatientExamHistoryPage() {
                   key={rowKey(row)}
                   className={styles.clickableRow}
                   onClick={() =>
-                    row.examType === "HRV"
-                      ? window.open(
-                          `/patient-view/exam/hrv/${row.id}`,
-                          "_blank",
-                          "noopener,noreferrer,width=760,height=900",
-                        )
-                      : router.push(`/examinations/${row.examType}/${row.id}`)
+                    router.push(
+                      row.examType === "HRV" ? `/examinations/hrv/${row.id}` : `/examinations/${row.examType}/${row.id}`,
+                    )
                   }
                 >
                   <td>

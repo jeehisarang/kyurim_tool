@@ -6,8 +6,13 @@ import styles from "./page.module.css";
 import PatientViewLayout from "@/components/PatientViewLayout";
 import layoutStyles from "@/components/PatientViewLayout.module.css";
 import ImageZoomPan from "@/components/ImageZoomPan";
-import { toPatientSafeHrvView, type PatientSafeHrvView } from "@/lib/patient-view";
+import HrvCommentaryCards from "@/components/HrvCommentaryCards";
+import { toPatientSafeHrvView, type PatientSafeHrvView, type PatientSafeHrvSections } from "@/lib/patient-view";
 import { HRV_SAFETY_NOTICE } from "@/lib/hrv-constants";
+
+// 진입 시 자동 1단계 확대(task.md 3번) — ImageZoomPan 내부 ZOOM_STEP(0.4)만큼 미리 확대된
+// 값과 맞춰, "+" 버튼을 한 번 더 누른 것과 동일한 배율로 시작한다.
+const AUTO_ZOOM_SCALE = 1.4;
 
 function formatDate(iso: string): string {
   const d = new Date(iso);
@@ -37,14 +42,14 @@ export default function PatientViewHrvPage() {
         const safeView = toPatientSafeHrvView(data);
         setView(safeView);
 
-        // 과거 레코드(aiCommentary=null)는 열람 시점에 즉석 생성 후 캐싱한다(examinations와
-        // 동일 원칙) — 실패해도 화면은 그대로(해설 문단만 안 보임).
-        if (safeView.aiCommentary === null) {
+        // 과거 레코드(섹션/레거시 코멘트 둘 다 없음)는 열람 시점에 즉석 생성 후 캐싱한다
+        // (examinations와 동일 원칙) — 실패해도 화면은 그대로(해설 카드만 안 보임).
+        if (safeView.sections === null && safeView.legacyCommentary === null) {
           fetch(`/api/hrv-records/${id}/generate-commentary`, { method: "POST" })
             .then((r) => (r.ok ? r.json() : null))
-            .then((result) => {
-              if (!cancelled && result?.aiCommentary) {
-                setView((prev) => (prev ? { ...prev, aiCommentary: result.aiCommentary } : prev));
+            .then((result: { sections: PatientSafeHrvSections | null } | null) => {
+              if (!cancelled && result?.sections) {
+                setView((prev) => (prev ? { ...prev, sections: result.sections } : prev));
               }
             })
             .catch(() => {});
@@ -74,8 +79,15 @@ export default function PatientViewHrvPage() {
   }
 
   return (
-    <PatientViewLayout title="자율신경맥파기(HRV) 검사 결과" subtitle={formatDate(view.testDate)}>
-      <ImageZoomPan src={view.sourceImagePath} alt="HRV 결과지" />
+    <PatientViewLayout title="자율신경맥파기(HRV) 검사 결과" subtitle={formatDate(view.testDate)} wide>
+      {/* 결과지 2장(1p 요약/2p 상세)을 세로로 나열 — 별도 탭 전환 없이 스크롤만으로 둘 다
+          보이는 가장 단순한 방식(task.md 1번). 2페이지가 없는 과거 레코드는 1장만 보인다. */}
+      <div className={styles.imageStack}>
+        <ImageZoomPan src={view.sourceImagePath} alt="HRV 결과지 1페이지" initialScale={AUTO_ZOOM_SCALE} />
+        {view.sourceImagePath2 && (
+          <ImageZoomPan src={view.sourceImagePath2} alt="HRV 결과지 2페이지" initialScale={AUTO_ZOOM_SCALE} />
+        )}
+      </div>
 
       <div className={styles.metricGrid}>
         <div className={styles.metricRow}>
@@ -96,7 +108,7 @@ export default function PatientViewHrvPage() {
         </div>
       </div>
 
-      {view.aiCommentary && <p className={styles.explanationBox}>{view.aiCommentary}</p>}
+      <HrvCommentaryCards sections={view.sections ?? { deviceReading: null, clinicalMeaning: null, lifestyleGuide: null, tcmInterpretation: null }} legacyText={view.legacyCommentary} />
 
       {/* 5단계 "안전 안내"(task.md) — AI가 생성한 텍스트가 아니라 고정 문구를 항상 별도
           블록으로 붙인다. aiCommentary와 시각적으로 명확히 구분되게 스타일을 다르게 둔다. */}

@@ -1,0 +1,181 @@
+.container {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 32px 16px 64px;
+}
+
+.pageHeader {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 16px;
+  gap: 12px;
+}
+
+.titleGroup {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pageTitle {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 22px;
+  color: var(--color-ink);
+}
+
+.listLink {
+  font-size: 13px;
+  color: var(--color-celadon-dark);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.listLink:hover {
+  text-decoration: underline;
+}
+
+.section {
+  background: var(--color-hanji-card);
+  border: 1px solid rgba(110, 148, 140, 0.35);
+  border-radius: 6px;
+  box-shadow: 0 1px 2px rgba(43, 39, 35, 0.04);
+  padding: 20px;
+  margin-bottom: 20px;
+}
+
+.sectionTitle {
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--color-celadon-dark);
+  border-left: 3px solid var(--color-celadon);
+  padding-left: 8px;
+  margin-bottom: 16px;
+}
+
+.mono {
+  font-family: var(--font-mono);
+}
+
+.muted {
+  color: var(--color-ink);
+  opacity: 0.55;
+  font-size: 13px;
+}
+
+.errorText {
+  color: var(--color-seal);
+  font-size: 13px;
+  margin: 4px 0 12px;
+}
+
+.resultGrid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px 20px;
+  margin-bottom: 4px;
+}
+
+.resultRow {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 14px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid rgba(110, 148, 140, 0.15);
+}
+
+.resultValue {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 17px;
+  color: var(--color-ink);
+}
+
+.imageStack {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.actionRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 16px;
+}
+
+.editButton {
+  border: 1px solid var(--color-celadon);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--color-celadon-dark);
+  padding: 7px 16px;
+  font-size: 14px;
+  font-family: var(--font-body);
+  cursor: pointer;
+}
+
+.editButton:hover {
+  background: rgba(110, 148, 140, 0.1);
+}
+
+.patientViewButton {
+  border: 1px solid var(--color-celadon-dark);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--color-celadon-dark);
+  padding: 7px 16px;
+  font-size: 14px;
+  font-family: var(--font-body);
+  cursor: pointer;
+}
+
+.patientViewButton:hover {
+  background: rgba(110, 148, 140, 0.1);
+}
+
+.submitButton {
+  border: none;
+  border-radius: 6px;
+  background: var(--color-celadon);
+  color: var(--color-hanji-card);
+  padding: 9px 20px;
+  font-size: 14px;
+  font-family: var(--font-body);
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.submitButton:hover:not(:disabled) {
+  background: var(--color-celadon-dark);
+}
+
+.submitButton:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.editLabel {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--color-celadon-dark);
+  font-weight: 500;
+  margin-bottom: 12px;
+}
+
+.editTextarea {
+  border: 1px solid rgba(110, 148, 140, 0.4);
+  border-radius: 4px;
+  background: var(--color-hanji-bg);
+  color: var(--color-ink);
+  padding: 8px 10px;
+  font-size: 14px;
+  font-family: var(--font-body);
+  resize: vertical;
+}

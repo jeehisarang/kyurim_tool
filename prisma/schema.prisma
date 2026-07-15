@@ -272,10 +272,22 @@ model HrvTestRecord {
   avgPulse   Float
   stressIndex Float
   // 구글드라이브에서 다운로드한 원본 결과지 이미지(리사이즈/압축 후 로컬 저장 경로).
+  // 기기 리포트는 항상 2장(1p 요약/2p 상세)이라 두 번째 장을 별도 필드로 추가했다(task.md) —
+  // 과거 1장짜리 레코드는 sourceImagePath2가 null로 남아 회귀 없이 그대로 조회된다.
   sourceImagePath String
-  // AI 해설 코멘트 — BodyCompositionRecord.aiExplanation과 동일 원칙(저장 시 동기 생성,
-  // 과거 레코드는 null로 남았다가 "환자와 함께보기" 열람 시 즉석 생성 후 캐싱).
+  sourceImagePath2 String?
+  // AI 해설 코멘트(레거시) — 4단 구조를 하나의 문단으로 이어 붙여 저장하던 과거 방식.
+  // 신규 레코드는 대신 아래 4개 필드에 구조화 저장하고 이 필드는 비워둔다(task.md) —
+  // 과거 레코드 회귀 방지를 위해 필드/데이터를 그대로 남겨두고, 화면 표시 시 구조화 필드가
+  // 비어있으면 이 필드로 폴백한다.
   aiCommentary String?
+  // AI 코멘트 4단 구조 구조화 저장(task.md) — ①기기판독 ②임상적의미 ③생활관리 ④한의학적해석.
+  // ProgramTeachingCreator와 동일하게 섹션별 수작업 편집(원장 전용 화면)을 지원하기 위해
+  // 하나의 텍스트가 아니라 필드를 분리했다.
+  aiDeviceReading String?
+  aiClinicalMeaning String?
+  aiLifestyleGuide String?
+  aiTcmInterpretation String?
   measuredByStaffId Int
   measuredByStaff   StaffUser @relation(fields: [measuredByStaffId], references: [id])
   createdAt  DateTime @default(now())

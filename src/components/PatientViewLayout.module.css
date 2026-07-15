@@ -17,6 +17,10 @@
   padding: 48px 44px;
 }
 
+.cardWide {
+  max-width: 1040px;
+}
+
 .title {
   font-family: var(--font-display);
   font-weight: 700;

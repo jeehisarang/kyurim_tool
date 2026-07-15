@@ -99,6 +99,16 @@ export function toPatientSafeExamView(
 
 // "환자와 함께보기"(/patient-view/exam/hrv/[id], task2.md) 전용 화이트리스트 변환 —
 // measuredByStaff 등 직원 전용 필드는 여기서 아예 조립하지 않는다.
+// 4단 구조 AI 코멘트(task.md) — 신규 레코드는 이 필드들에 저장된다. 과거 레코드(레거시
+// aiCommentary만 있음)는 sections가 null이고 legacyCommentary만 채워지며, 화면이 그 경우
+// 하나의 문단 블록으로 폴백 표시한다(회귀 방지).
+export type PatientSafeHrvSections = {
+  deviceReading: string;
+  clinicalMeaning: string;
+  lifestyleGuide: string;
+  tcmInterpretation: string;
+};
+
 export type PatientSafeHrvView = {
   testDate: string;
   vascularHealthIndex: number;
@@ -106,7 +116,10 @@ export type PatientSafeHrvView = {
   avgPulse: number;
   stressIndex: number;
   sourceImagePath: string;
-  aiCommentary: string | null;
+  // 2페이지(상세결과) — 없을 수 있다(과거 1장짜리 레코드, task.md).
+  sourceImagePath2: string | null;
+  sections: PatientSafeHrvSections | null;
+  legacyCommentary: string | null;
 };
 
 type RawHrvDetail = {
@@ -116,10 +129,24 @@ type RawHrvDetail = {
   avgPulse: number;
   stressIndex: number;
   sourceImagePath: string;
+  sourceImagePath2?: string | null;
   aiCommentary: string | null;
+  aiDeviceReading?: string | null;
+  aiClinicalMeaning?: string | null;
+  aiLifestyleGuide?: string | null;
+  aiTcmInterpretation?: string | null;
 };
 
 export function toPatientSafeHrvView(detail: RawHrvDetail): PatientSafeHrvView {
+  const sections: PatientSafeHrvSections | null = detail.aiDeviceReading
+    ? {
+        deviceReading: detail.aiDeviceReading,
+        clinicalMeaning: detail.aiClinicalMeaning ?? "",
+        lifestyleGuide: detail.aiLifestyleGuide ?? "",
+        tcmInterpretation: detail.aiTcmInterpretation ?? "",
+      }
+    : null;
+
   return {
     testDate: detail.testDate,
     vascularHealthIndex: detail.vascularHealthIndex,
@@ -127,7 +154,9 @@ export function toPatientSafeHrvView(detail: RawHrvDetail): PatientSafeHrvView {
     avgPulse: detail.avgPulse,
     stressIndex: detail.stressIndex,
     sourceImagePath: detail.sourceImagePath,
-    aiCommentary: detail.aiCommentary,
+    sourceImagePath2: detail.sourceImagePath2 ?? null,
+    sections,
+    legacyCommentary: sections ? null : detail.aiCommentary,
   };
 }
 

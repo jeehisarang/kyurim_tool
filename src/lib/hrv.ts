@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/db";
 import { saveHrvResultImage } from "@/lib/image-upload";
-import { generateHrvExplanation, type TcmPatternMapEntry } from "@/lib/hrv-explanation";
+import { generateHrvExplanation, type TcmPatternMapEntry, type HrvExplanationSections } from "@/lib/hrv-explanation";
 import { getExamAcademicGuide } from "@/lib/exam-academic-guide";
 import { listConsultationNotesForPatient } from "@/lib/consultation-notes";
 import type { HrvTestRecord } from "@/generated/prisma/client";
@@ -87,7 +87,7 @@ export async function getHrvTrend(patientId: number): Promise<string | null> {
 // 절대 throw하지 않고 실패 시 null만 반환한다.
 async function tryGenerateHrvCommentary(
   record: Pick<HrvTestRecord, "patientId" | "vascularHealthIndex" | "vascularHealthType" | "avgPulse" | "stressIndex">,
-): Promise<string | null> {
+): Promise<HrvExplanationSections | null> {
   try {
     const [trend, guide, patientSymptomMaterial] = await Promise.all([
       getHrvTrend(record.patientId),
@@ -118,16 +118,22 @@ export type CreateHrvTestRecordInput = {
   avgPulse: number;
   stressIndex: number;
   imageBuffer: Buffer;
+  // 기기 리포트 2페이지(상세결과) — 항상 있는 것은 아니라 선택값(task.md).
+  imageBuffer2?: Buffer | null;
   measuredByStaffId: number;
 };
 
 /**
- * HRV 검사기록 생성 — 원본 결과지 이미지를 리사이즈 저장 + AI 해설을 저장 시점에 동기
- * 생성한다(BodyCompositionRecord와 동일 원칙). 이미지 저장이 실패하면(손상 파일 등)
- * 레코드 자체를 만들지 않는다 — sourceImagePath가 필수 필드라 이미지 없이는 의미가 없음.
+ * HRV 검사기록 생성 — 원본 결과지 이미지(최대 2장)를 리사이즈 저장 + AI 해설을 저장 시점에
+ * 동기 생성한다(BodyCompositionRecord와 동일 원칙). 1페이지 이미지 저장이 실패하면(손상
+ * 파일 등) 레코드 자체를 만들지 않는다 — sourceImagePath가 필수 필드라 이미지 없이는
+ * 의미가 없음. 2페이지는 실패해도 1페이지만으로 레코드를 만든다(부가 자료 취급).
  */
 export async function createHrvTestRecord(input: CreateHrvTestRecordInput) {
   const { path: sourceImagePath } = await saveHrvResultImage(input.imageBuffer);
+  const sourceImagePath2 = input.imageBuffer2
+    ? (await saveHrvResultImage(input.imageBuffer2)).path
+    : null;
 
   const record = await prisma.hrvTestRecord.create({
     data: {
@@ -138,13 +144,22 @@ export async function createHrvTestRecord(input: CreateHrvTestRecordInput) {
       avgPulse: input.avgPulse,
       stressIndex: input.stressIndex,
       sourceImagePath,
+      sourceImagePath2,
       measuredByStaffId: input.measuredByStaffId,
     },
   });
 
   const commentary = await tryGenerateHrvCommentary(record);
   if (!commentary) return record;
-  return prisma.hrvTestRecord.update({ where: { id: record.id }, data: { aiCommentary: commentary } });
+  return prisma.hrvTestRecord.update({
+    where: { id: record.id },
+    data: {
+      aiDeviceReading: commentary.deviceReading,
+      aiClinicalMeaning: commentary.clinicalMeaning,
+      aiLifestyleGuide: commentary.lifestyleGuide,
+      aiTcmInterpretation: commentary.tcmInterpretation,
+    },
+  });
 }
 
 export async function getHrvTestRecord(id: number) {
@@ -155,19 +170,55 @@ export async function getHrvTestRecord(id: number) {
 }
 
 /**
- * 과거(aiCommentary=null) 레코드를 "환자와 함께보기"에서 열람할 때 즉석 생성 후 캐싱한다
- * (ensureBodyCompositionExplanation과 동일 원칙). 이미 생성돼 있으면 그대로 반환.
+ * 과거(섹션 필드 전부 null) 레코드를 "환자와 함께보기"/원장 확인 화면에서 열람할 때 즉석
+ * 생성 후 캐싱한다(ensureBodyCompositionExplanation과 동일 원칙). 레거시 aiCommentary(구
+ * 단일문단 방식)만 있는 레코드는 그대로 유지하고 재생성하지 않는다 — 이미 표시 가능한
+ * 콘텐츠가 있으므로 굳이 새 구조로 소급 재생성할 필요가 없다(회귀 방지, task.md).
  */
-export async function ensureHrvExplanation(id: number): Promise<string | null> {
+export async function ensureHrvExplanation(id: number): Promise<HrvExplanationSections | null> {
   const record = await prisma.hrvTestRecord.findUnique({ where: { id } });
   if (!record) return null;
-  if (record.aiCommentary) return record.aiCommentary;
+  if (record.aiDeviceReading) {
+    return {
+      deviceReading: record.aiDeviceReading,
+      clinicalMeaning: record.aiClinicalMeaning ?? "",
+      lifestyleGuide: record.aiLifestyleGuide ?? "",
+      tcmInterpretation: record.aiTcmInterpretation ?? "",
+    };
+  }
+  if (record.aiCommentary) return null;
 
   const commentary = await tryGenerateHrvCommentary(record);
   if (!commentary) return null;
 
-  await prisma.hrvTestRecord.update({ where: { id }, data: { aiCommentary: commentary } });
+  await prisma.hrvTestRecord.update({
+    where: { id },
+    data: {
+      aiDeviceReading: commentary.deviceReading,
+      aiClinicalMeaning: commentary.clinicalMeaning,
+      aiLifestyleGuide: commentary.lifestyleGuide,
+      aiTcmInterpretation: commentary.tcmInterpretation,
+    },
+  });
   return commentary;
+}
+
+export type UpdateHrvCommentaryInput = Partial<HrvExplanationSections>;
+
+/**
+ * 원장 전용 확인 화면(/examinations/hrv/[id])의 섹션별 수작업 편집 저장
+ * (ProgramTeachingCreator의 saveEdit과 동일 원칙) — 넘어온 필드만 갱신한다.
+ */
+export async function updateHrvCommentary(id: number, input: UpdateHrvCommentaryInput) {
+  return prisma.hrvTestRecord.update({
+    where: { id },
+    data: {
+      ...(input.deviceReading !== undefined ? { aiDeviceReading: input.deviceReading } : {}),
+      ...(input.clinicalMeaning !== undefined ? { aiClinicalMeaning: input.clinicalMeaning } : {}),
+      ...(input.lifestyleGuide !== undefined ? { aiLifestyleGuide: input.lifestyleGuide } : {}),
+      ...(input.tcmInterpretation !== undefined ? { aiTcmInterpretation: input.tcmInterpretation } : {}),
+    },
+  });
 }
 
 export async function listHrvTestRecords(patientId?: number) {

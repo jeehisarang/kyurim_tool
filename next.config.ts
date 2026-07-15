@@ -10,7 +10,7 @@ const nextConfig: NextConfig = {
   // 403으로 차단한다 — 페이지 HTML은 뜨지만 클라이언트 JS가 안 실려서 버튼/데이터
   // 로딩이 전부 멈춘 것처럼 보이는 원인이 이것이었다. 운영 빌드(next build/start)에는
   // 이 제한이 아예 없으므로 여기서 허용해도 배포 시 영향 없음.
-  allowedDevOrigins: ["192.168.*.*"],
+  allowedDevOrigins: ["192.168.*.*", "link.kyurim.kr"],
 };
 
 export default nextConfig;
