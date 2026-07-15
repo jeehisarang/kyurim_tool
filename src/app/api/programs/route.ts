@@ -40,8 +40,9 @@ export async function POST(request: Request) {
   if (!Number.isFinite(totalDurationMonths) || totalDurationMonths <= 0) {
     return NextResponse.json({ error: "총 기간(개월)을 입력하세요." }, { status: 400 });
   }
-  if (splitIntervalDays !== 14 && splitIntervalDays !== 28) {
-    return NextResponse.json({ error: "해피톡 주기는 2주 또는 4주 중에서 선택하세요." }, { status: 400 });
+  const VALID_CYCLE_DAYS = [7, 14, 21, 28] as const;
+  if (!(VALID_CYCLE_DAYS as readonly number[]).includes(splitIntervalDays)) {
+    return NextResponse.json({ error: "해피톡 주기는 1주/2주/3주/4주 중에서 선택하세요." }, { status: 400 });
   }
 
   try {
@@ -49,7 +50,7 @@ export async function POST(request: Request) {
     const program = await createProgram({
       name,
       totalDurationDays: Math.round(totalDurationMonths * 30),
-      splitIntervalDays,
+      splitIntervalDays: splitIntervalDays as 7 | 14 | 21 | 28,
       confirmed,
     });
     return NextResponse.json(program, { status: 201 });

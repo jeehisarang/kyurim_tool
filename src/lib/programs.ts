@@ -32,7 +32,7 @@ export class InactiveProgramNameConflictError extends Error {
 export type CreateProgramInput = {
   name: string;
   totalDurationDays: number;
-  splitIntervalDays: 14 | 28;
+  splitIntervalDays: 7 | 14 | 21 | 28;
   confirmed?: boolean;
 };
 

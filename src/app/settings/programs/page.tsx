@@ -15,12 +15,16 @@ type Program = {
 };
 
 const CYCLE_OPTIONS = [
+  { value: 7, label: "1주" },
   { value: 14, label: "2주" },
+  { value: 21, label: "3주" },
   { value: 28, label: "4주(1달)" },
 ] as const;
 
 function cycleLabel(days: number | null): string {
+  if (days === 7) return "1주";
   if (days === 14) return "2주";
+  if (days === 21) return "3주";
   if (days === 28) return "4주";
   return days ? `${days}일` : "-";
 }
@@ -44,7 +48,7 @@ export default function ProgramSettingsPage() {
 
   const [newName, setNewName] = useState("");
   const [newMonths, setNewMonths] = useState("");
-  const [newCycle, setNewCycle] = useState<14 | 28>(14);
+  const [newCycle, setNewCycle] = useState<7 | 14 | 21 | 28>(14);
   const [addError, setAddError] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
 
