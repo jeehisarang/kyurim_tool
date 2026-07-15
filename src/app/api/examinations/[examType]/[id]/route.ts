@@ -152,8 +152,9 @@ export async function PATCH(
   return NextResponse.json({ error: "알 수 없는 검사 종류입니다." }, { status: 400 });
 }
 
-// 검사기록은 하위 참조 테이블이 없어 하드 삭제한다(소프트삭제 불필요 — 통계는 목록 재조회 시
-// 자연히 제외됨).
+// 소프트 삭제(task2.md) — deleteBodyCompositionRecord/deleteStrengthTestRecord가 물리
+// 삭제가 아니라 isActive:false로만 처리한다. 삭제 권한은 Visit 삭제(/api/visits/[id])와
+// 동일하게 별도 제한 없음(측정자 본인/원장 구분 없이 아무 직원이나 가능).
 export async function DELETE(
   _request: Request,
   { params }: { params: Promise<{ examType: string; id: string }> },

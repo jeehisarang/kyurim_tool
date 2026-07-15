@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import styles from "./page.module.css";
 import BackButton from "@/components/BackButton";
 import ImageZoomPan from "@/components/ImageZoomPan";
@@ -41,6 +41,7 @@ function formatDate(iso: string): string {
 export default function HrvExaminationDetailPage() {
   const params = useParams<{ id: string }>();
   const { id } = params;
+  const router = useRouter();
 
   const [detail, setDetail] = useState<HrvDetail | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -54,6 +55,8 @@ export default function HrvExaminationDetailPage() {
   const [popupBlocked, setPopupBlocked] = useState(false);
   const [regenerating, setRegenerating] = useState(false);
   const [regenerateError, setRegenerateError] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   function loadDetail() {
     fetch(`/api/hrv-records/${id}`)
@@ -102,6 +105,29 @@ export default function HrvExaminationDetailPage() {
       setSaveError("서버에 연결하지 못했습니다. 저장되지 않았으니 다시 시도해주세요.");
     } finally {
       setSaving(false);
+    }
+  }
+
+  // 소프트 삭제(task2.md) — Visit 삭제와 동일 권한 원칙(별도 제한 없음). 삭제 후에는 이
+  // 화면 자체가 더는 의미가 없으니 환자 검사이력으로 돌려보낸다.
+  async function handleDelete() {
+    if (!detail) return;
+    if (!window.confirm("이 검사 기록을 삭제하시겠습니까? (목록/통계에서 제외되며, 필요하면 목록에서 다시 볼 수 있습니다)")) {
+      return;
+    }
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      const res = await fetch(`/api/hrv-records/${id}`, { method: "DELETE" });
+      if (!res.ok) {
+        setDeleteError("삭제에 실패했습니다. 다시 시도해주세요.");
+        return;
+      }
+      router.push(`/examinations/patient/${detail.patient.id}`);
+    } catch {
+      setDeleteError("서버에 연결하지 못했습니다. 삭제되지 않았으니 다시 시도해주세요.");
+    } finally {
+      setDeleting(false);
     }
   }
 
@@ -235,8 +261,12 @@ export default function HrvExaminationDetailPage() {
               <button type="button" className={styles.patientViewButton} onClick={handleOpenPatientView}>
                 환자와 함께보기
               </button>
+              <button type="button" className={styles.deleteButton} onClick={handleDelete} disabled={deleting}>
+                {deleting ? "삭제 중..." : "삭제"}
+              </button>
             </div>
             {regenerateError && <p className={styles.errorText}>{regenerateError}</p>}
+            {deleteError && <p className={styles.errorText}>{deleteError}</p>}
             {popupBlocked && (
               <p className={styles.errorText}>
                 팝업이 차단되었습니다. 브라우저 주소창의 팝업 차단 아이콘을 눌러 이 사이트의 팝업을 허용한 뒤

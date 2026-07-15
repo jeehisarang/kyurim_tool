@@ -269,9 +269,11 @@ export async function getBodyCompositionRecord(id: number) {
   });
 }
 
-// 검사기록은 하위 참조 테이블이 없어 하드 삭제한다(소프트삭제 불필요).
+// 소프트 삭제(task2.md — Visit/Program과 동일 원칙, 완전삭제 아님). 삭제 권한은 Visit
+// 삭제(/api/visits/[id] DELETE)와 동일하게 별도 제한 없음(측정자 본인/원장 구분 없이
+// 아무 직원이나 가능) — 기존 Visit/이 화면의 (구)하드삭제 모두 그랬던 것과 맞춤.
 export async function deleteBodyCompositionRecord(id: number) {
-  return prisma.bodyCompositionRecord.delete({ where: { id } });
+  return prisma.bodyCompositionRecord.update({ where: { id }, data: { isActive: false } });
 }
 
 type StrengthTestInput = {
@@ -348,23 +350,27 @@ export async function getStrengthTestRecord(id: number) {
   });
 }
 
-// 검사기록은 하위 참조 테이블이 없어 하드 삭제한다(소프트삭제 불필요).
+// 소프트 삭제(task2.md) — deleteBodyCompositionRecord와 동일 원칙/권한.
 export async function deleteStrengthTestRecord(id: number) {
-  return prisma.strengthTestRecord.delete({ where: { id } });
+  return prisma.strengthTestRecord.update({ where: { id }, data: { isActive: false } });
 }
 
-export async function listExaminations(patientId?: number) {
+// includeInactive=false(기본값)면 소프트삭제된(isActive:false) 기록은 통계/목록/추이
+// 어디에도 섞이지 않는다(task2.md) — 검사 목록 화면의 "비활성 항목 보기" 토글 켰을 때만
+// true로 호출한다.
+export async function listExaminations(patientId?: number, includeInactive = false) {
+  const activeFilter = includeInactive ? {} : { isActive: true };
   const [bodyRecords, strengthRecords, hrvRecords] = await Promise.all([
     prisma.bodyCompositionRecord.findMany({
-      where: patientId ? { patientId } : undefined,
+      where: { ...(patientId ? { patientId } : {}), ...activeFilter },
       include: { patient: true, staffUser: true },
     }),
     prisma.strengthTestRecord.findMany({
-      where: patientId ? { patientId } : undefined,
+      where: { ...(patientId ? { patientId } : {}), ...activeFilter },
       include: { patient: true, staffUser: true },
     }),
     prisma.hrvTestRecord.findMany({
-      where: patientId ? { patientId } : undefined,
+      where: { ...(patientId ? { patientId } : {}), ...activeFilter },
       include: { patient: true, measuredByStaff: true },
     }),
   ]);
@@ -388,6 +394,7 @@ export async function listExaminations(patientId?: number) {
       smi: r.smi,
       smiJudgement: r.smiJudgement,
       note: r.note,
+      isActive: r.isActive,
     })),
     ...strengthRecords.map((r) => ({
       id: r.id,
@@ -402,6 +409,7 @@ export async function listExaminations(patientId?: number) {
       gripJudgement: r.gripJudgement,
       estimatedGripAge: r.estimatedGripAge,
       gripAgeOutOfRange: r.gripAgeOutOfRange,
+      isActive: r.isActive,
     })),
     ...hrvRecords.map((r) => ({
       id: r.id,
@@ -414,6 +422,7 @@ export async function listExaminations(patientId?: number) {
       avgPulse: r.avgPulse,
       stressIndex: r.stressIndex,
       sourceImagePath: r.sourceImagePath,
+      isActive: r.isActive,
     })),
   ];
 

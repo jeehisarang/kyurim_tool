@@ -59,12 +59,20 @@ function ExaminationListPageInner() {
     return isExamTypeFilter(raw) ? raw : "ALL";
   });
   const [page, setPage] = useState(() => Number(searchParams.get("page")) || 1);
+  // 기본은 활성 기록만(task2.md) — 토글 켜면 소프트삭제된 기록도 함께 불러와 흐리게 표시.
+  const [showInactive, setShowInactive] = useState(false);
 
-  useEffect(() => {
-    fetch("/api/examinations")
+  function loadRows() {
+    const query = showInactive ? "?includeInactive=1" : "";
+    fetch(`/api/examinations${query}`)
       .then((res) => res.json())
       .then(setRows);
-  }, []);
+  }
+
+  useEffect(() => {
+    loadRows();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showInactive]);
 
   const filteredRows = useMemo(() => {
     if (!rows) return [];
@@ -75,6 +83,26 @@ function ExaminationListPageInner() {
       return true;
     });
   }, [rows, patientFilter, examTypeFilter]);
+
+  // BODY_COMPOSITION/STRENGTH_TEST는 기존 상세화면과 같은 라우트, HRV는 전용 라우트를 쓴다
+  // (goToDetail의 examType별 분기와 동일한 이유).
+  async function handleDelete(e: React.MouseEvent, row: ExaminationRow) {
+    e.stopPropagation();
+    if (!window.confirm("이 검사 기록을 삭제하시겠습니까? (목록/통계에서 제외되며, 필요하면 목록에서 다시 볼 수 있습니다)")) {
+      return;
+    }
+    const url = row.examType === "HRV" ? `/api/hrv-records/${row.id}` : `/api/examinations/${row.examType}/${row.id}`;
+    try {
+      const res = await fetch(url, { method: "DELETE" });
+      if (!res.ok) {
+        alert("삭제에 실패했습니다. 다시 시도해주세요.");
+        return;
+      }
+      loadRows();
+    } catch {
+      alert("서버에 연결하지 못했습니다. 삭제되지 않았으니 다시 시도해주세요.");
+    }
+  }
 
   // 필터/검색 탭을 바꾸면 항상 1페이지로 되돌린다 — 이전 필터 기준 마지막 페이지에 남아있으면
   // 새 필터 결과가 그보다 적어 "결과 없음"으로 보이는 혼란이 생긴다.
@@ -105,8 +133,13 @@ function ExaminationListPageInner() {
   const pagedRows = filteredRows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   // 근력나이 추이는 환자별 시계열 비교이므로 필터/페이지와 무관하게 전체 rows 기준으로
-  // 미리 계산해둔다(페이지를 넘겨도 "직전 기록과의 비교"가 끊기지 않아야 하기 때문).
-  const gripAgeTrendByRowKey = useMemo(() => computeGripAgeTrendMap(rows ?? [], true), [rows]);
+  // 미리 계산해둔다(페이지를 넘겨도 "직전 기록과의 비교"가 끊기지 않아야 하기 때문). 단,
+  // "비활성 항목 보기"를 켜서 화면에 소프트삭제 기록이 섞여도 추이 계산 자체는 항상
+  // 활성 기록만으로 한다(task2.md 4번 — 삭제된 기록이 통계에 섞이면 안 됨).
+  const gripAgeTrendByRowKey = useMemo(
+    () => computeGripAgeTrendMap((rows ?? []).filter((r) => r.isActive), true),
+    [rows],
+  );
 
   function goToPatientHistory(e: React.MouseEvent, patientId: number) {
     e.stopPropagation();
@@ -159,6 +192,14 @@ function ExaminationListPageInner() {
           value={patientFilter}
           onChange={(e) => setPatientFilter(e.target.value)}
         />
+        <label className={styles.inactiveToggle}>
+          <input
+            type="checkbox"
+            checked={showInactive}
+            onChange={(e) => setShowInactive(e.target.checked)}
+          />
+          비활성 항목 보기
+        </label>
       </div>
 
       <div className={styles.section}>
@@ -183,6 +224,8 @@ function ExaminationListPageInner() {
                   <th>근력나이(추이)</th>
                   <th>HRV 요약</th>
                   <th>측정자</th>
+                  <th>상태</th>
+                  <th></th>
                 </tr>
               </thead>
               <tbody>
@@ -191,7 +234,7 @@ function ExaminationListPageInner() {
                   return (
                     <tr
                       key={rowKey(row)}
-                      className={styles.clickableRow}
+                      className={row.isActive ? styles.clickableRow : `${styles.clickableRow} ${styles.inactiveRow}`}
                       onClick={() => goToDetail(row)}
                     >
                       <td>
@@ -228,6 +271,20 @@ function ExaminationListPageInner() {
                       </td>
                       <td>{hrvSummaryLabel(row)}</td>
                       <td>{row.staffUserName}</td>
+                      <td className={row.isActive ? undefined : styles.statusInactive}>
+                        {row.isActive ? "활성" : "비활성"}
+                      </td>
+                      <td>
+                        {row.isActive && (
+                          <button
+                            type="button"
+                            className={styles.deleteButton}
+                            onClick={(e) => handleDelete(e, row)}
+                          >
+                            삭제
+                          </button>
+                        )}
+                      </td>
                     </tr>
                   );
                 })}

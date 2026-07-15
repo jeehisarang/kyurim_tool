@@ -72,7 +72,7 @@ function formatSignedDiff(diff: number): string {
  */
 export async function getHrvTrend(patientId: number): Promise<string | null> {
   const records = await prisma.hrvTestRecord.findMany({
-    where: { patientId },
+    where: { patientId, isActive: true },
     orderBy: { testDate: "desc" },
     take: 2,
   });
@@ -236,10 +236,21 @@ export async function updateHrvCommentary(id: number, input: UpdateHrvCommentary
   });
 }
 
-export async function listHrvTestRecords(patientId?: number) {
+// includeInactive=false(기본값)면 소프트삭제된 기록은 제외한다(task2.md, listExaminations와
+// 동일 원칙) — 검사 목록의 "비활성 항목 보기" 토글에서만 true로 호출.
+export async function listHrvTestRecords(patientId?: number, includeInactive = false) {
   return prisma.hrvTestRecord.findMany({
-    where: patientId ? { patientId } : undefined,
+    where: {
+      ...(patientId ? { patientId } : {}),
+      ...(includeInactive ? {} : { isActive: true }),
+    },
     include: { patient: true, measuredByStaff: true },
     orderBy: { testDate: "desc" },
   });
+}
+
+// 소프트 삭제(task2.md) — deleteBodyCompositionRecord/deleteStrengthTestRecord와 동일한
+// 권한 원칙(별도 제한 없음, Visit 삭제와 동일 신뢰 모델).
+export async function deleteHrvTestRecord(id: number) {
+  return prisma.hrvTestRecord.update({ where: { id }, data: { isActive: false } });
 }

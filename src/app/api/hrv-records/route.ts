@@ -27,7 +27,8 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const patientIdRaw = searchParams.get("patientId");
   const patientId = patientIdRaw ? Number(patientIdRaw) : undefined;
-  const rows = await listHrvTestRecords(patientId);
+  const includeInactive = searchParams.get("includeInactive") === "1";
+  const rows = await listHrvTestRecords(patientId, includeInactive);
   return NextResponse.json(rows);
 }
 

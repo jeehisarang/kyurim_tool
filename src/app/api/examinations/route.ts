@@ -26,8 +26,11 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const patientIdParam = searchParams.get("patientId");
   const patientId = patientIdParam ? Number(patientIdParam) : undefined;
+  // includeInactive=1이면 검사 목록 화면의 "비활성 항목 보기" 토글용으로 소프트삭제된
+  // 기록까지 함께 내려준다(programs GET과 동일 패턴) — 기본값은 활성 기록만.
+  const includeInactive = searchParams.get("includeInactive") === "1";
 
-  const rows = await listExaminations(patientId);
+  const rows = await listExaminations(patientId, includeInactive);
   return NextResponse.json(rows);
 }
 

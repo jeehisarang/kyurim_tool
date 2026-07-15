@@ -225,6 +225,9 @@ model BodyCompositionRecord {
   staffUserId          Int
   staffUser            StaffUser     @relation(fields: [staffUserId], references: [id])
   createdAt            DateTime      @default(now())
+  // 소프트 삭제 원칙(Visit/Program 등과 동일) — 물리 삭제 대신 비활성화만. 통계/목록/추이
+  // 조회 시 반드시 isActive: true로 필터링할 것(task2.md).
+  isActive             Boolean       @default(true)
 }
 
 // 13-6 검사: 근력검사(악력 + 근력나이) 기록. SMI/근감소증 진단은 인바디(BodyCompositionRecord)
@@ -255,6 +258,8 @@ model StrengthTestRecord {
   staffUserId       Int
   staffUser         StaffUser     @relation(fields: [staffUserId], references: [id])
   createdAt         DateTime      @default(now())
+  // 소프트 삭제 원칙(Visit/Program 등과 동일) — 물리 삭제 대신 비활성화만(task2.md).
+  isActive          Boolean       @default(true)
 }
 
 // 자율신경맥파기(HRV) 검사(task2.md) — 기기가 이미 완성된 판정까지 포함한 결과지를
@@ -291,6 +296,8 @@ model HrvTestRecord {
   measuredByStaffId Int
   measuredByStaff   StaffUser @relation(fields: [measuredByStaffId], references: [id])
   createdAt  DateTime @default(now())
+  // 소프트 삭제 원칙(Visit/Program 등과 동일) — 물리 삭제 대신 비활성화만(task2.md).
+  isActive   Boolean  @default(true)
 }
 
 // 검사종류별 원장 작성 학술 근거 텍스트 — 향후 다른 검사종류(예: 소변검사) 추가 시

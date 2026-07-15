@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getHrvTestRecord, updateHrvCommentary } from "@/lib/hrv";
+import { getHrvTestRecord, updateHrvCommentary, deleteHrvTestRecord } from "@/lib/hrv";
 
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -25,4 +25,12 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     tcmInterpretation: toEditableString(body.tcmInterpretation),
   });
   return NextResponse.json(record);
+}
+
+// 소프트 삭제(task2.md) — deleteBodyCompositionRecord/deleteStrengthTestRecord와 동일한
+// 권한 원칙(별도 제한 없음, Visit 삭제와 동일 신뢰 모델).
+export async function DELETE(_request: Request, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  await deleteHrvTestRecord(Number(id));
+  return NextResponse.json({ success: true });
 }

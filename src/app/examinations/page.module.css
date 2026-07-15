@@ -198,3 +198,37 @@
   font-weight: 500;
   min-width: 32px;
 }
+
+.inactiveToggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--color-ink);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.inactiveRow {
+  opacity: 0.55;
+}
+
+.statusInactive {
+  color: var(--color-seal);
+  font-weight: 500;
+}
+
+.deleteButton {
+  border: 1px solid var(--color-seal);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--color-seal);
+  padding: 4px 10px;
+  font-size: 12px;
+  font-family: var(--font-body);
+  cursor: pointer;
+}
+
+.deleteButton:hover {
+  background: rgba(179, 60, 46, 0.1);
+}

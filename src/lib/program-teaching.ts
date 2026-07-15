@@ -157,7 +157,7 @@ export async function getLatestExamSnapshot(
 ): Promise<LatestExamSnapshot | null> {
   if (linkedTestType === "BODY_COMPOSITION") {
     const record = await prisma.bodyCompositionRecord.findFirst({
-      where: { patientId },
+      where: { patientId, isActive: true },
       orderBy: { examDate: "desc" },
     });
     if (!record) return null;
@@ -173,7 +173,7 @@ export async function getLatestExamSnapshot(
   }
 
   const record = await prisma.strengthTestRecord.findFirst({
-    where: { patientId },
+    where: { patientId, isActive: true },
     orderBy: { examDate: "desc" },
   });
   if (!record) return null;
@@ -204,7 +204,7 @@ export async function getExamTrend(
 ): Promise<string | null> {
   if (linkedTestType === "BODY_COMPOSITION") {
     const records = await prisma.bodyCompositionRecord.findMany({
-      where: { patientId },
+      where: { patientId, isActive: true },
       orderBy: { examDate: "desc" },
       take: 2,
     });
@@ -216,7 +216,7 @@ export async function getExamTrend(
   }
 
   const records = await prisma.strengthTestRecord.findMany({
-    where: { patientId },
+    where: { patientId, isActive: true },
     orderBy: { examDate: "desc" },
     take: 2,
   });

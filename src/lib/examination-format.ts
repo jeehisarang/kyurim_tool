@@ -15,6 +15,7 @@ export type ExaminationRow =
       smi: number | null;
       smiJudgement: "NORMAL" | "SARCOPENIA" | null;
       note: string | null;
+      isActive: boolean;
     }
   | {
       id: number;
@@ -26,6 +27,7 @@ export type ExaminationRow =
       gripJudgement: "WEAK" | "NORMAL" | "STRONG" | "UNKNOWN";
       estimatedGripAge: number | null;
       gripAgeOutOfRange: GripAgeOutOfRange | null;
+      isActive: boolean;
     }
   | {
       id: number;
@@ -38,6 +40,7 @@ export type ExaminationRow =
       avgPulse: number;
       stressIndex: number;
       sourceImagePath: string;
+      isActive: boolean;
     };
 
 export const EXAM_TYPE_LABEL = {
