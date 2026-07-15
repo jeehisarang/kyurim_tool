@@ -48,11 +48,6 @@ type PrescriptionStats = {
 // 카테고리(탕약/환/킬팻캡슐)로 묶이지 않는 프로그램(전체보기 탭에서만 개별 필터 가능).
 type Filter = { kind: "category"; category: ProgramCategoryKey } | { kind: "program"; programId: number };
 
-function toDateParam(iso: string): string {
-  const d = new Date(iso);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
-
 function formatDate(iso: string): string {
   const d = new Date(iso);
   return `${d.getFullYear()}.${d.getMonth() + 1}.${d.getDate()}`;
@@ -187,9 +182,8 @@ export default function PrescriptionListPage() {
     return groups.filter((g) => g.prescriptions.some((row) => matchesFilter(row, filter)));
   }, [groups, filter]);
 
-  function goToProgress(row: PrescriptionRow) {
-    const reference = row.latestTaskDueDate ?? row.startDate;
-    router.push(`/todo?date=${toDateParam(reference)}`);
+  function goToPrescriptionDetail(row: PrescriptionRow) {
+    router.push(`/prescriptions/${row.prescriptionId}`);
   }
 
   function isFilterActive(candidate: Filter): boolean {
@@ -336,7 +330,7 @@ export default function PrescriptionListPage() {
                             <ProgramBadge
                               id={row.program.id}
                               name={row.program.name}
-                              onClick={() => goToProgress(row)}
+                              onClick={() => goToPrescriptionDetail(row)}
                             />
                             <span className={styles.chipStatus}>{statusLabel(row)}</span>
                             <span className={styles.chipStatus}>담당: {row.staffUserName}</span>

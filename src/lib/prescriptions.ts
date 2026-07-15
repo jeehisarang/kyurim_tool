@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db";
+import { isMessageTaskType } from "@/lib/task-types";
 
 const PROGRAM_TYPE_FIXED_SEQUENCE_ROW = "FIXED_SEQUENCE";
 
@@ -318,4 +319,198 @@ export async function completeTodoTask(taskId: number, doneByUserId: number) {
       data: { status: STATUS_COMPLETED },
     });
   }
+}
+
+export type PrescriptionRoundEntry = {
+  round: number;
+  dueDate: Date;
+  isDone: boolean;
+  completedAt: Date | null;
+};
+
+export type PrescriptionEventEntry = {
+  taskType: string;
+  dueDate: Date;
+  status: "DONE" | "SKIPPED" | "PENDING";
+  completedAt: Date | null;
+};
+
+export type PrescriptionTaskHistoryEntry = {
+  id: number;
+  taskType: string;
+  dueDate: Date | null;
+  isDone: boolean;
+  doneAt: Date | null;
+  doneByUserName: string | null;
+};
+
+export type PrescriptionDetail = {
+  prescriptionId: number;
+  status: string;
+  startDate: Date;
+  currentRound: number | null;
+  totalRounds: number | null;
+  patient: { id: number; name: string; chartNumber: string };
+  program: {
+    id: number;
+    name: string;
+    type: string;
+    splitIntervalDays: number | null;
+    totalDurationDays: number | null;
+    followUpDays: number | null;
+  };
+  staffUser: { id: number; name: string };
+  rounds: PrescriptionRoundEntry[] | null;
+  singleFollowUp: PrescriptionRoundEntry | null;
+  events: PrescriptionEventEntry[] | null;
+  taskHistory: PrescriptionTaskHistoryEntry[];
+};
+
+// SPLIT 타입 회차 리스트 재구성. 소급 등록으로 인해 currentRound가 곧바로 앞당겨진
+// 초창기 라운드(1 ~ 최초 TodoTask 생성 시점의 currentRound-1)는 실제 TodoTask 기록이
+// 없으므로 완료일은 알 수 없다(completedAt=null) — 나머지는 실제 NEXT_DOSE TodoTask의
+// dueDate로 라운드 번호를 역산해 매칭하고 doneAt을 완료일로 사용한다.
+function buildSplitRounds(input: {
+  startDate: Date;
+  splitIntervalDays: number;
+  totalRounds: number;
+  currentRound: number;
+  status: string;
+  nextDoseTasks: { dueDate: Date | null; isDone: boolean; doneAt: Date | null }[];
+}): PrescriptionRoundEntry[] {
+  const start = startOfDay(input.startDate);
+  const taskByRound = new Map<number, { isDone: boolean; doneAt: Date | null }>();
+  for (const task of input.nextDoseTasks) {
+    if (!task.dueDate) continue;
+    const elapsedDays = Math.round((startOfDay(task.dueDate).getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+    const round = Math.round(elapsedDays / input.splitIntervalDays);
+    if (round >= 1 && round <= input.totalRounds) {
+      taskByRound.set(round, { isDone: task.isDone, doneAt: task.doneAt });
+    }
+  }
+
+  const rounds: PrescriptionRoundEntry[] = [];
+  for (let n = 1; n <= input.totalRounds; n++) {
+    const dueDate = addDays(input.startDate, n * input.splitIntervalDays);
+    const matched = taskByRound.get(n);
+    if (matched) {
+      rounds.push({ round: n, dueDate, isDone: matched.isDone, completedAt: matched.doneAt });
+    } else {
+      rounds.push({
+        round: n,
+        dueDate,
+        isDone: n < input.currentRound || input.status === STATUS_COMPLETED,
+        completedAt: null,
+      });
+    }
+  }
+  return rounds;
+}
+
+async function buildFixedSequenceEvents(
+  prescriptionId: number,
+  programId: number,
+  startDate: Date,
+): Promise<PrescriptionEventEntry[]> {
+  const templates = await prisma.programEventTemplate.findMany({
+    where: { programId },
+    orderBy: { sortOrder: "asc" },
+  });
+  const tasks = await prisma.todoTask.findMany({
+    where: { prescriptionId, taskType: { in: templates.map((t) => t.taskType) } },
+    include: { eventLog: true },
+  });
+  const taskByType = new Map(tasks.map((t) => [t.taskType, t]));
+
+  return templates.map((template) => {
+    const task = taskByType.get(template.taskType);
+    const dueDate = task?.dueDate ?? addDays(startDate, template.offsetDays);
+    let status: PrescriptionEventEntry["status"] = "PENDING";
+    if (task?.eventLog?.sentDate) status = "DONE";
+    else if (task?.eventLog?.skippedAt) status = "SKIPPED";
+    return { taskType: template.taskType, dueDate, status, completedAt: task?.eventLog?.sentDate ?? null };
+  });
+}
+
+/**
+ * /prescriptions/[prescriptionId] 상세페이지 전용 조회 함수. 프로그램 타입(SPLIT/SINGLE/
+ * FIXED_SEQUENCE)별로 표시 방식이 달라 각각 다른 필드(rounds/singleFollowUp/events)에
+ * 결과를 채우고 나머지는 null로 둔다. taskHistory는 타입 무관하게 이 처방에 연결된
+ * TodoTask 전체를 최신순으로 반환 — 메시지형(TRIAL_*)은 TodoTask.isDone이 항상 false로
+ * 남으므로 ProgramEventLog.sentDate를 완료 진실원천으로 대신 사용한다.
+ */
+export async function getPrescriptionDetail(prescriptionId: number): Promise<PrescriptionDetail | null> {
+  const prescription = await prisma.prescription.findUnique({
+    where: { id: prescriptionId },
+    include: { patient: true, program: true, staffUser: true },
+  });
+  if (!prescription) return null;
+
+  const { program } = prescription;
+
+  const tasks = await prisma.todoTask.findMany({
+    where: { prescriptionId },
+    include: { eventLog: true, doneByUser: true },
+    orderBy: { dueDate: "desc" },
+  });
+
+  let rounds: PrescriptionRoundEntry[] | null = null;
+  let singleFollowUp: PrescriptionRoundEntry | null = null;
+  let events: PrescriptionEventEntry[] | null = null;
+
+  if (program.type === PROGRAM_TYPE_SPLIT && prescription.totalRounds != null && prescription.currentRound != null) {
+    rounds = buildSplitRounds({
+      startDate: prescription.startDate,
+      splitIntervalDays: program.splitIntervalDays ?? 14,
+      totalRounds: prescription.totalRounds,
+      currentRound: prescription.currentRound,
+      status: prescription.status,
+      nextDoseTasks: tasks
+        .filter((t) => t.taskType === TASK_TYPE_NEXT_DOSE)
+        .map((t) => ({ dueDate: t.dueDate, isDone: t.isDone, doneAt: t.doneAt })),
+    });
+  } else if (program.type === PROGRAM_TYPE_FIXED_SEQUENCE_ROW) {
+    events = await buildFixedSequenceEvents(prescriptionId, program.id, prescription.startDate);
+  } else {
+    // SINGLE(구형 S환/하비환 등): 처방일 + 후속조치 예정일 1건.
+    const followUpTask = tasks.find((t) => t.taskType === TASK_TYPE_FOLLOW_UP);
+    const dueDate = followUpTask?.dueDate ?? addDays(prescription.startDate, program.followUpDays ?? 30);
+    singleFollowUp = {
+      round: 1,
+      dueDate,
+      isDone: followUpTask?.isDone ?? false,
+      completedAt: followUpTask?.doneAt ?? null,
+    };
+  }
+
+  const taskHistory: PrescriptionTaskHistoryEntry[] = tasks.map((t) => ({
+    id: t.id,
+    taskType: t.taskType,
+    dueDate: t.dueDate,
+    isDone: isMessageTaskType(t.taskType) ? Boolean(t.eventLog?.sentDate) : t.isDone,
+    doneAt: isMessageTaskType(t.taskType) ? (t.eventLog?.sentDate ?? null) : t.doneAt,
+    doneByUserName: isMessageTaskType(t.taskType) ? null : (t.doneByUser?.name ?? null),
+  }));
+
+  return {
+    prescriptionId: prescription.id,
+    status: prescription.status,
+    startDate: prescription.startDate,
+    currentRound: prescription.currentRound,
+    totalRounds: prescription.totalRounds,
+    patient: { id: prescription.patient.id, name: prescription.patient.name, chartNumber: prescription.patient.chartNumber },
+    program: {
+      id: program.id,
+      name: program.name,
+      type: program.type,
+      splitIntervalDays: program.splitIntervalDays,
+      totalDurationDays: program.totalDurationDays,
+      followUpDays: program.followUpDays,
+    },
+    staffUser: { id: prescription.staffUser.id, name: prescription.staffUser.name },
+    rounds,
+    singleFollowUp,
+    events,
+    taskHistory,
+  };
 }

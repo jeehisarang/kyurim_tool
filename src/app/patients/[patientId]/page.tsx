@@ -81,11 +81,6 @@ function formatDate(iso: string): string {
   return `${d.getFullYear()}.${d.getMonth() + 1}.${d.getDate()}`;
 }
 
-function toDateParam(iso: string): string {
-  const d = new Date(iso);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
-
 function statusLabel(row: PrescriptionRow): string {
   if (row.program.type === "FIXED_SEQUENCE") {
     if (row.totalEventCount == null) return STATUS_LABEL[row.status] ?? row.status;
@@ -132,9 +127,8 @@ export default function PatientProfilePage() {
       .then(setConsultationNotes);
   }, [patientId]);
 
-  function goToProgress(row: PrescriptionRow) {
-    const reference = row.latestTaskDueDate ?? row.startDate;
-    router.push(`/todo?date=${toDateParam(reference)}`);
+  function goToPrescriptionDetail(row: PrescriptionRow) {
+    router.push(`/prescriptions/${row.prescriptionId}`);
   }
 
   function startEditCoreProfile() {
@@ -369,7 +363,7 @@ export default function PatientProfilePage() {
                 <tr
                   key={row.prescriptionId}
                   className={styles.clickableRow}
-                  onClick={() => goToProgress(row)}
+                  onClick={() => goToPrescriptionDetail(row)}
                 >
                   <td>
                     <ProgramBadge id={row.program.id} name={row.program.name} />
@@ -408,7 +402,11 @@ export default function PatientProfilePage() {
                 </thead>
                 <tbody>
                   {inactivePrescriptions.map((row) => (
-                    <tr key={row.prescriptionId}>
+                    <tr
+                      key={row.prescriptionId}
+                      className={styles.clickableRow}
+                      onClick={() => goToPrescriptionDetail(row)}
+                    >
                       <td>
                         <ProgramBadge id={row.program.id} name={row.program.name} />
                       </td>

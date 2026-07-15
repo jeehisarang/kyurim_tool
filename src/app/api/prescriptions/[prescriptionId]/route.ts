@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { updatePrescriptionStartDate } from "@/lib/prescriptions";
+import { getPrescriptionDetail, updatePrescriptionStartDate } from "@/lib/prescriptions";
 
 const VALID_STATUSES = ["ACTIVE", "COMPLETED", "STOPPED"];
 
@@ -19,6 +19,19 @@ function parseStartDate(value: unknown): Date | null {
 }
 
 /**
+ * 치료처방 상세페이지(/prescriptions/[prescriptionId]) 전용 조회 — 프로그램 기본정보 +
+ * 타입별 회차/이벤트 스케줄 + 연결된 TodoTask 이력을 한 번에 반환한다.
+ */
+export async function GET(_request: Request, { params }: { params: Promise<{ prescriptionId: string }> }) {
+  const { prescriptionId } = await params;
+  const detail = await getPrescriptionDetail(Number(prescriptionId));
+  if (!detail) {
+    return NextResponse.json({ error: "치료처방을 찾을 수 없습니다." }, { status: 404 });
+  }
+  return NextResponse.json(detail);
+}
+
+/**
  * 치료처방 수정. 담당자/시작일처럼 잘못 입력했을 수 있는 값만 고칠 수 있고,
  * 프로그램/환자는 바꿀 수 없다(이미 생성된 TodoTask가 원래 프로그램 기준으로 만들어져
  * 있어 구조가 깨진다). "삭제"는 물리 삭제 대신 status를 STOPPED로 바꾸는 소프트
@@ -26,8 +39,8 @@ function parseStartDate(value: unknown): Date | null {
  * startDate 변경은 SPLIT+ACTIVE 처방이면 updatePrescriptionStartDate()가 스케줄까지
  * 재계산한다(대기 중인 다음 회차 재생성) — createPrescription과 동일한 원칙.
  */
-export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params;
+export async function PATCH(request: Request, { params }: { params: Promise<{ prescriptionId: string }> }) {
+  const { prescriptionId: id } = await params;
   const prescriptionId = Number(id);
   const body = await request.json();
 
