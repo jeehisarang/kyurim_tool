@@ -52,6 +52,8 @@ export default function HrvExaminationDetailPage() {
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [popupBlocked, setPopupBlocked] = useState(false);
+  const [regenerating, setRegenerating] = useState(false);
+  const [regenerateError, setRegenerateError] = useState<string | null>(null);
 
   function loadDetail() {
     fetch(`/api/hrv-records/${id}`)
@@ -108,6 +110,34 @@ export default function HrvExaminationDetailPage() {
     setPopupBlocked(false);
     const blocked = openPatientViewPopup(`/patient-view/exam/hrv/${detail.id}`, HRV_PATIENT_VIEW_POPUP_SIZE);
     if (blocked) setPopupBlocked(true);
+  }
+
+  // 학술근거/매핑표를 새로 저장한 뒤 이미 생성된 기존 검사기록에도 반영하려면 이 버튼이
+  // 필요하다(task.md — "재생성해도 그대로"였던 원인은 강제 재생성 수단 자체의 부재였음).
+  // 수작업 편집분까지 덮어쓰므로 확인창을 거친다.
+  async function handleRegenerate() {
+    if (!window.confirm("AI 코멘트를 최신 학술근거로 다시 생성합니다. 지금 저장된 내용(수작업 수정 포함)은 덮어써집니다. 계속하시겠습니까?")) {
+      return;
+    }
+    setRegenerating(true);
+    setRegenerateError(null);
+    try {
+      const res = await fetch(`/api/hrv-records/${id}/generate-commentary`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ force: true }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.sections) {
+        setRegenerateError("재생성에 실패했습니다. 잠시 후 다시 시도해주세요.");
+        return;
+      }
+      loadDetail();
+    } catch {
+      setRegenerateError("서버에 연결하지 못했습니다. 다시 시도해주세요.");
+    } finally {
+      setRegenerating(false);
+    }
   }
 
   if (loadError) {
@@ -199,10 +229,14 @@ export default function HrvExaminationDetailPage() {
               <button type="button" className={styles.editButton} onClick={startEdit}>
                 코멘트 수정
               </button>
+              <button type="button" className={styles.editButton} onClick={handleRegenerate} disabled={regenerating}>
+                {regenerating ? "재생성 중..." : "AI 코멘트 재생성"}
+              </button>
               <button type="button" className={styles.patientViewButton} onClick={handleOpenPatientView}>
                 환자와 함께보기
               </button>
             </div>
+            {regenerateError && <p className={styles.errorText}>{regenerateError}</p>}
             {popupBlocked && (
               <p className={styles.errorText}>
                 팝업이 차단되었습니다. 브라우저 주소창의 팝업 차단 아이콘을 눌러 이 사이트의 팝업을 허용한 뒤

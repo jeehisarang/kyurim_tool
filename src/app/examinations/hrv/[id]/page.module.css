@@ -119,6 +119,11 @@
   cursor: pointer;
 }
 
+.editButton:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
 .editButton:hover {
   background: rgba(110, 148, 140, 0.1);
 }

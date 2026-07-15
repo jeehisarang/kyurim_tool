@@ -151,8 +151,12 @@ export async function createHrvTestRecord(input: CreateHrvTestRecordInput) {
 
   const commentary = await tryGenerateHrvCommentary(record);
   if (!commentary) return record;
+  return saveHrvCommentarySections(record.id, commentary);
+}
+
+function saveHrvCommentarySections(id: number, commentary: HrvExplanationSections) {
   return prisma.hrvTestRecord.update({
-    where: { id: record.id },
+    where: { id },
     data: {
       aiDeviceReading: commentary.deviceReading,
       aiClinicalMeaning: commentary.clinicalMeaning,
@@ -174,6 +178,9 @@ export async function getHrvTestRecord(id: number) {
  * 생성 후 캐싱한다(ensureBodyCompositionExplanation과 동일 원칙). 레거시 aiCommentary(구
  * 단일문단 방식)만 있는 레코드는 그대로 유지하고 재생성하지 않는다 — 이미 표시 가능한
  * 콘텐츠가 있으므로 굳이 새 구조로 소급 재생성할 필요가 없다(회귀 방지, task.md).
+ * 학술근거를 새로 저장한 뒤 기존 레코드에 반영하고 싶을 때는 이 함수가 아니라
+ * regenerateHrvExplanation(강제 재생성)을 써야 한다 — 실사용 중 "재생성해도 그대로"라는
+ * 혼동이 있었는데, 원인은 버그가 아니라 강제 재생성 수단 자체가 없었던 것이었다(task.md).
  */
 export async function ensureHrvExplanation(id: number): Promise<HrvExplanationSections | null> {
   const record = await prisma.hrvTestRecord.findUnique({ where: { id } });
@@ -191,15 +198,23 @@ export async function ensureHrvExplanation(id: number): Promise<HrvExplanationSe
   const commentary = await tryGenerateHrvCommentary(record);
   if (!commentary) return null;
 
-  await prisma.hrvTestRecord.update({
-    where: { id },
-    data: {
-      aiDeviceReading: commentary.deviceReading,
-      aiClinicalMeaning: commentary.clinicalMeaning,
-      aiLifestyleGuide: commentary.lifestyleGuide,
-      aiTcmInterpretation: commentary.tcmInterpretation,
-    },
-  });
+  await saveHrvCommentarySections(id, commentary);
+  return commentary;
+}
+
+/**
+ * 원장 전용 확인 화면의 "AI 코멘트 재생성" 버튼 전용 — 기존 캐시(섹션이든 레거시든, 수작업
+ * 편집이든)를 무시하고 최신 [학술 근거]/[한의학적 매핑표]/[환자 증상기록]으로 항상 새로
+ * 생성해 덮어쓴다. ensureHrvExplanation과 달리 이미 콘텐츠가 있어도 무조건 재생성한다.
+ */
+export async function regenerateHrvExplanation(id: number): Promise<HrvExplanationSections | null> {
+  const record = await prisma.hrvTestRecord.findUnique({ where: { id } });
+  if (!record) return null;
+
+  const commentary = await tryGenerateHrvCommentary(record);
+  if (!commentary) return null;
+
+  await saveHrvCommentarySections(id, commentary);
   return commentary;
 }
 
