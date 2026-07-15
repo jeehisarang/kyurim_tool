@@ -149,12 +149,32 @@
   opacity: 0.55;
 }
 
+.statusActive,
+.statusInactive {
+  border: none;
+  background: transparent;
+  font-family: var(--font-body);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+.statusActive:hover:not(:disabled),
+.statusInactive:hover:not(:disabled) {
+  background: rgba(110, 148, 140, 0.12);
+}
+
+.statusActive:disabled,
+.statusInactive:disabled {
+  cursor: not-allowed;
+}
+
 .statusActive {
   color: var(--color-celadon-dark);
-  font-weight: 500;
 }
 
 .statusInactive {
   color: var(--color-seal);
-  font-weight: 500;
 }

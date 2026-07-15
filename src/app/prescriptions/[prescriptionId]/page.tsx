@@ -288,7 +288,7 @@ export default function PrescriptionDetailPage() {
           {data.program.totalDurationDays != null && (
             <span>
               <span className={styles.infoLabel}>총기간</span>
-              {data.program.totalDurationDays}일
+              {Math.round(data.program.totalDurationDays / 7)}주
             </span>
           )}
           {data.totalRounds != null && (

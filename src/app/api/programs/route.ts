@@ -30,15 +30,15 @@ export async function POST(request: Request) {
   }
 
   const name = String(body.name ?? "").trim();
-  const totalDurationMonths = Number(body.totalDurationMonths);
+  const totalDurationWeeks = Number(body.totalDurationWeeks);
   const splitIntervalDays = Number(body.splitIntervalDays);
   const confirmed = body.confirmed === true;
 
   if (!name) {
     return NextResponse.json({ error: "프로그램 명칭을 입력하세요." }, { status: 400 });
   }
-  if (!Number.isFinite(totalDurationMonths) || totalDurationMonths <= 0) {
-    return NextResponse.json({ error: "총 기간(개월)을 입력하세요." }, { status: 400 });
+  if (!Number.isFinite(totalDurationWeeks) || totalDurationWeeks <= 0) {
+    return NextResponse.json({ error: "총 기간(주)을 입력하세요." }, { status: 400 });
   }
   const VALID_CYCLE_DAYS = [7, 14, 21, 28] as const;
   if (!(VALID_CYCLE_DAYS as readonly number[]).includes(splitIntervalDays)) {
@@ -46,10 +46,12 @@ export async function POST(request: Request) {
   }
 
   try {
-    // 개월 -> 일수 환산은 기존 시드 데이터와 동일한 관례(1개월=30일, 3개월=90일)를 따른다.
+    // 주 -> 일수 환산(1주=7일). 기존 "개월" 단위(1개월=30일)에서 "주" 단위로 전환하면서
+    // 1개월=4주(28일) 관례로 통일했다(task.md) — 기존 3개월(90일) 프로그램들도 마이그레이션
+    // 스크립트로 12주(84일)로 환산 저장됨.
     const program = await createProgram({
       name,
-      totalDurationDays: Math.round(totalDurationMonths * 30),
+      totalDurationDays: Math.round(totalDurationWeeks * 7),
       splitIntervalDays: splitIntervalDays as 7 | 14 | 21 | 28,
       confirmed,
     });

@@ -34,9 +34,13 @@ function totalRounds(totalDurationDays: number | null, splitIntervalDays: number
   return `${Math.ceil(totalDurationDays / splitIntervalDays)}회`;
 }
 
+function durationWeeksLabel(totalDurationDays: number | null): string {
+  return totalDurationDays ? `${Math.round(totalDurationDays / 7)}주` : "-";
+}
+
 /**
- * 치료처방(Program) 원장 전용 수동 등록 화면(task2.md) — 검사연동/카테고리 지정은 이번
- * 범위 밖이라 명칭/총기간(개월)/해피톡주기(2주|4주) 3가지만 입력받는다. 서버단 재검증은
+ * 치료처방(Program) 원장 전용 수동 등록 화면 — 검사연동/카테고리 지정은 이번
+ * 범위 밖이라 명칭/총기간(주)/해피톡주기(1|2|3|4주) 3가지만 입력받는다. 서버단 재검증은
  * POST /api/programs가 isDirector로 처리하므로, 여기 클라이언트 체크는 UX 안내용일 뿐
  * (patients/[patientId] 페이지의 currentUser?.role==="원장" 조건 분기와 동일한 신뢰 모델).
  */
@@ -47,7 +51,7 @@ export default function ProgramSettingsPage() {
   const [programs, setPrograms] = useState<Program[] | null>(null);
 
   const [newName, setNewName] = useState("");
-  const [newMonths, setNewMonths] = useState("");
+  const [newWeeks, setNewWeeks] = useState("");
   const [newCycle, setNewCycle] = useState<7 | 14 | 21 | 28>(14);
   const [addError, setAddError] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
@@ -62,10 +66,10 @@ export default function ProgramSettingsPage() {
       .then(setPrograms);
   }
 
-  const monthsNumber = Number(newMonths);
+  const weeksNumber = Number(newWeeks);
   const previewRounds =
-    newMonths.trim() && Number.isFinite(monthsNumber) && monthsNumber > 0
-      ? Math.ceil((monthsNumber * 30) / newCycle)
+    newWeeks.trim() && Number.isFinite(weeksNumber) && weeksNumber > 0
+      ? Math.ceil((weeksNumber * 7) / newCycle)
       : null;
 
   async function submitProgram(confirmed: boolean) {
@@ -76,7 +80,7 @@ export default function ProgramSettingsPage() {
       body: JSON.stringify({
         staffUserId: currentUser.id,
         name: newName.trim(),
-        totalDurationMonths: monthsNumber,
+        totalDurationWeeks: weeksNumber,
         splitIntervalDays: newCycle,
         confirmed,
       }),
@@ -91,7 +95,7 @@ export default function ProgramSettingsPage() {
       return;
     }
     setNewName("");
-    setNewMonths("");
+    setNewWeeks("");
     setNewCycle(14);
     refresh();
   }
@@ -103,8 +107,8 @@ export default function ProgramSettingsPage() {
       setAddError("프로그램 명칭을 입력하세요.");
       return;
     }
-    if (!Number.isFinite(monthsNumber) || monthsNumber <= 0) {
-      setAddError("총 기간(개월)을 입력하세요.");
+    if (!Number.isFinite(weeksNumber) || weeksNumber <= 0) {
+      setAddError("총 기간(주)을 입력하세요.");
       return;
     }
     setAdding(true);
@@ -114,6 +118,25 @@ export default function ProgramSettingsPage() {
       setAddError("서버에 연결하지 못했습니다. 다시 시도해주세요.");
     } finally {
       setAdding(false);
+    }
+  }
+
+  async function toggleActive(p: Program) {
+    const action = p.isActive ? "비활성화" : "활성화";
+    if (!window.confirm(`"${p.name}" 프로그램을 ${action}하시겠습니까?`)) return;
+    try {
+      const res = await fetch(`/api/programs/${p.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ staffUserId: currentUser?.id, isActive: !p.isActive }),
+      });
+      if (!res.ok) {
+        alert("처리에 실패했습니다. 다시 시도해주세요.");
+        return;
+      }
+      refresh();
+    } catch {
+      alert("서버에 연결하지 못했습니다. 다시 시도해주세요.");
     }
   }
 
@@ -144,13 +167,13 @@ export default function ProgramSettingsPage() {
             />
           </label>
           <label className={styles.fieldLabel}>
-            총 기간(개월)
+            총 기간(주)
             <input
               type="number"
               min={1}
-              placeholder="예: 3"
-              value={newMonths}
-              onChange={(e) => setNewMonths(e.target.value)}
+              placeholder="예: 6"
+              value={newWeeks}
+              onChange={(e) => setNewWeeks(e.target.value)}
               disabled={!isDirector}
             />
           </label>
@@ -200,13 +223,19 @@ export default function ProgramSettingsPage() {
               {programs.map((p) => (
                 <tr key={p.id} className={p.isActive ? undefined : styles.inactiveRow}>
                   <td>{p.name}</td>
-                  <td>{p.totalDurationDays ? `${Math.round(p.totalDurationDays / 30)}개월` : "-"}</td>
+                  <td>{durationWeeksLabel(p.totalDurationDays)}</td>
                   <td>{cycleLabel(p.splitIntervalDays)}</td>
                   <td>{totalRounds(p.totalDurationDays, p.splitIntervalDays)}</td>
                   <td>
-                    <span className={p.isActive ? styles.statusActive : styles.statusInactive}>
+                    <button
+                      type="button"
+                      className={p.isActive ? styles.statusActive : styles.statusInactive}
+                      onClick={() => toggleActive(p)}
+                      disabled={!isDirector}
+                      title={isDirector ? `클릭하여 ${p.isActive ? "비활성화" : "활성화"}` : "원장만 변경할 수 있습니다."}
+                    >
                       {p.isActive ? "활성" : "비활성"}
-                    </span>
+                    </button>
                   </td>
                 </tr>
               ))}
