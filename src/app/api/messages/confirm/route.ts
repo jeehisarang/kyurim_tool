@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { confirmMessage } from "@/lib/messages";
 
-const MESSAGE_TYPES = ["WELCOME", "MEETING", "DAY2", "DAY7", "THIRD_VISIT"] as const;
+const MESSAGE_TYPES = ["WELCOME", "MEETING", "EXAM", "DAY2", "DAY7", "THIRD_VISIT"] as const;
 
 export async function POST(request: Request) {
   const body = await request.json();

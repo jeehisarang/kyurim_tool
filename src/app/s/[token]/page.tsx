@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import styles from "./page.module.css";
 import TeachingPageContent, { type TeachingPageContentView } from "@/components/TeachingPageContent";
+import ExamShareSections from "@/components/ExamShareSections";
+import type { ShareLinkExamEntry } from "@/lib/share-links";
 
 // TeachingPageContent.tsx와 동일한 채널(task.md) — 클라이언트 컴포넌트에서 읽어야 해서
 // NEXT_PUBLIC_ 접두사가 필요하다.
@@ -13,6 +15,7 @@ const KAKAO_CHANNEL_CHAT_URL =
 type ShareLinkView = {
   teaching: (TeachingPageContentView & { token: string }) | null;
   event: { finalTitle: string; compositeImagePath: string; finalCopy: string } | null;
+  exams: ShareLinkExamEntry[];
 };
 
 /**
@@ -106,6 +109,9 @@ export default function ShareLinkPublicPage() {
             )}
           </div>
         )}
+
+        {(view.teaching || view.event) && view.exams.length > 0 && <hr className={styles.sectionDivider} />}
+        {view.exams.length > 0 && <ExamShareSections exams={view.exams} />}
       </div>
     </div>
   );

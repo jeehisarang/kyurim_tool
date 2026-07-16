@@ -608,6 +608,29 @@ model PatientShareLink {
   viewCount        Int                  @default(0)
   firstViewedAt    DateTime?
   createdAt        DateTime             @default(now())
+  // 검사톡(task.md) — 인바디/근력/HRV처럼 서로 다른 테이블에 있는 검사기록을 하나의 FK로
+  // 묶을 수 없어 별도 조인테이블로 뺐다. 0개면 기존(티칭/이벤트만 있는) 링크와 완전히 동일하게
+  // 동작해 하위호환이 저절로 보장된다.
+  examLinks        PatientShareLinkExam[]
 
   @@index([patientId, teachingPageId, eventImageId])
+}
+
+// 검사톡(task.md)이 포함하는 검사기록 1건 = 1행. examType별로 실제 레코드가 각각 다른
+// 테이블(BodyCompositionRecord/StrengthTestRecord/HrvTestRecord)에 있어 DB 레벨 FK 대신
+// examType(String) + examRecordId 조합으로 참조한다 — TodoTask.taskType, ExamAcademicGuide.
+// examType과 동일하게 이 코드베이스가 검사/작업 종류를 문자열 판별자로 다루는 기존 관례를
+// 따른 것이며, 향후 검사 종류가 늘어나도 이 테이블/스키마는 값만 늘어날 뿐 마이그레이션이
+// 필요 없다(단, 화면 렌더링 쪽은 새 종류마다 분기 코드 추가가 필요 — examination-format.ts와
+// 동일한 한계).
+model PatientShareLinkExam {
+  id           Int              @id @default(autoincrement())
+  shareLinkId  Int
+  shareLink    PatientShareLink @relation(fields: [shareLinkId], references: [id])
+  examType     String
+  examRecordId Int
+  createdAt    DateTime         @default(now())
+
+  @@index([shareLinkId])
+  @@index([examType, examRecordId])
 }

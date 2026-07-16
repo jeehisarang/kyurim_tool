@@ -5,26 +5,33 @@ import styles from "./ShareLinkPanel.module.css";
 import ProgramTeachingCreator from "@/components/ProgramTeachingCreator";
 import { getCurrentUserId } from "@/lib/currentUser";
 import { copyToClipboard } from "@/lib/clipboard";
+import { EXAM_TYPE_LABEL, weightCell, gripLabel, hrvSummaryLabel, formatExamDate, type ExaminationRow } from "@/lib/examination-format";
 
-// NONE을 제외한 실제 링크 생성 모드 — 부모(TalkStudioPanel)가 안내문구 템플릿을
-// 고르는 데 사용한다(task.md).
-export type ShareLinkMode = "TEACHING" | "EVENT" | "COMBO";
-type LinkMode = "NONE" | ShareLinkMode;
+// 링크에 포함된 3개 축(티칭/이벤트/검사결과, task.md) — 서로 독립적으로 0개 이상 조합 가능.
+// 복사 시 어떤 안내문구를 붙일지 결정하는 데 쓰인다.
+export type ShareLinkFlags = { hasTeaching: boolean; hasEvent: boolean; hasExam: boolean };
 
-const MODE_OPTIONS: { key: LinkMode; label: string }[] = [
-  { key: "NONE", label: "없음" },
-  { key: "TEACHING", label: "프로그램티칭" },
-  { key: "EVENT", label: "이벤트" },
-  { key: "COMBO", label: "통합" },
-];
+function comboKey(f: ShareLinkFlags): string {
+  return `${f.hasTeaching ? "T" : ""}${f.hasEvent ? "E" : ""}${f.hasExam ? "X" : ""}`;
+}
 
 // 링크 자동첨부 시 앞에 붙는 고정 안내문구(task.md) — AI 호출 없이 환자 이름만 치환.
+// 조합별로 자연스러운 한국어 조사를 그대로 고정 문구로 써서(동적 조립 시 조사 오류 위험 방지)
 // ShareLinkPanel을 쓰는 화면(TalkStudioPanel/TalkGroupManager)이 공통으로 재사용한다.
-export const SHARE_LINK_INTRO: Record<ShareLinkMode, (patientName: string) => string> = {
-  TEACHING: (name) => `${name}님의 검사 결과와 추천 프로그램을 아래 링크에서 확인해보세요 🙂`,
-  EVENT: (name) => `${name}님을 위한 특별한 혜택을 아래 링크에서 확인해보세요 🙂`,
-  COMBO: (name) => `${name}님의 검사 결과와 추천 혜택을 아래 링크에서 확인해보세요 🙂`,
+const INTRO_BY_COMBO: Record<string, (patientName: string) => string> = {
+  T: (name) => `${name}님의 검사 결과와 추천 프로그램을 아래 링크에서 확인해보세요 🙂`,
+  E: (name) => `${name}님을 위한 특별한 혜택을 아래 링크에서 확인해보세요 🙂`,
+  X: (name) => `${name}님의 검사 결과를 아래 링크에서 확인해보세요 🙂`,
+  TE: (name) => `${name}님의 검사 결과와 추천 혜택을 아래 링크에서 확인해보세요 🙂`,
+  TX: (name) => `${name}님의 검사 결과와 추천 프로그램을 아래 링크에서 확인해보세요 🙂`,
+  EX: (name) => `${name}님의 검사 결과와 특별한 혜택을 아래 링크에서 확인해보세요 🙂`,
+  TEX: (name) => `${name}님의 검사 결과와 추천 프로그램, 특별한 혜택을 아래 링크에서 확인해보세요 🙂`,
 };
+
+export function buildShareLinkIntro(patientName: string, flags: ShareLinkFlags): string {
+  const combo = INTRO_BY_COMBO[comboKey(flags)];
+  return combo ? combo(patientName) : INTRO_BY_COMBO.X(patientName);
+}
 
 type TeachingSummary = { id: number; token: string; programName: string; createdAt: string };
 type EventSummary = { id: number; finalTitle: string };
@@ -34,25 +41,40 @@ function formatDate(iso: string): string {
   return `${d.getFullYear()}.${d.getMonth() + 1}.${d.getDate()}`;
 }
 
+function examRowSummary(row: ExaminationRow): string {
+  if (row.examType === "BODY_COMPOSITION") return weightCell(row);
+  if (row.examType === "STRENGTH_TEST") return gripLabel(row);
+  return hrvSummaryLabel(row);
+}
+
+function examRowKey(row: ExaminationRow): string {
+  return `${row.examType}:${row.id}`;
+}
+
 /**
- * 톡생성기 "링크 포함하기" 패널(14-11) — 프로그램티칭/이벤트/통합 URL을 선택적으로 만들어
- * 부모(TalkStudioPanel)에 전달한다. 부모는 이 URL을 톡 문구 복사 시 하단에 자동으로
- * 붙여준다(copy-time 결합 — 편집 중인 초안 텍스트 자체에는 끼워 넣지 않아, 다시 생성하거나
- * 편집해도 중복/꼬임이 생기지 않는다).
+ * 톡생성기 "링크 포함하기" 패널(14-11, 검사톡 확장 task.md) — 프로그램티칭/이벤트/검사기록
+ * 3개 축을 각각 독립적으로 0개 이상 골라 하나의 링크로 묶어 부모(TalkStudioPanel)에 전달한다.
+ * 부모는 이 URL을 톡 문구 복사 시 하단에 자동으로 붙여준다(copy-time 결합 — 편집 중인 초안
+ * 텍스트 자체에는 끼워 넣지 않아, 다시 생성하거나 편집해도 중복/꼬임이 생기지 않는다).
  *
  * "프로그램티칭 새로 만들기"는 기존 ProgramTeachingCreator를 그대로 재사용한다(defaultOpen로
  * 바로 펼친 채 인라인 임베드, onCreated로 방금 만든 티칭지를 드롭다운에 자동 선택) — 별도
  * 페이지 이동 없이 같은 화면에서 완결되므로, 생성 도중 다른 탭/페이지로 이탈해 링크를
  * 놓치는 유실 경로 자체가 생기지 않는다.
+ *
+ * 검사기록 체크리스트는 /api/examinations?patientId=(이미 인바디/근력/HRV 3종을 통합 반환)를
+ * 그대로 재사용한다 — 종류별 최신 1건만 기본 체크, 과거 기록도 목록엔 보이되 미체크로 둔다.
  */
 export default function ShareLinkPanel({
   patientId,
   onLinkGenerated,
 }: {
   patientId: number;
-  onLinkGenerated: (url: string, mode: ShareLinkMode) => void;
+  onLinkGenerated: (url: string, flags: ShareLinkFlags) => void;
 }) {
-  const [mode, setMode] = useState<LinkMode>("NONE");
+  const [includeTeaching, setIncludeTeaching] = useState(false);
+  const [includeEvent, setIncludeEvent] = useState(false);
+  const [includeExam, setIncludeExam] = useState(false);
 
   const [teachingList, setTeachingList] = useState<TeachingSummary[] | null>(null);
   const [selectedTeachingId, setSelectedTeachingId] = useState<number | null>(null);
@@ -61,34 +83,55 @@ export default function ShareLinkPanel({
   const [eventList, setEventList] = useState<EventSummary[] | null>(null);
   const [selectedEventId, setSelectedEventId] = useState<number | null>(null);
 
+  const [examRows, setExamRows] = useState<ExaminationRow[] | null>(null);
+  const [checkedExamKeys, setCheckedExamKeys] = useState<Set<string>>(new Set());
+
   const [creatingLink, setCreatingLink] = useState(false);
   const [linkError, setLinkError] = useState<string | null>(null);
   const [resultUrl, setResultUrl] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
-  const needsTeaching = mode === "TEACHING" || mode === "COMBO";
-  const needsEvent = mode === "EVENT" || mode === "COMBO";
-
   useEffect(() => {
-    if (!needsTeaching || teachingList !== null) return;
+    if (!includeTeaching || teachingList !== null) return;
     fetch(`/api/patients/${patientId}/teaching-pages`)
       .then((res) => res.json())
       .then(setTeachingList);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [needsTeaching, teachingList]);
+  }, [includeTeaching, teachingList, patientId]);
 
   useEffect(() => {
-    if (!needsEvent || eventList !== null) return;
+    if (!includeEvent || eventList !== null) return;
     fetch(`/api/event-images?activeOnly=1`)
       .then((res) => res.json())
       .then(setEventList);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [needsEvent, eventList]);
+  }, [includeEvent, eventList]);
 
-  function selectMode(next: LinkMode) {
-    setMode(next);
-    setLinkError(null);
-    setResultUrl(null);
+  useEffect(() => {
+    if (!includeExam || examRows !== null) return;
+    fetch(`/api/examinations?patientId=${patientId}`)
+      .then((res) => res.json())
+      .then((rows: ExaminationRow[]) => {
+        const sorted = [...rows].sort((a, b) => b.examDate.localeCompare(a.examDate));
+        setExamRows(sorted);
+        // 검사 종류별 최신 1건만 기본 체크(task.md 제안) — sorted가 examDate 내림차순이라
+        // 종류별로 처음 만나는 행이 그 종류의 최신 기록이다.
+        const seenTypes = new Set<string>();
+        const defaultChecked = new Set<string>();
+        for (const row of sorted) {
+          if (seenTypes.has(row.examType)) continue;
+          seenTypes.add(row.examType);
+          defaultChecked.add(examRowKey(row));
+        }
+        setCheckedExamKeys(defaultChecked);
+      });
+  }, [includeExam, examRows, patientId]);
+
+  function toggleExamRow(key: string) {
+    setCheckedExamKeys((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
   }
 
   function handleTeachingCreated(page: { id: number; token: string; programName: string }) {
@@ -100,13 +143,20 @@ export default function ShareLinkPanel({
     setShowInlineCreator(false);
   }
 
-  const canGenerate =
-    mode !== "NONE" &&
-    (!needsTeaching || selectedTeachingId !== null) &&
-    (!needsEvent || selectedEventId !== null);
+  const teachingReady = !includeTeaching || selectedTeachingId !== null;
+  const eventReady = !includeEvent || selectedEventId !== null;
+  const hasAnyContent =
+    (includeTeaching && selectedTeachingId !== null) ||
+    (includeEvent && selectedEventId !== null) ||
+    (includeExam && checkedExamKeys.size > 0);
+  const canGenerate = teachingReady && eventReady && hasAnyContent;
+
+  function resetResult() {
+    setLinkError(null);
+    setResultUrl(null);
+  }
 
   async function handleGenerateLink() {
-    if (mode === "NONE") return;
     const createdByStaffId = getCurrentUserId();
     if (!createdByStaffId) {
       setLinkError("상단에서 현재 사용자를 먼저 선택하세요.");
@@ -115,13 +165,21 @@ export default function ShareLinkPanel({
     setCreatingLink(true);
     setLinkError(null);
     try {
+      const examRecords = includeExam
+        ? [...checkedExamKeys].map((key) => {
+            const [examType, idStr] = key.split(":");
+            return { examType, examRecordId: Number(idStr) };
+          })
+        : [];
+
       const res = await fetch("/api/share-links", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           patientId,
-          teachingPageId: needsTeaching ? selectedTeachingId : null,
-          eventImageId: needsEvent ? selectedEventId : null,
+          teachingPageId: includeTeaching ? selectedTeachingId : null,
+          eventImageId: includeEvent ? selectedEventId : null,
+          examRecords,
           createdByStaffId,
         }),
       });
@@ -133,7 +191,11 @@ export default function ShareLinkPanel({
       const baseUrl = process.env.NEXT_PUBLIC_SHARE_BASE_URL || window.location.origin;
       const url = `${baseUrl}/s/${data.token}`;
       setResultUrl(url);
-      onLinkGenerated(url, mode);
+      onLinkGenerated(url, {
+        hasTeaching: includeTeaching && selectedTeachingId !== null,
+        hasEvent: includeEvent && selectedEventId !== null,
+        hasExam: includeExam && examRecords.length > 0,
+      });
     } catch {
       setLinkError("서버에 연결하지 못했습니다. 다시 시도해주세요.");
     } finally {
@@ -152,25 +214,56 @@ export default function ShareLinkPanel({
     setTimeout(() => setCopied(false), 1500);
   }
 
+  const examByType = new Map<string, ExaminationRow[]>();
+  if (examRows) {
+    for (const row of examRows) {
+      const list = examByType.get(row.examType) ?? [];
+      list.push(row);
+      examByType.set(row.examType, list);
+    }
+  }
+
   return (
     <div className={styles.wrap}>
       <div className={styles.sectionLabel}>링크 포함하기</div>
 
       <div className={styles.modeRow}>
-        {MODE_OPTIONS.map((opt) => (
-          <label key={opt.key} className={styles.modeOption}>
-            <input
-              type="radio"
-              name="share-link-mode"
-              checked={mode === opt.key}
-              onChange={() => selectMode(opt.key)}
-            />
-            {opt.label}
-          </label>
-        ))}
+        <label className={styles.modeOption}>
+          <input
+            type="checkbox"
+            checked={includeTeaching}
+            onChange={(e) => {
+              setIncludeTeaching(e.target.checked);
+              resetResult();
+            }}
+          />
+          프로그램티칭
+        </label>
+        <label className={styles.modeOption}>
+          <input
+            type="checkbox"
+            checked={includeEvent}
+            onChange={(e) => {
+              setIncludeEvent(e.target.checked);
+              resetResult();
+            }}
+          />
+          이벤트
+        </label>
+        <label className={styles.modeOption}>
+          <input
+            type="checkbox"
+            checked={includeExam}
+            onChange={(e) => {
+              setIncludeExam(e.target.checked);
+              resetResult();
+            }}
+          />
+          검사결과(검사톡)
+        </label>
       </div>
 
-      {needsTeaching && (
+      {includeTeaching && (
         <>
           <div className={styles.selectRow}>
             {teachingList === null ? (
@@ -206,7 +299,7 @@ export default function ShareLinkPanel({
         </>
       )}
 
-      {needsEvent && (
+      {includeEvent && (
         <div className={styles.selectRow}>
           {eventList === null ? (
             <span className={styles.muted}>불러오는 중...</span>
@@ -229,9 +322,38 @@ export default function ShareLinkPanel({
         </div>
       )}
 
+      {includeExam && (
+        <div className={styles.examChecklist}>
+          {examRows === null ? (
+            <span className={styles.muted}>불러오는 중...</span>
+          ) : examRows.length === 0 ? (
+            <span className={styles.muted}>등록된 검사기록이 없습니다.</span>
+          ) : (
+            [...examByType.entries()].map(([examType, rows]) => (
+              <div key={examType} className={styles.examTypeGroup}>
+                <div className={styles.examTypeLabel}>
+                  {EXAM_TYPE_LABEL[examType as keyof typeof EXAM_TYPE_LABEL] ?? examType}
+                </div>
+                {rows.map((row) => (
+                  <label key={examRowKey(row)} className={styles.examRow}>
+                    <input
+                      type="checkbox"
+                      checked={checkedExamKeys.has(examRowKey(row))}
+                      onChange={() => toggleExamRow(examRowKey(row))}
+                    />
+                    <span className={styles.examRowDate}>{formatExamDate(row.examDate)}</span>
+                    <span className={styles.examRowSummary}>{examRowSummary(row)}</span>
+                  </label>
+                ))}
+              </div>
+            ))
+          )}
+        </div>
+      )}
+
       {linkError && <p className={styles.errorText}>{linkError}</p>}
 
-      {mode !== "NONE" && (
+      {(includeTeaching || includeEvent || includeExam) && (
         <button
           type="button"
           className={styles.generateButton}

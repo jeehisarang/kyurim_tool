@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 
-const MESSAGE_TYPES = ["WELCOME", "MEETING", "DAY2", "DAY7", "THIRD_VISIT"] as const;
+const MESSAGE_TYPES = ["WELCOME", "MEETING", "EXAM", "DAY2", "DAY7", "THIRD_VISIT"] as const;
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);

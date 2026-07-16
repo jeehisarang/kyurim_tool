@@ -8,7 +8,7 @@ import PatientNotes from "@/components/PatientNotes";
 import TrialEventCard from "@/components/TrialEventCard";
 import TalkGroupManager from "@/components/TalkGroupManager";
 import ProgramTeachingCreator from "@/components/ProgramTeachingCreator";
-import ShareLinkPanel, { SHARE_LINK_INTRO, type ShareLinkMode } from "@/components/ShareLinkPanel";
+import ShareLinkPanel, { buildShareLinkIntro, type ShareLinkFlags } from "@/components/ShareLinkPanel";
 import { getCurrentUserId } from "@/lib/currentUser";
 import { copyToClipboard } from "@/lib/clipboard";
 import {
@@ -23,7 +23,9 @@ type ProgressLevel = "HIGH" | "MID" | "LOW";
 
 const AI_MESSAGE_TYPES = ["DAY2", "DAY7", "THIRD_VISIT"] as const;
 type AiMessageType = (typeof AI_MESSAGE_TYPES)[number];
-type MessageType = "WELCOME" | "MEETING" | AiMessageType;
+// EXAM(검사톡, task.md) — 웰컴/만남톡처럼 AI 생성이 아니라 위쪽 "링크 포함하기"에서
+// 생성한 검사결과 링크를 그대로 카드 내용으로 쓴다.
+type MessageType = "WELCOME" | "MEETING" | "EXAM" | AiMessageType;
 
 // 2일톡/3회차톡도 자동조건 도달 전에 수동으로 즉시 보류할 수 있어야 한다 — 기존에는
 // 7일톡만 가능했음(task2.md 확인/수정 요청).
@@ -38,6 +40,7 @@ const PROGRESS_LEVEL_LABEL: Record<ProgressLevel, string> = {
 const MESSAGE_TYPE_LABEL: Record<MessageType, string> = {
   WELCOME: "웰컴 메시지",
   MEETING: "만남톡",
+  EXAM: "검사톡",
   ...TALK_MESSAGE_TYPE_LABEL,
 };
 
@@ -123,11 +126,11 @@ function TalkStudioInner() {
   // 공유링크 패널(14-11)에서 생성한 URL — 톡 문구 복사 시 하단에 자동으로 함께 복사된다.
   // shareLinkMode는 어떤 안내문구 템플릿을 붙일지 결정한다(task.md).
   const [shareUrl, setShareUrl] = useState<string | null>(null);
-  const [shareLinkMode, setShareLinkMode] = useState<ShareLinkMode | null>(null);
+  const [shareLinkFlags, setShareLinkFlags] = useState<ShareLinkFlags | null>(null);
 
-  function handleLinkGenerated(url: string, mode: ShareLinkMode) {
+  function handleLinkGenerated(url: string, flags: ShareLinkFlags) {
     setShareUrl(url);
-    setShareLinkMode(mode);
+    setShareLinkFlags(flags);
   }
 
   // "오늘 할 일"의 "톡생성 하기" 버튼에서 넘어온 경우: 환자 + 톡 유형을 미리 선택된 상태로 만든다.
@@ -178,7 +181,7 @@ function TalkStudioInner() {
     setDrafts({});
     setGenerateError(null);
     setShareUrl(null);
-    setShareLinkMode(null);
+    setShareLinkFlags(null);
   }
 
   function clearSelectedPatient() {
@@ -186,7 +189,7 @@ function TalkStudioInner() {
     setStatuses(null);
     setDrafts({});
     setShareUrl(null);
-    setShareLinkMode(null);
+    setShareLinkFlags(null);
   }
 
   async function handleGenerate(messageType: AiMessageType) {
@@ -220,15 +223,24 @@ function TalkStudioInner() {
   function contentFor(status: MessageStatus): string {
     if (status.messageType === "WELCOME") return FIXED_MESSAGE_TEMPLATE.WELCOME;
     if (status.messageType === "MEETING") return MEETING_TALK_TEMPLATES[meetingTemplateIndex];
+    // 검사톡(task.md) — 별도 문구 생성 없이 위쪽 "링크 포함하기"에서 검사결과를 체크해
+    // 만든 링크 그 자체가 카드 내용이다. 아직 검사결과 포함 링크가 없으면 빈 문자열
+    // (placeholder로 안내).
+    if (status.messageType === "EXAM") {
+      if (!shareUrl || !shareLinkFlags?.hasExam || !selectedPatient) return "";
+      return `${buildShareLinkIntro(selectedPatient.name, shareLinkFlags)}\n${shareUrl}`;
+    }
     return drafts[status.messageType] ?? status.aiDraftContent ?? "";
   }
 
   async function handleCopy(status: MessageStatus) {
     const text = contentFor(status);
     if (!text) return;
+    // EXAM은 contentFor가 이미 링크를 포함한 완성된 문구를 돌려주므로, 다른 유형처럼
+    // 링크를 접미사로 또 붙이면 중복된다.
     const fullText =
-      shareUrl && shareLinkMode && selectedPatient
-        ? `${text}\n\n${SHARE_LINK_INTRO[shareLinkMode](selectedPatient.name)}\n${shareUrl}`
+      status.messageType !== "EXAM" && shareUrl && shareLinkFlags && selectedPatient
+        ? `${text}\n\n${buildShareLinkIntro(selectedPatient.name, shareLinkFlags)}\n${shareUrl}`
         : text;
     const success = await copyToClipboard(fullText);
     if (!success) {
@@ -459,7 +471,11 @@ function TalkStudioInner() {
                       : undefined
                   }
                   placeholder={
-                    isAiMessageType(status.messageType) ? "문구 생성 버튼을 눌러주세요." : ""
+                    isAiMessageType(status.messageType)
+                      ? "문구 생성 버튼을 눌러주세요."
+                      : status.messageType === "EXAM"
+                        ? "위 \"링크 포함하기\"에서 검사결과를 체크하고 링크를 생성하세요."
+                        : ""
                   }
                   rows={3}
                 />

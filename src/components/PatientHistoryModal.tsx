@@ -6,7 +6,7 @@ import { TALK_MESSAGE_TYPE_LABEL } from "@/lib/message-templates";
 
 type StaffUser = { id: number; name: string; role: string };
 type MessageStatus = {
-  messageType: "WELCOME" | "MEETING" | "DAY2" | "DAY7" | "THIRD_VISIT";
+  messageType: "WELCOME" | "MEETING" | "EXAM" | "DAY2" | "DAY7" | "THIRD_VISIT";
   sentDate: string | null;
   staffUser: StaffUser | null;
   skippedAt: string | null;
@@ -16,6 +16,7 @@ type MessageStatus = {
 const MESSAGE_TYPE_LABEL: Record<MessageStatus["messageType"], string> = {
   WELCOME: "웰컴 메시지",
   MEETING: "상담예정 안내",
+  EXAM: "검사톡",
   ...TALK_MESSAGE_TYPE_LABEL,
 };
 

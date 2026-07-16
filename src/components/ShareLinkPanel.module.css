@@ -133,3 +133,47 @@
   color: var(--color-ink);
   opacity: 0.65;
 }
+
+/* 검사기록 체크리스트(검사톡, task.md) — 종류별 그룹으로 묶어서 보여준다. */
+.examChecklist {
+  margin-bottom: 10px;
+  padding: 8px 10px;
+  background: var(--color-hanji-card);
+  border: 1px solid rgba(110, 148, 140, 0.3);
+  border-radius: 4px;
+}
+
+.examTypeGroup {
+  margin-bottom: 8px;
+}
+
+.examTypeGroup:last-child {
+  margin-bottom: 0;
+}
+
+.examTypeLabel {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--color-celadon-dark);
+  margin-bottom: 4px;
+}
+
+.examRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--color-ink);
+  padding: 3px 0;
+  cursor: pointer;
+}
+
+.examRowDate {
+  font-family: var(--font-mono);
+  opacity: 0.7;
+  white-space: nowrap;
+}
+
+.examRowSummary {
+  opacity: 0.85;
+}

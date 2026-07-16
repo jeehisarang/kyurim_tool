@@ -25,9 +25,12 @@ export const TRIAL_TASK_TYPE_LABEL: Record<"TRIAL_WELCOME" | "TRIAL_DAY2" | "TRI
 };
 
 // 활동피드(ActivityLog) 문구 조립용 — WELCOME/MEETING까지 포함한 전체 톡 타입 라벨.
+// EXAM(검사톡, task.md) — 웰컴/만남톡처럼 내원일 자동생성 없이 담당자가 그때그때 만드는
+// 6번째 유형. TodoTask 없이 MessageLog만으로 발송함/안함을 추적한다(웰컴/만남톡과 동일 원칙).
 export const MESSAGE_TYPE_LABEL: Record<string, string> = {
   WELCOME: "웰컴 메시지",
   MEETING: "만남톡",
+  EXAM: "검사톡",
   ...TALK_MESSAGE_TYPE_LABEL,
   ...TRIAL_TASK_TYPE_LABEL,
 };

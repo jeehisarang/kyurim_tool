@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import styles from "@/app/messages/page.module.css";
 import cardStyles from "./TalkGroupManager.module.css";
 import SealStamp from "@/components/SealStamp";
-import ShareLinkPanel, { SHARE_LINK_INTRO, type ShareLinkMode } from "@/components/ShareLinkPanel";
+import ShareLinkPanel, { buildShareLinkIntro, type ShareLinkFlags } from "@/components/ShareLinkPanel";
 import { getCurrentUserId } from "@/lib/currentUser";
 import { copyToClipboard } from "@/lib/clipboard";
 import { TALK_MESSAGE_TYPE_LABEL, TRIAL_TASK_TYPE_LABEL } from "@/lib/message-templates";
@@ -63,11 +63,11 @@ export default function TalkGroupManager({ patientId, date }: { patientId: numbe
   // 링크 포함하기(task.md) — 환자 1명당 1개, TalkStudioPanel과 동일한 방식으로 복사 시
   // 안내문구+URL을 톡 본문 뒤에 붙인다.
   const [shareUrl, setShareUrl] = useState<string | null>(null);
-  const [shareLinkMode, setShareLinkMode] = useState<ShareLinkMode | null>(null);
+  const [shareLinkFlags, setShareLinkFlags] = useState<ShareLinkFlags | null>(null);
 
-  function handleLinkGenerated(url: string, mode: ShareLinkMode) {
+  function handleLinkGenerated(url: string, flags: ShareLinkFlags) {
     setShareUrl(url);
-    setShareLinkMode(mode);
+    setShareLinkFlags(flags);
   }
 
   useEffect(() => {
@@ -162,8 +162,8 @@ export default function TalkGroupManager({ patientId, date }: { patientId: numbe
     if (!text) return;
     const patientName = candidates?.find((c) => c.id === id)?.patient.name;
     const fullText =
-      shareUrl && shareLinkMode && patientName
-        ? `${text}\n\n${SHARE_LINK_INTRO[shareLinkMode](patientName)}\n${shareUrl}`
+      shareUrl && shareLinkFlags && patientName
+        ? `${text}\n\n${buildShareLinkIntro(patientName, shareLinkFlags)}\n${shareUrl}`
         : text;
     const success = await copyToClipboard(fullText);
     if (!success) {
