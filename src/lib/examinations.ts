@@ -416,7 +416,7 @@ export async function listExaminations(patientId?: number, includeInactive = fal
       examType: "HRV" as const,
       patient: { id: r.patient.id, name: r.patient.name, chartNumber: r.patient.chartNumber },
       examDate: r.testDate,
-      staffUserName: r.measuredByStaff.name,
+      staffUserName: r.measuredByStaff?.name ?? "자동연동",
       vascularHealthIndex: r.vascularHealthIndex,
       vascularHealthType: r.vascularHealthType,
       avgPulse: r.avgPulse,

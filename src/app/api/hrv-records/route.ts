@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createHrvTestRecord, listHrvTestRecords } from "@/lib/hrv";
 import { downloadDriveFileBuffer } from "@/lib/google-drive";
 import { ImageResizeError } from "@/lib/image-upload";
+import { scanHrvCsvImports } from "@/lib/hrv-csv-import";
 
 function startOfToday(): Date {
   const now = new Date();
@@ -23,7 +24,20 @@ function toNumber(value: FormDataEntryValue | null): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
+// 유비오맥파 CSV 자동연동(task.md) — generateTalkTodos()와 동일한 "조회 시점마다 자가치유"
+// 패턴. 폴더 접근 실패 등으로 예외가 나도 검사 목록 조회 자체는 절대 깨지면 안 되므로
+// try/catch로 감싼다(scanHrvCsvImports 내부에서도 이미 방어하지만 이중 안전장치).
+async function scanHrvCsvImportsSafely(): Promise<void> {
+  try {
+    await scanHrvCsvImports();
+  } catch (err) {
+    console.error("[hrv-csv-import] 스캔 실패:", err);
+  }
+}
+
 export async function GET(request: Request) {
+  await scanHrvCsvImportsSafely();
+
   const { searchParams } = new URL(request.url);
   const patientIdRaw = searchParams.get("patientId");
   const patientId = patientIdRaw ? Number(patientIdRaw) : undefined;

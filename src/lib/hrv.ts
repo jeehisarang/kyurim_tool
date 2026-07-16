@@ -84,12 +84,18 @@ export async function getHrvTrend(patientId: number): Promise<string | null> {
   });
   if (records.length < 2) return null;
   const [latest, previous] = records;
-  return [
+  const lines = [
     `혈관건강지수: 직전 ${previous.vascularHealthIndex} → 이번 ${latest.vascularHealthIndex}`,
     `혈관건강도: 직전 ${previous.vascularHealthType}등급 → 이번 ${latest.vascularHealthType}등급`,
     `평균맥박: 직전 ${previous.avgPulse} → 이번 ${latest.avgPulse}`,
-    `스트레스지수: 직전 ${previous.stressIndex} → 이번 ${latest.stressIndex}`,
-  ].join("\n");
+  ];
+  // 유비오맥파 CSV 자동연동(task.md) — 둘 중 하나라도 스트레스 지수 측정을 안 했으면
+  // 비교 자체가 성립하지 않으니 이 줄을 통째로 생략한다(AI가 "측정 안 함 → 30"처럼
+  // 억지로 비교하지 않도록).
+  if (previous.stressIndex !== null && latest.stressIndex !== null) {
+    lines.push(`스트레스지수: 직전 ${previous.stressIndex} → 이번 ${latest.stressIndex}`);
+  }
+  return lines.join("\n");
 }
 
 // AI 해설 생성 실패해도 검사 저장 자체는 반드시 성공해야 한다(examinations.ts와 동일 원칙) —
@@ -125,11 +131,26 @@ export type CreateHrvTestRecordInput = {
   vascularHealthIndex: number;
   vascularHealthType: string;
   avgPulse: number;
-  stressIndex: number;
+  // null 허용 — 유비오맥파 CSV 자동연동(task.md)에서 "혈관건강도 측정"만 한 행. 수동 등록
+  // 화면(POST /api/hrv-records)은 여전히 자체 검증에서 이 값을 필수로 요구하므로 그 경로로는
+  // null이 들어올 일이 없다.
+  stressIndex: number | null;
   imageBuffer: Buffer;
   // 기기 리포트 2페이지(상세결과) — 항상 있는 것은 아니라 선택값(task.md).
   imageBuffer2?: Buffer | null;
-  measuredByStaffId: number;
+  // null 허용 — CSV에는 담당 직원 정보가 없다(유비오맥파 CSV 자동연동, task.md). 화면은
+  // "자동연동"으로 표시. 수동 등록 화면은 여전히 자체 검증에서 필수로 요구한다.
+  measuredByStaffId: number | null;
+  // 아래부터 유비오맥파 CSV 자동연동 전용(task.md) — 수동 등록 경로는 전부 undefined로 둔다.
+  tp?: number | null;
+  vlf?: number | null;
+  lf?: number | null;
+  hf?: number | null;
+  lfHfRatio?: number | null;
+  sdnn?: number | null;
+  rmssd?: number | null;
+  // "사용자명|측정일시(ISO)" — 같은 CSV 행 재스캔 시 중복 생성 방지용 유니크 키.
+  csvSourceKey?: string;
 };
 
 /**
@@ -152,6 +173,14 @@ export async function createHrvTestRecord(input: CreateHrvTestRecordInput) {
       vascularHealthType: input.vascularHealthType,
       avgPulse: input.avgPulse,
       stressIndex: input.stressIndex,
+      tp: input.tp ?? null,
+      vlf: input.vlf ?? null,
+      lf: input.lf ?? null,
+      hf: input.hf ?? null,
+      lfHfRatio: input.lfHfRatio ?? null,
+      sdnn: input.sdnn ?? null,
+      rmssd: input.rmssd ?? null,
+      csvSourceKey: input.csvSourceKey,
       sourceImagePath,
       sourceImagePath2,
       measuredByStaffId: input.measuredByStaffId,

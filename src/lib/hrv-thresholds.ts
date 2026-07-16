@@ -21,7 +21,10 @@ export function judgeAvgPulse(value: number): Extract<HrvSeverity, "NORMAL" | "D
 
 // 스트레스지수: 25 미만 정상 / 25~45 경계(일시적 25~35·초기 35~45) / 45 이상 위험(축적
 // 45~60·만성 60 이상) — 이번 단계 색상은 3단계까지만 반영하고 세부 문구는 다루지 않는다.
-export function judgeStressIndex(value: number): HrvSeverity {
+// null(측정 안 함 — "혈관건강도 측정"만 하고 "스트레스 지수 측정"까지 안 한 경우, task.md
+// 유비오맥파 CSV 자동연동)이면 판정 자체를 하지 않는다 — 화면이 색칠 없이 "측정 안 함"으로 표시.
+export function judgeStressIndex(value: number | null): HrvSeverity | null {
+  if (value === null) return null;
   if (value < 25) return "NORMAL";
   if (value < 45) return "CAUTION";
   return "DANGER";

@@ -173,6 +173,13 @@
   color: var(--color-seal);
 }
 
+/* 스트레스지수 측정 안 함(유비오맥파 CSV 자동연동, task.md). */
+.metricValueUnmeasured {
+  font-size: 13px;
+  color: var(--color-ink);
+  opacity: 0.55;
+}
+
 .safetyNoticeBox {
   margin-top: 14px;
   padding: 14px 16px;

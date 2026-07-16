@@ -121,12 +121,14 @@ export type PatientSafeHrvView = {
   vascularHealthIndex: number;
   vascularHealthType: string;
   avgPulse: number;
-  stressIndex: number;
+  // 유비오맥파 CSV 자동연동(task.md) — "스트레스 지수 측정"까지 안 한 행은 null. 화면은
+  // "측정 안 함"으로 표시하고 색칠/AI 코멘트 언급을 건너뛴다.
+  stressIndex: number | null;
   // 정상/경계/위험 색상강조용 판정(task2.md 기준, hrv-thresholds.ts) — 등급 문자를 못 알아보는
   // 과거 오기입 등은 vascularHealthTypeSeverity가 null이라 화면에서 색칠하지 않는다.
   vascularHealthIndexSeverity: HrvSeverity;
   avgPulseSeverity: HrvSeverity;
-  stressIndexSeverity: HrvSeverity;
+  stressIndexSeverity: HrvSeverity | null;
   vascularHealthTypeSeverity: HrvSeverity | null;
   sourceImagePath: string;
   // 2페이지(상세결과) — 없을 수 있다(과거 1장짜리 레코드, task.md).
@@ -143,7 +145,7 @@ type RawHrvDetail = {
   vascularHealthIndex: number;
   vascularHealthType: string;
   avgPulse: number;
-  stressIndex: number;
+  stressIndex: number | null;
   sourceImagePath: string;
   sourceImagePath2?: string | null;
   aiCommentary: string | null;

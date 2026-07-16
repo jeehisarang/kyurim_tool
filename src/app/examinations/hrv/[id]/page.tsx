@@ -16,7 +16,7 @@ type HrvDetail = {
   vascularHealthIndex: number;
   vascularHealthType: string;
   avgPulse: number;
-  stressIndex: number;
+  stressIndex: number | null;
   sourceImagePath: string;
   sourceImagePath2: string | null;
   aiCommentary: string | null;
@@ -25,7 +25,8 @@ type HrvDetail = {
   aiLifestyleGuide: string | null;
   aiTcmInterpretation: string | null;
   aiCommentaryVersion: string | null;
-  measuredByStaff: { name: string };
+  // 유비오맥파 CSV 자동연동(task.md) 레코드는 담당 직원 정보가 없어 null.
+  measuredByStaff: { name: string } | null;
 };
 
 function formatDate(iso: string): string {
@@ -221,7 +222,7 @@ export default function HrvExaminationDetailPage() {
           <strong>{detail.patient.name}</strong> <span className={styles.mono}>({detail.patient.chartNumber})</span>
         </p>
         <p className={styles.muted}>
-          측정일: {formatDate(detail.testDate)} · 측정자: {detail.measuredByStaff.name}
+          측정일: {formatDate(detail.testDate)} · 측정자: {detail.measuredByStaff?.name ?? "자동연동(유비오맥파 CSV)"}
         </p>
       </div>
 
@@ -242,7 +243,7 @@ export default function HrvExaminationDetailPage() {
           </div>
           <div className={styles.resultRow}>
             <span>스트레스지수</span>
-            <span className={styles.resultValue}>{detail.stressIndex}</span>
+            <span className={styles.resultValue}>{detail.stressIndex === null ? "측정 안 함" : detail.stressIndex}</span>
           </div>
         </div>
       </div>

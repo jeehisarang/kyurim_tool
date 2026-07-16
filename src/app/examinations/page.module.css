@@ -24,6 +24,11 @@
   color: var(--color-ink);
 }
 
+.headerLinks {
+  display: flex;
+  gap: 8px;
+}
+
 .newLink {
   font-size: 13px;
   color: var(--color-celadon-dark);

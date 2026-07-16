@@ -42,6 +42,7 @@ model Patient {
   teachingPages          PatientTeachingPage[]
   consultationNotes      ConsultationNote[]
   shareLinks             PatientShareLink[]
+  hrvImportPendingResolutions HrvImportPending[]
 }
 
 model TreatmentCategory {
@@ -118,6 +119,7 @@ model StaffUser {
   createdEventImages      EventImage[]            @relation("EventImageCreator")
   createdShareLinks       PatientShareLink[]      @relation("ShareLinkCreator")
   checkedActivityLogs     ActivityLog[]
+  resolvedHrvImportPendings HrvImportPending[]
 }
 
 model Program {
@@ -275,7 +277,22 @@ model HrvTestRecord {
   // 기기가 판정한 혈관건강도 타입 문자열 그대로 저장(예: "양호") — 이 앱이 재판정하지 않음.
   vascularHealthType  String
   avgPulse   Float
-  stressIndex Float
+  // 유비오맥파 CSV 자동연동(task.md) — "혈관건강도 측정"만 하고 "스트레스 지수 측정"까지
+  // 안 하면 기기 자체가 이 값을 아예 안 낸다. 수동 등록 화면은 여전히 필수 입력으로 강제하고
+  // 있어(POST /api/hrv-records 검증 로직 불변) 실질적으로 null인 경우는 자동연동 경로에서만
+  // 생긴다. UI는 null이면 "측정 안 함"으로 표시하고 색상강조/AI 코멘트 언급을 건너뛴다.
+  stressIndex Float?
+  // 상세 HRV 지표(task.md, 유비오맥파 CSV 자동연동) — 아직 어느 화면에도 노출하지 않고
+  // 향후 "HRV 학술근거 확장" 때 재파싱 없이 바로 쓰기 위해 미리 확보만 해둔다. CSV의 원본
+  // 컬럼명 그대로 대응: TP(Ln)→tp, VLF(Ln)→vlf, LF(Ln)→lf, HF(Ln)→hf, LF/HF→lfHfRatio,
+  // SDNN→sdnn, RMSSD→rmssd. 수동 등록 경로는 이 필드들을 채우지 않는다(항상 null).
+  tp Float?
+  vlf Float?
+  lf Float?
+  hf Float?
+  lfHfRatio Float?
+  sdnn Float?
+  rmssd Float?
   // 구글드라이브에서 다운로드한 원본 결과지 이미지(리사이즈/압축 후 로컬 저장 경로).
   // 기기 리포트는 항상 2장(1p 요약/2p 상세)이라 두 번째 장을 별도 필드로 추가했다(task.md) —
   // 과거 1장짜리 레코드는 sourceImagePath2가 null로 남아 회귀 없이 그대로 조회된다.
@@ -300,11 +317,58 @@ model HrvTestRecord {
   // 스위치해야 하므로 이 필드로 구분한다(taskType/examType과 동일한 문자열 판별자 관례).
   // AI 코멘트 생성/재생성 시점에만 채워지고, 캐시된 값을 그대로 반환하는 경로는 건드리지 않는다.
   aiCommentaryVersion String?
-  measuredByStaffId Int
-  measuredByStaff   StaffUser @relation(fields: [measuredByStaffId], references: [id])
+  // 유비오맥파 CSV 자동연동(task.md)으로 생성된 레코드는 담당 직원 정보가 CSV에 없어 null —
+  // 화면은 "자동연동"으로 표시한다. 수동 등록 경로(POST /api/hrv-records)는 그대로 항상 채운다.
+  measuredByStaffId Int?
+  measuredByStaff   StaffUser? @relation(fields: [measuredByStaffId], references: [id])
   createdAt  DateTime @default(now())
   // 소프트 삭제 원칙(Visit/Program 등과 동일) — 물리 삭제 대신 비활성화만(task2.md).
   isActive   Boolean  @default(true)
+  // 유비오맥파 CSV 자동연동(task.md) 전용 — "사용자명|측정일시(ISO)" 조합. 같은 CSV 행을
+  // 재스캔해도 이 유니크값으로 중복 생성을 막는다(수동 등록 레코드는 항상 null).
+  csvSourceKey String? @unique
+}
+
+// 유비오맥파 CSV 자동연동(task.md) — CSV의 "번호"(차트번호) 필드가 비어있거나 일치하는
+// 환자를 못 찾은 행을 여기 임시 보관한다. 직원이 화면에서 환자를 수동 지정하면
+// createHrvTestRecord()로 정식 HrvTestRecord를 만들고 이 행은 RESOLVED로 남긴다(감사이력
+// 겸 재스캔 시 중복방지 — userName+measuredAt 유니크 제약 자체가 dedup 역할도 한다).
+model HrvImportPending {
+  id        Int      @id @default(autoincrement())
+  userName  String
+  gender    String?
+  birthYear Int?
+  age       Int?
+  // CSV의 "번호" 필드 원본값 — 비어있을 수도, 있지만 매칭 실패했을 수도 있다(직원이 화면에서
+  // 참고할 수 있게 그대로 보존).
+  rawChartNumber String?
+  measuredAt DateTime
+  vascularHealthIndex Float?
+  vascularHealthType  String?
+  avgPulse   Float?
+  stressIndex Float?
+  tp Float?
+  vlf Float?
+  lf Float?
+  hf Float?
+  lfHfRatio Float?
+  sdnn Float?
+  rmssd Float?
+  // capture 폴더에서 매칭된 캡처 이미지를 saveHrvResultImage로 미리 저장해둔 경로(있으면) —
+  // 대기열 화면에서 바로 썸네일을 보여주기 위함. 없으면 null(그래도 대기열 항목 자체는 생성).
+  capturedImagePath String?
+  // 어느 csv 파일에서 왔는지(추적용).
+  sourceFile String
+  status     String   @default("PENDING") // PENDING | RESOLVED | IGNORED
+  resolvedPatientId Int?
+  resolvedPatient   Patient? @relation(fields: [resolvedPatientId], references: [id])
+  resolvedByStaffId Int?
+  resolvedByStaff   StaffUser? @relation(fields: [resolvedByStaffId], references: [id])
+  resolvedHrvTestRecordId Int?
+  resolvedAt DateTime?
+  createdAt  DateTime @default(now())
+
+  @@unique([userName, measuredAt])
 }
 
 // 검사종류별 원장 작성 학술 근거 텍스트 — 향후 다른 검사종류(예: 소변검사) 추가 시

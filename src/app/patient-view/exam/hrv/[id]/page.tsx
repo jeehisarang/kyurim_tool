@@ -120,9 +120,13 @@ export default function PatientViewHrvPage() {
         </div>
         <div className={styles.metricRow}>
           <span className={styles.metricLabel}>스트레스지수</span>
-          <span className={`${styles.metricValue} ${severityClass(styles, view.stressIndexSeverity)}`}>
-            {view.stressIndex}
-          </span>
+          {view.stressIndex === null ? (
+            <span className={styles.metricValueUnmeasured}>측정 안 함</span>
+          ) : (
+            <span className={`${styles.metricValue} ${severityClass(styles, view.stressIndexSeverity)}`}>
+              {view.stressIndex}
+            </span>
+          )}
         </div>
       </div>
 

@@ -167,9 +167,14 @@ function ExaminationListPageInner() {
           <BackButton />
           <h1 className={styles.pageTitle}>검사 목록</h1>
         </div>
-        <Link href="/examinations/new" className={styles.newLink}>
-          + 신규 등록
-        </Link>
+        <div className={styles.headerLinks}>
+          <Link href="/examinations/hrv-pending" className={styles.newLink}>
+            미매칭 검사기록
+          </Link>
+          <Link href="/examinations/new" className={styles.newLink}>
+            + 신규 등록
+          </Link>
+        </div>
       </div>
 
       <div className={styles.filterRow}>

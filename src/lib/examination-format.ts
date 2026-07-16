@@ -38,7 +38,8 @@ export type ExaminationRow =
       vascularHealthIndex: number;
       vascularHealthType: string;
       avgPulse: number;
-      stressIndex: number;
+      // 유비오맥파 CSV 자동연동(task.md) — "혈관건강도 측정"만 한 행은 null.
+      stressIndex: number | null;
       sourceImagePath: string;
       isActive: boolean;
     };
@@ -116,9 +117,12 @@ export function isSmiConcerning(row: ExaminationRow): boolean {
 }
 
 // HRV(자율신경맥파기) 요약 — 판정 계산 로직 없이 기기가 이미 낸 값 그대로 표시(task2.md).
+// stressIndex가 null(유비오맥파 CSV 자동연동, task.md — "혈관건강도 측정"만 한 행)이면
+// "스트레스 -"로 표시해 값이 0이나 누락된 게 아니라 애초에 측정을 안 했음을 드러낸다.
 export function hrvSummaryLabel(row: ExaminationRow): string {
   if (row.examType !== "HRV") return "-";
-  return `혈관건강지수 ${row.vascularHealthIndex}(${row.vascularHealthType}) · 맥박 ${row.avgPulse} · 스트레스 ${row.stressIndex}`;
+  const stress = row.stressIndex === null ? "-" : row.stressIndex;
+  return `혈관건강지수 ${row.vascularHealthIndex}(${row.vascularHealthType}) · 맥박 ${row.avgPulse} · 스트레스 ${stress}`;
 }
 
 /**

@@ -51,6 +51,14 @@
   font-size: 28px;
 }
 
+/* 스트레스지수 측정 안 함(유비오맥파 CSV 자동연동, task.md) — 수치가 없으니 색상강조 없이
+   담담한 톤으로만 표시한다. */
+.metricValueUnmeasured {
+  font-size: 17px;
+  color: var(--color-ink);
+  opacity: 0.55;
+}
+
 .explanationBox {
   margin-top: 20px;
   padding: 18px 22px;

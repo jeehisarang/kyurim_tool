@@ -168,9 +168,13 @@ function HrvEntry({ entry }: { entry: Extract<ShareLinkExamEntry, { examType: "H
         </div>
         <div className={styles.metricRow}>
           <span className={styles.metricLabel}>스트레스지수</span>
-          <span className={`${styles.metricValue} ${severityClass(entry.stressIndexSeverity)}`}>
-            {entry.stressIndex}
-          </span>
+          {entry.stressIndex === null ? (
+            <span className={styles.metricValueUnmeasured}>측정 안 함</span>
+          ) : (
+            <span className={`${styles.metricValue} ${severityClass(entry.stressIndexSeverity)}`}>
+              {entry.stressIndex}
+            </span>
+          )}
         </div>
       </div>
 

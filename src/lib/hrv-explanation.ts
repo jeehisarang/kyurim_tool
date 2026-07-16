@@ -87,6 +87,11 @@ ${SECTION_MARKERS.lifestyleGuide}
 2) 결과와 추이 — 이 환자의 실제 수치(혈관건강지수/혈관건강도/평균맥박/스트레스지수)를 있는
    그대로 인용하며 "기기 기준상"이라는 표현을 명시. 확정형 진단 표현 대신 "~일 수 있습니다"
    같은 신중한 어조를 유지할 것.
+   - [실제 측정값]의 스트레스지수가 "측정 안 함"이면(혈관건강도 측정만 진행하고 스트레스
+     지수 측정까지는 안 한 경우) 스트레스지수에 대해 아무 말도 하지 말고(수치를 창작하지
+     말 것), 나머지 3개 지표(혈관건강지수/혈관건강도/평균맥박)만으로 서술할 것. 이 경우
+     "스트레스 지수 측정까지 진행하면 더 자세한 코멘트를 받아보실 수 있습니다" 정도로
+     짧게 안내를 덧붙여도 좋음.
    - [직전 검사 대비 변화]가 "없음(첫 검사)"이면 추이 언급 없이 현재 상태만 설명(기존 방식과
      동일).
    - [직전 검사 대비 변화]가 주어지면, 혈관건강지수/혈관건강도/스트레스지수/평균맥박 4개
@@ -165,7 +170,10 @@ export type HrvExplanationInput = {
   vascularHealthIndex: number;
   vascularHealthType: string;
   avgPulse: number;
-  stressIndex: number;
+  // null이면 "혈관건강도 측정"만 하고 스트레스 지수 측정까지는 안 한 경우(유비오맥파 CSV
+  // 자동연동, task.md) — buildUserMessage가 "측정 안 함"으로 표기해 AI가 수치를 창작하지
+  // 않게 한다.
+  stressIndex: number | null;
   // 직전 검사 대비 변화 요약(getHrvTrend 재사용) — 1건뿐이면 null.
   trend: string | null;
   // 원장 작성 학술 근거(ExamAcademicGuide.content) — 미작성이면 null.
@@ -185,8 +193,9 @@ function formatTcmPatternMap(entries: TcmPatternMapEntry[]): string {
 }
 
 function buildUserMessage(input: HrvExplanationInput): string {
+  const stressIndexText = input.stressIndex === null ? "측정 안 함(혈관건강도 측정만 진행됨)" : String(input.stressIndex);
   return `[검사 종류] 자율신경맥파기(HRV) 검사
-[실제 측정값] 혈관건강지수 ${input.vascularHealthIndex}, 혈관건강도 ${input.vascularHealthType}등급, 평균맥박 ${input.avgPulse}, 스트레스지수 ${input.stressIndex}
+[실제 측정값] 혈관건강지수 ${input.vascularHealthIndex}, 혈관건강도 ${input.vascularHealthType}등급, 평균맥박 ${input.avgPulse}, 스트레스지수 ${stressIndexText}
 [직전 검사 대비 변화] ${input.trend ?? "없음(첫 검사이거나 변화 없음)"}
 [학술 근거] ${input.academicGuide ?? "없음 — 양생 안내는 아주 짧고 담백하게만 작성할 것"}
 [한의학적 매핑표] ${formatTcmPatternMap(input.tcmPatternMap)}
