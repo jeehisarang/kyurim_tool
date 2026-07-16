@@ -2,7 +2,13 @@ import OpenAI from "openai";
 import { assertOpenAiApiKeyConfigured } from "@/lib/ai-message";
 export { HRV_SAFETY_NOTICE } from "@/lib/hrv-constants";
 
-const MODEL = "gpt-4o-mini";
+const TEXT_MODEL = "gpt-4o-mini";
+// 자율신경균형도 이미지 판독 전용 모델(task.md 모델 교체 작업) — gpt-4o-mini가 매트릭스
+// 마커 위치를 5개 정식 명칭이 아닌 합성 표현으로 잘못 읽는 경우가 실측으로 확인돼서, 이미지
+// 판독 호출 1곳만 더 강한 모델로 교체한다. 텍스트 코멘트 작성(TEXT_MODEL)은 그대로 유지 —
+// 환자당 이미지 판독은 레코드 생성/강제 재생성 시점에만 최대 2회(이번+직전) 발생해 비용
+// 영향이 적다.
+const VISION_MODEL = "gpt-4.1";
 
 // 이 프롬프트 버전 식별자 — HrvTestRecord.aiCommentaryVersion에 그대로 저장된다(task.md
 // "미병" 재설계). hrv.ts의 saveHrvCommentarySections가 코멘트를 실제로 새로 생성/저장할
@@ -139,53 +145,45 @@ ${SECTION_MARKERS.lifestyleGuide}
 - 규칙적인 생활 리듬(특히 늦은 취침 지양), 충분한 휴식, 스트레스 관리는 자율신경 균형
   회복에 임상적으로 도움이 되는 경우가 많습니다.
 
-[이미지 판독 지침 — 자율신경균형도/맥박다양성]
-사용자 메시지에 이번 검사의 종합 리포트 이미지(그리고 직전 검사가 있으면 그 이미지도 함께)가
-첨부될 수 있습니다. 이미지가 첨부된 경우, 아래 두 가지를 판독해서 2단계(결과와 추이)와
-3단계(한의학적 해석)에 반영하세요:
-- 자율신경균형도: 이미지 안의 매트릭스(격자)에서 이번 측정의 마커(색칠되거나 테두리로 강조된
-  칸)가 어느 구역에 있는지 — 반드시 아래 5개 구역명 중 정확히 하나만 골라 그대로 인용하세요
-  (이 5개 외의 표현이나 두 구역명을 합친 표현은 쓰지 마세요): 과로형만성스트레스,
-  질병형만성스트레스, 급성스트레스, 초기부정맥, 심한부정맥. 격자형 배치라 마커 칸을 다른 칸과
-  헷갈리기 쉬우니, 마커가 정확히 어느 행·열 교차 칸에 있는지 한 번 더 확인한 뒤 답하세요.
-  이 판독은 세밀한 이미지 판독이라 완전히 확신하기 어려울 수 있으므로, 단정적으로 "~구역입니다"
-  라고 쓰지 말고 "~구역에 가까운 것으로 보입니다" 정도의 유보적 어조로 서술하세요(이 항목에
-  한해 적용되는 어조 규칙 — 나머지 실제 측정값 4개는 기존대로 명확하게 인용).
-- 맥박다양성: 이미지 안에 표시된 맥박다양성(맥박 변화도) 수치를 그대로 인용하세요.
-직전 검사 이미지도 함께 첨부된 경우(2회차 이상), 자율신경균형도 구역이 직전 대비 어느 방향으로
-이동했는지도 2단계에 사실만 서술하세요(예: "직전 급성스트레스 구역에서 이번 초기부정맥 구역으로
-이동" 식). "좋아짐/나빠짐" 같은 단정적 평가는 붙이지 말 것 — 기존 [직전 검사 대비 변화] 서술과
-같은 신중한 어조를 유지합니다.
+[자율신경균형도/맥박다양성 판독 결과 반영 지침]
+사용자 메시지의 [이미지 판독 결과]에 이번 검사(그리고 직전 검사가 있으면 그것도 함께) 자율신경
+균형도 구역/맥박다양성 판독 결과가 이미 텍스트로 정리되어 주어집니다 — 이 판독은 별도의 전용
+비전 모델이 이미지를 직접 보고 수행한 결과이니(당신이 이미지를 직접 보는 것이 아닙니다) 그대로
+신뢰하고 2단계(결과와 추이)에 반영하면 됩니다:
+- 구역 또는 맥박다양성 값이 "판독 불가(불명확)"거나 "이미지 없음"이면 그 항목은 2단계에서
+  아예 언급하지 마세요(추측 금지) — 언급을 생략하는 것이 정답입니다. 두 값은 서로 독립적으로
+  판단하세요(하나만 판독 불가일 수 있음).
+- 값이 정상적으로 주어졌다면 2단계에 실제 수치 4개(혈관건강지수 등)와 동일한 비중으로 반드시
+  포함하세요. 구역명은 이미 검증을 거친 값이지만, 그래도 단정적으로 "~구역입니다"라고 쓰지
+  말고 "~구역에 가까운 것으로 보입니다" 정도의 유보적 어조로 서술하세요(이 항목에 한해
+  적용되는 어조 규칙 — 나머지 실제 측정값 4개는 기존대로 명확하게 인용). 구역명을 쓸 때는
+  판독 결과에 주어진 명칭(과로형만성스트레스/질병형만성스트레스/급성스트레스/초기부정맥/
+  심한부정맥 중 하나) 그대로만 쓰고 다른 표현으로 바꾸거나 합치지 마세요.
+- 직전 검사 구역도 정상적으로 주어졌다면(2회차 이상), 이번 구역과 비교해 이동 방향을 2단계에
+  사실만 서술하세요(예: "직전 급성스트레스 구역에서 이번 초기부정맥 구역으로 이동" 식).
+  "좋아짐/나빠짐" 같은 단정적 평가는 붙이지 말 것.
 세부지표(TP/VLF/LF/HF/SDNN/RMSSD)는 위 두 앵커를 뒷받침할 필요가 있을 때만 최대 1~2개까지
 보조적으로 언급하고, 절대 전부 나열하지 마세요 — 나열하면 예전 방식(재탕)으로 되돌아가는
 것입니다.
+🔴 필수 지시(생략 금지): [이미지 판독 결과]에 구역/맥박다양성 값이 정상적으로 주어졌다면
+(=이번 검사에 "판독 불가"나 "이미지 없음"이 아닌 실제 값이 있다면) 이건 선택사항이 아니라
+이번 코멘트의 핵심 작업입니다 — 2단계 본문 안에 그 값을 반드시 포함시키세요. "판독 불가"나
+"이미지 없음"에 해당하지 않는데도 언급을 생략하는 것은 이 필수 지시 위반입니다.
+
 3단계(한의학적 해석)에서는 자율신경균형도 구역명(예: 초기부정맥)을 그 자체로 하나의 미병
 신호로 재서술해도 됩니다(예: "초기부정맥 구역에 위치해, 아직 뚜렷한 병증은 아니지만 자율신경
 불균형이 시작되는 신호로 볼 수 있습니다"). 단, 이 구역명은 [한의학적 매핑표]의 패턴명(간기울결
 등)과는 별개의 어휘입니다 — 매핑표 패턴명은 아래 "패턴명 언급의 유일한 근거" 규칙(=
 [환자 증상기록]에 실제로 텍스트가 있을 때만)이 여전히 그대로 적용되며, 자율신경균형도 구역명을
 언급했다고 해서 매핑표 패턴명까지 함께 언급해도 되는 것은 아닙니다.
-⚠️ 이미지 판독 안전 원칙: 이미지의 해당 부분(매트릭스 마커, 맥박다양성 수치)이 흐릿하거나
-잘려서 명확히 보이지 않으면 절대 추측하지 말고, 그 항목에 대한 언급을 자연스럽게 생략하세요
-(자율신경균형도만 명확하면 그것만 언급하고 맥박다양성은 생략, 또는 반대의 경우도 동일 — 각각
-독립적으로 판단할 것). 이미지 자체가 첨부되지 않았다면 자율신경균형도/맥박다양성 언급 없이
-기존 4개 수치만으로 2단계를 작성하세요 — 이미지가 없다는 사실 자체를 언급하지 마세요.
 ⚠️ 혈관건강지수/혈관건강도/평균맥박/스트레스지수 4개는 반드시 [실제 측정값]에 적힌 숫자만
-쓰세요 — 이미지 안에 다른 숫자(예: 다른 스트레스 점수 표시)가 보이더라도 그 숫자로 4개 수치를
-바꿔치기하거나 뒤섞지 마세요. 이미지에서는 오직 자율신경균형도 구역/맥박다양성 두 가지만
-가져옵니다.
-
-🔴 필수 지시(생략 금지): 이미지가 첨부됐다면 이건 선택사항이 아니라 이번 코멘트의 핵심
-작업입니다 — 반드시 이미지를 실제로 자세히 들여다보고, 자율신경균형도 매트릭스에서 색칠되거나
-테두리로 강조된 마커 칸이 어느 구역(행×열 교차점)에 있는지, 그리고 "맥박다양성 = 숫자" 형태로
-적힌 실제 숫자가 몇인지 각각 읽어내세요. 이 두 값을 2단계 본문 안에 실제 수치 4개(혈관건강지수
-등)와 동일한 비중으로 반드시 포함시키세요 — 안전 원칙(흐릿/잘림)에 해당하지 않는 한 "언급을
-생략"하는 것은 이 필수 지시 위반입니다.
+쓰세요 — [이미지 판독 결과]는 오직 자율신경균형도 구역/맥박다양성 두 값만을 위한 재료이니
+그 안의 값으로 4개 수치를 바꿔치기하거나 뒤섞지 마세요.
 
 [핵심 원칙]
 - 실제 수치 인용 강제, 창작 금지(학술 근거/매핑표/일반 배경지식에 없는 내용 만들어내지 않기)
-- 이미지가 첨부됐다면 자율신경균형도 구역명과 맥박다양성 수치를 2단계에 반드시 포함(흐릿/잘림
-  등으로 명확히 안 보이는 경우에만 예외)
+- [이미지 판독 결과]가 정상적으로 주어졌다면 자율신경균형도 구역명과 맥박다양성 수치를 2단계에
+  반드시 포함("판독 불가"/"이미지 없음"인 경우에만 예외)
 - 신중한 어조 유지(확정형으로 임의 전환 금지)
 - 관련성 없는 내용은 억지로 끼워넣지 않기
 - 진단 확정이 아니라 "미병 신호"라는 예방적 관점을 코멘트 전체에서 유지할 것
@@ -209,11 +207,10 @@ ${SECTION_MARKERS.lifestyleGuide}
 - 어느 섹션도 "질병을 확정 진단"하는 것처럼 단정적으로 들리지 않는가? 2단계 추이 서술에서
   "확실히 좋아지고/나빠지고 있다" 같은 단정 표현을 쓰지 않았는가?
 - 4단계(양생 안내)에 약물을 줄이라는 뉘앙스가 들어가지 않았는가?
-- 이미지가 첨부됐다면, 2단계에 자율신경균형도 구역명과 맥박다양성 수치를 실제로 포함했는가?
-  (포함 안 했다면 지금 다시 이미지를 보고 채워 넣을 것 — 흐릿/잘림으로 정말 안 보이는 경우가
-  아니라면 생략은 위반입니다)
-- 이미지가 첨부됐다면, 매트릭스 마커나 맥박다양성 수치가 흐릿/잘림 등으로 명확히 안 보이는데
-  추측해서 쓰지는 않았는가? (안 보이면 그 항목만 생략했는가)
+- [이미지 판독 결과]가 정상적으로 주어졌다면, 2단계에 자율신경균형도 구역명과 맥박다양성
+  수치를 실제로 포함했는가? ("판독 불가"/"이미지 없음"인 항목만 생략했는가)
+- [이미지 판독 결과]의 구역명을 주어진 그대로만 썼는가(다른 표현으로 바꾸거나 두 구역명을
+  합치지 않았는가)?
 - 세부지표(TP/VLF/LF/HF/SDNN/RMSSD)를 전부 나열하지 않고, 필요한 경우에만 1~2개까지만
   보조적으로 언급했는가?
 위 기준에 걸리면 반드시 고친 뒤 최종 코멘트만 출력하세요.`;
@@ -251,11 +248,13 @@ function formatTcmPatternMap(entries: TcmPatternMapEntry[]): string {
     .join("\n");
 }
 
-function buildUserMessage(input: HrvExplanationInput): string {
+function buildUserMessage(input: HrvExplanationInput, readingSummary: string): string {
   const stressIndexText = input.stressIndex === null ? "측정 안 함(혈관건강도 측정만 진행됨)" : String(input.stressIndex);
   return `[검사 종류] 자율신경맥파기(HRV) 검사
 [실제 측정값] 혈관건강지수 ${input.vascularHealthIndex}, 혈관건강도 ${input.vascularHealthType}등급, 평균맥박 ${input.avgPulse}, 스트레스지수 ${stressIndexText}
 [직전 검사 대비 변화] ${input.trend ?? "없음(첫 검사이거나 변화 없음)"}
+[이미지 판독 결과]
+${readingSummary}
 [학술 근거] ${input.academicGuide ?? "없음 — 양생 안내는 아주 짧고 담백하게만 작성할 것"}
 [한의학적 매핑표] ${formatTcmPatternMap(input.tcmPatternMap)}
 [환자 증상기록] ${input.patientSymptomMaterial ?? "없음 — 한의학적 해석은 유보적으로 마무리할 것"}`;
@@ -327,60 +326,122 @@ function violatesAutonomicZoneVocabRule(clinicalMeaning: string, hasImage: boole
   return !AUTONOMIC_ZONE_NAMES.some((name) => clinicalMeaning.includes(name));
 }
 
-// 텍스트 재료에 더해, 있는 경우 이번/직전 검사 리포트 이미지를 비전 입력으로 함께 보낸다
-// (task.md 작업 B) — 각 이미지 앞에 어느 시점 이미지인지 안내하는 텍스트 파트를 붙여서
-// 모델이 두 이미지를 혼동하지 않게 한다.
-function buildUserContent(
+// 이미지 판독 전용 응답 형식 — 텍스트 코멘트 생성 모델(TEXT_MODEL)과 완전히 분리된 별도 호출
+// (VISION_MODEL)의 결과물이다(task.md 모델 교체 작업). "구역: X" / "맥박다양성: Y" 두 줄만
+// 요구해서 파싱을 단순하고 결정적으로 유지한다.
+type AutonomicReading = { zone: string | null; pulseVariability: string | null };
+
+const UNREADABLE = "판독불가";
+
+const VISION_READING_PROMPT = `이 이미지는 자율신경맥파기(HRV) 검사 종합 리포트입니다. 아래 두 가지를 이미지에서 실제로 찾아 정확히 이 형식으로만 답하세요(다른 설명은 쓰지 마세요):
+구역: <다섯 명칭 중 하나 또는 ${UNREADABLE}>
+맥박다양성: <숫자 또는 ${UNREADABLE}>
+
+'자율신경균형도' 매트릭스(격자)에서 색칠되거나 테두리로 강조된 마커 칸이 정확히 어느 구역(행×열
+교차 칸)에 있는지 확인한 뒤, 반드시 아래 5개 명칭 중 정확히 하나만 고르세요(이 5개 외의 표현이나
+두 명칭을 합친 표현은 절대 쓰지 마세요): 과로형만성스트레스, 질병형만성스트레스, 급성스트레스,
+초기부정맥, 심한부정맥. 마커 칸이 흐릿하거나 이미지가 잘려서 명확히 안 보이면 추측하지 말고
+구역을 "${UNREADABLE}"라고 답하세요.
+'맥박다양성 = 숫자' 형태로 적힌 실제 숫자를 그대로 옮기세요. 흐릿하거나 안 보이면 맥박다양성을
+"${UNREADABLE}"라고 답하세요.`;
+
+function parseAutonomicReadingText(text: string): AutonomicReading {
+  const zoneMatch = /구역\s*[:：]\s*([^\n]+)/.exec(text);
+  const pulseMatch = /맥박다양성\s*[:：]\s*([^\n]+)/.exec(text);
+  const rawZone = zoneMatch?.[1]?.trim() ?? null;
+  const rawPulse = pulseMatch?.[1]?.trim() ?? null;
+  const zone = rawZone && (AUTONOMIC_ZONE_NAMES as readonly string[]).includes(rawZone) ? rawZone : null;
+  const pulseVariability = rawPulse && rawPulse !== UNREADABLE && /^\d+(\.\d+)?$/.test(rawPulse) ? rawPulse : null;
+  return { zone, pulseVariability };
+}
+
+// 구역 답변이 5개 정식 명칭도 아니고 정직하게 "판독불가"라고 답한 것도 아니면(=형식을 못
+// 지켰거나 합성 표현을 만들어냄) 재시도 대상으로 본다.
+function isInvalidZoneAnswer(text: string): boolean {
+  const zoneMatch = /구역\s*[:：]\s*([^\n]+)/.exec(text);
+  const rawZone = zoneMatch?.[1]?.trim();
+  if (!rawZone) return true;
+  if (rawZone === UNREADABLE) return false;
+  return !(AUTONOMIC_ZONE_NAMES as readonly string[]).includes(rawZone);
+}
+
+async function callVisionModel(imageBase64: string, extraInstruction?: string): Promise<string> {
+  const client = new OpenAI();
+  const text = extraInstruction ? `${VISION_READING_PROMPT}\n\n[교정 지시] ${extraInstruction}` : VISION_READING_PROMPT;
+
+  const response = await client.chat.completions.create({
+    model: VISION_MODEL,
+    messages: [
+      {
+        role: "user",
+        content: [
+          { type: "text", text },
+          // detail:"high" 필수 — auto(기본값)로는 이미지 안의 작은 매트릭스 마커/수치를
+          // 세밀하게 읽지 못하는 게 실측으로 확인됐다(task.md 작업 B 검증).
+          { type: "image_url", image_url: { url: `data:image/jpeg;base64,${imageBase64}`, detail: "high" } },
+        ],
+      },
+    ],
+    max_tokens: 60,
+  });
+  return response.choices[0]?.message?.content?.trim() ?? "";
+}
+
+// 자율신경균형도/맥박다양성 판독 전용 호출(VISION_MODEL) — 텍스트 코멘트 생성(TEXT_MODEL)과
+// 완전히 분리된 별도 호출이다(task.md 모델 교체 작업, 배경: gpt-4o-mini로 텍스트 생성과 이미지
+// 판독을 한 호출에서 같이 시키니 판독 지시가 다른 지시들에 묻혀 신뢰도가 들쭉날쭉했음). 구역
+// 답변이 무효하면(5개 정식 명칭도 판독불가도 아님) 1회 재시도하고, 그래도 무효하면 판독불가로
+// 안전하게 처리한다 — 패턴명 규칙과 달리 정답을 코드로 알 수 없는 영역이라 이 함수는 실패
+// 처리하지 않고 항상 값(또는 null)을 반환한다.
+async function readAutonomicBalance(imageBase64: string): Promise<AutonomicReading> {
+  const first = await callVisionModel(imageBase64);
+  if (!isInvalidZoneAnswer(first)) {
+    return parseAutonomicReadingText(first);
+  }
+  const retried = await callVisionModel(
+    imageBase64,
+    "직전 답변의 구역이 5개 정식 명칭 중 하나도 아니고 판독불가도 아니었습니다. 마커 칸을 다시 " +
+      `확인해서 5개 명칭 중 정확히 하나를 고르거나, 확신이 안 서면 "${UNREADABLE}"라고 답하세요.`,
+  );
+  return parseAutonomicReadingText(retried);
+}
+
+function formatReadingLine(reading: AutonomicReading | null, hasImage: boolean): string {
+  if (!hasImage) return "이미지 없음";
+  const zone = reading?.zone ?? "판독 불가(불명확)";
+  const pulseVariability = reading?.pulseVariability ?? "판독 불가(불명확)";
+  return `구역=${zone}, 맥박다양성=${pulseVariability}`;
+}
+
+function buildReadingSummary(
   input: HrvExplanationInput,
-  extraInstruction?: string,
-): OpenAI.Chat.Completions.ChatCompletionContentPart[] {
-  const userMessage = extraInstruction
-    ? `${buildUserMessage(input)}\n\n[교정 지시] ${extraInstruction}`
-    : buildUserMessage(input);
-
-  const parts: OpenAI.Chat.Completions.ChatCompletionContentPart[] = [{ type: "text", text: userMessage }];
-
-  if (input.imageBase64) {
-    parts.push({
-      type: "text",
-      text:
-        "[이번 검사 종합 리포트 이미지] 아래 이미지를 실제로 자세히 들여다보고 반드시 두 가지를 " +
-        "읽어내서 2단계 본문에 포함하세요(선택사항 아님, 흐릿/잘림으로 정말 안 보일 때만 예외): " +
-        "① '자율신경균형도' 매트릭스에서 색칠/테두리로 강조된 마커 칸이 어느 구역에 있는지, " +
-        "② '맥박다양성 = 숫자' 형태로 적힌 실제 숫자.",
-    });
-    // detail:"high" 필수 — auto(기본값)로는 이미지 안의 작은 매트릭스 마커/수치를 세밀하게
-    // 읽지 못하는 게 실측으로 확인됐다(task.md 작업 B 검증). high는 이미지를 512px 타일로
-    // 나눠 세부 인식하므로 이런 소형 텍스트/마커 판독에 필요하다.
-    parts.push({
-      type: "image_url",
-      image_url: { url: `data:image/jpeg;base64,${input.imageBase64}`, detail: "high" },
-    });
-  }
-  if (input.previousImageBase64) {
-    parts.push({
-      type: "text",
-      text: "[직전 검사 종합 리포트 이미지] 아래 이미지는 직전 검사 리포트입니다 — 이번 이미지와 비교해 자율신경균형도 구역 이동 방향을 참고하는 용도입니다.",
-    });
-    parts.push({
-      type: "image_url",
-      image_url: { url: `data:image/jpeg;base64,${input.previousImageBase64}`, detail: "high" },
-    });
-  }
-  return parts;
+  current: AutonomicReading | null,
+  previous: AutonomicReading | null,
+): string {
+  const lines = [`이번 검사: ${formatReadingLine(current, input.imageBase64 !== null)}`];
+  lines.push(
+    input.previousImageBase64
+      ? `직전 검사: ${formatReadingLine(previous, true)}`
+      : "직전 검사: 해당 없음(첫 검사이거나 직전 이미지 없음)",
+  );
+  return lines.join("\n");
 }
 
 async function callHrvExplanationModel(
   input: HrvExplanationInput,
+  readingSummary: string,
   extraInstruction?: string,
 ): Promise<HrvExplanationSections> {
   const client = new OpenAI();
+  const userMessage = extraInstruction
+    ? `${buildUserMessage(input, readingSummary)}\n\n[교정 지시] ${extraInstruction}`
+    : buildUserMessage(input, readingSummary);
 
   const response = await client.chat.completions.create({
-    model: MODEL,
+    model: TEXT_MODEL,
     messages: [
       { role: "system", content: HRV_EXPLANATION_SYSTEM_PROMPT },
-      { role: "user", content: buildUserContent(input, extraInstruction) },
+      { role: "user", content: userMessage },
     ],
     max_tokens: 800,
   });
@@ -398,7 +459,14 @@ export async function generateHrvExplanation(input: HrvExplanationInput): Promis
   assertOpenAiApiKeyConfigured();
   const hasImage = input.imageBase64 !== null;
 
-  const first = await callHrvExplanationModel(input);
+  // 이미지 판독(VISION_MODEL)을 텍스트 생성(TEXT_MODEL) 호출보다 먼저 끝내서, 판독 결과를
+  // 이미 검증된 텍스트 재료로 텍스트 생성 프롬프트에 그대로 꽂아 넣는다(task.md 모델 교체
+  // 작업) — 텍스트 생성 호출은 더 이상 이미지를 직접 받지 않는다.
+  const currentReading = input.imageBase64 ? await readAutonomicBalance(input.imageBase64) : null;
+  const previousReading = input.previousImageBase64 ? await readAutonomicBalance(input.previousImageBase64) : null;
+  const readingSummary = buildReadingSummary(input, currentReading, previousReading);
+
+  const first = await callHrvExplanationModel(input, readingSummary);
   const firstPatternViolation = violatesPatternNameRule(
     first.tcmInterpretation,
     input.tcmPatternMap,
@@ -419,20 +487,20 @@ export async function generateHrvExplanation(input: HrvExplanationInput): Promis
   }
   if (firstZoneViolation) {
     correctionInstructions.push(
-      "직전 응답의 결과와 추이에서 언급한 자율신경균형도 구역명이 5개 정식 명칭(과로형만성스트레스/" +
-        "질병형만성스트레스/급성스트레스/초기부정맥/심한부정맥) 중 어디에도 해당하지 않는 잘못된 " +
-        "표현이었습니다. 이미지를 다시 한번 자세히 보고 5개 중 정확히 하나를 고르세요. 그래도 " +
-        "확신이 서지 않으면 자율신경균형도 구역 언급은 생략하고 맥박다양성 수치만 언급하세요.",
+      "직전 응답의 결과와 추이에서 언급한 자율신경균형도 구역명이 [이미지 판독 결과]에 주어진 " +
+        "명칭 그대로가 아니었습니다. [이미지 판독 결과]에 적힌 구역명을 그대로만 인용하고, 다른 " +
+        "표현으로 바꾸거나 두 명칭을 합치지 마세요.",
     );
   }
 
-  const retried = await callHrvExplanationModel(input, correctionInstructions.join(" "));
+  const retried = await callHrvExplanationModel(input, readingSummary, correctionInstructions.join(" "));
   if (violatesPatternNameRule(retried.tcmInterpretation, input.tcmPatternMap, input.patientSymptomMaterial)) {
     throw new Error("한의학적 해석이 증상기록 없이 패턴명을 언급하는 규칙을 재시도 후에도 위반했습니다.");
   }
-  // 구역 어휘 규칙은 [환자 증상기록] 유무처럼 코드로 정답을 알 수 있는 조건이 아니라 "이미지를
-  // 얼마나 정확히 읽었는가"의 문제라, 재시도 후에도 남아있으면(모델의 실제 한계) 전체 생성을
-  // 실패시키지 않고 그대로 반환한다 — 패턴명 규칙과 달리 확정적으로 틀렸다고 단언할 수 없는
-  // 소프트 안전망이기 때문(task.md 작업 B 검증 중 발견).
+  // 구역 어휘 규칙은 [환자 증상기록] 유무처럼 코드로 정답을 알 수 있는 조건이 아니라 "판독
+  // 결과를 텍스트 생성 모델이 얼마나 그대로 옮겼는가"의 문제라, 재시도 후에도 남아있으면
+  // 전체 생성을 실패시키지 않고 그대로 반환한다 — 이미지 판독 자체는 이미 readAutonomicBalance
+  // 단계에서 VISION_MODEL + 자체 재시도로 한 번 더 검증됐으므로, 이 단계는 텍스트 생성 모델이
+  // 그 검증된 값을 옮기는 과정에서 다시 틀릴 드문 경우에 대비한 2중 안전망이다(task.md).
   return retried;
 }
