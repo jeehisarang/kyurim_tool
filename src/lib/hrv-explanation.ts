@@ -2,12 +2,14 @@ import OpenAI from "openai";
 import { assertOpenAiApiKeyConfigured } from "@/lib/ai-message";
 export { HRV_SAFETY_NOTICE } from "@/lib/hrv-constants";
 
-const TEXT_MODEL = "gpt-4o-mini";
+// 텍스트 코멘트 4개 섹션 작성 전용 모델 — 문구 자연스러움 개선 목적으로 gpt-4o-mini에서
+// gpt-4.1-mini로 교체(task.md 모델 교체 작업 2번째 라운드). 이미지 판독(VISION_MODEL)과는
+// 이미 분리된 별도 호출이라 이 상수만 바꿔도 판독 쪽에는 영향이 없다.
+const TEXT_MODEL = "gpt-4.1-mini";
 // 자율신경균형도 이미지 판독 전용 모델(task.md 모델 교체 작업) — gpt-4o-mini가 매트릭스
 // 마커 위치를 5개 정식 명칭이 아닌 합성 표현으로 잘못 읽는 경우가 실측으로 확인돼서, 이미지
-// 판독 호출 1곳만 더 강한 모델로 교체한다. 텍스트 코멘트 작성(TEXT_MODEL)은 그대로 유지 —
-// 환자당 이미지 판독은 레코드 생성/강제 재생성 시점에만 최대 2회(이번+직전) 발생해 비용
-// 영향이 적다.
+// 판독 호출 1곳만 더 강한 모델로 교체했다(이번 라운드와 무관, 그대로 유지). 환자당 이미지
+// 판독은 레코드 생성/강제 재생성 시점에만 최대 2회(이번+직전) 발생해 비용 영향이 적다.
 const VISION_MODEL = "gpt-4.1";
 
 // 이 프롬프트 버전 식별자 — HrvTestRecord.aiCommentaryVersion에 그대로 저장된다(task.md
