@@ -263,6 +263,38 @@ export default function ShareLinkPanel({
         </label>
       </div>
 
+      {/* 실제 공개페이지(/s/[token]) 표시 순서(검사결과→티칭→이벤트, task.md)와 맞춰
+          미리보기 성격의 상세 UI도 같은 순서로 배치한다 — 위 체크박스 3개의 배치 자체는
+          그대로 두고, 그 아래 상세 입력/체크리스트 블록 순서만 바꿨다. */}
+      {includeExam && (
+        <div className={styles.examChecklist}>
+          {examRows === null ? (
+            <span className={styles.muted}>불러오는 중...</span>
+          ) : examRows.length === 0 ? (
+            <span className={styles.muted}>등록된 검사기록이 없습니다.</span>
+          ) : (
+            [...examByType.entries()].map(([examType, rows]) => (
+              <div key={examType} className={styles.examTypeGroup}>
+                <div className={styles.examTypeLabel}>
+                  {EXAM_TYPE_LABEL[examType as keyof typeof EXAM_TYPE_LABEL] ?? examType}
+                </div>
+                {rows.map((row) => (
+                  <label key={examRowKey(row)} className={styles.examRow}>
+                    <input
+                      type="checkbox"
+                      checked={checkedExamKeys.has(examRowKey(row))}
+                      onChange={() => toggleExamRow(examRowKey(row))}
+                    />
+                    <span className={styles.examRowDate}>{formatExamDate(row.examDate)}</span>
+                    <span className={styles.examRowSummary}>{examRowSummary(row)}</span>
+                  </label>
+                ))}
+              </div>
+            ))
+          )}
+        </div>
+      )}
+
       {includeTeaching && (
         <>
           <div className={styles.selectRow}>
@@ -318,35 +350,6 @@ export default function ShareLinkPanel({
                 </option>
               ))}
             </select>
-          )}
-        </div>
-      )}
-
-      {includeExam && (
-        <div className={styles.examChecklist}>
-          {examRows === null ? (
-            <span className={styles.muted}>불러오는 중...</span>
-          ) : examRows.length === 0 ? (
-            <span className={styles.muted}>등록된 검사기록이 없습니다.</span>
-          ) : (
-            [...examByType.entries()].map(([examType, rows]) => (
-              <div key={examType} className={styles.examTypeGroup}>
-                <div className={styles.examTypeLabel}>
-                  {EXAM_TYPE_LABEL[examType as keyof typeof EXAM_TYPE_LABEL] ?? examType}
-                </div>
-                {rows.map((row) => (
-                  <label key={examRowKey(row)} className={styles.examRow}>
-                    <input
-                      type="checkbox"
-                      checked={checkedExamKeys.has(examRowKey(row))}
-                      onChange={() => toggleExamRow(examRowKey(row))}
-                    />
-                    <span className={styles.examRowDate}>{formatExamDate(row.examDate)}</span>
-                    <span className={styles.examRowSummary}>{examRowSummary(row)}</span>
-                  </label>
-                ))}
-              </div>
-            ))
           )}
         </div>
       )}

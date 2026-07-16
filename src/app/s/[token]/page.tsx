@@ -19,9 +19,10 @@ type ShareLinkView = {
 };
 
 /**
- * 환자별 통합 공유링크(14-11) 공개 페이지 — 프로그램티칭과 이벤트를 하나의 링크로 묶어서
- * 톡생성기에서 발송한다. teaching이 있으면 위쪽에(/p/[token]과 동일한 TeachingPageContent
- * 재사용), event가 있으면 그 아래에 표시하고, 한쪽만 있으면 그 섹션만 렌더링한다.
+ * 환자별 통합 공유링크(14-11) 공개 페이지 — 프로그램티칭/이벤트/검사결과를 하나의 링크로
+ * 묶어서 톡생성기에서 발송한다. 표시 순서는 항상 검사결과 → 프로그램티칭 → 이벤트로
+ * 고정한다(task.md) — 포함된 조합이 무엇이든(2개만 있어도 3개 다 있어도) 이 순서를
+ * 그대로 적용하고, 없는 섹션은 건너뛴다.
  */
 export default function ShareLinkPublicPage() {
   const params = useParams<{ token: string }>();
@@ -81,12 +82,18 @@ export default function ShareLinkPublicPage() {
     );
   }
 
+  const hasExams = view.exams.length > 0;
+  const hasTeaching = view.teaching !== null;
+  const hasEvent = view.event !== null;
+
   return (
     <div className={styles.page}>
       <div className={styles.card}>
-        {view.teaching && <TeachingPageContent token={view.teaching.token} view={view.teaching} />}
+        {hasExams && <ExamShareSections exams={view.exams} />}
+        {hasExams && (hasTeaching || hasEvent) && <hr className={styles.sectionDivider} />}
 
-        {view.teaching && view.event && <hr className={styles.sectionDivider} />}
+        {view.teaching && <TeachingPageContent token={view.teaching.token} view={view.teaching} />}
+        {hasTeaching && hasEvent && <hr className={styles.sectionDivider} />}
 
         {view.event && (
           <div>
@@ -109,9 +116,6 @@ export default function ShareLinkPublicPage() {
             )}
           </div>
         )}
-
-        {(view.teaching || view.event) && view.exams.length > 0 && <hr className={styles.sectionDivider} />}
-        {view.exams.length > 0 && <ExamShareSections exams={view.exams} />}
       </div>
     </div>
   );
