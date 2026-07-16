@@ -133,6 +133,9 @@ export type PatientSafeHrvView = {
   sourceImagePath2: string | null;
   sections: PatientSafeHrvSections | null;
   legacyCommentary: string | null;
+  // "미병" 프롬프트 버전(task.md) — null이면 구버전 섹션 의미(기기판독요약 등), "MIBYEONG_V1"
+  // 이면 신버전(미병도입 등)이라 화면이 라벨/순서를 이 값으로 구분해야 한다.
+  commentaryVersion: string | null;
 };
 
 type RawHrvDetail = {
@@ -148,6 +151,7 @@ type RawHrvDetail = {
   aiClinicalMeaning?: string | null;
   aiLifestyleGuide?: string | null;
   aiTcmInterpretation?: string | null;
+  aiCommentaryVersion?: string | null;
 };
 
 export function toPatientSafeHrvView(detail: RawHrvDetail): PatientSafeHrvView {
@@ -174,6 +178,7 @@ export function toPatientSafeHrvView(detail: RawHrvDetail): PatientSafeHrvView {
     sourceImagePath2: detail.sourceImagePath2 ?? null,
     sections,
     legacyCommentary: sections ? null : detail.aiCommentary,
+    commentaryVersion: detail.aiCommentaryVersion ?? null,
   };
 }
 

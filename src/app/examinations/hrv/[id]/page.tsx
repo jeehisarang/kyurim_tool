@@ -24,6 +24,7 @@ type HrvDetail = {
   aiClinicalMeaning: string | null;
   aiLifestyleGuide: string | null;
   aiTcmInterpretation: string | null;
+  aiCommentaryVersion: string | null;
   measuredByStaff: { name: string };
 };
 
@@ -185,6 +186,23 @@ export default function HrvExaminationDetailPage() {
     );
   }
 
+  // 편집폼 라벨/순서도 코멘트 버전에 맞춰야 제목과 내용이 어긋나지 않는다(task2.md 확인사항,
+  // HrvCommentaryCards의 SECTION_LABELS_MIBYEONG/LEGACY와 동일한 라벨을 그대로 씀).
+  const isMibyeong = detail.aiCommentaryVersion === "MIBYEONG_V1";
+  const editFields = isMibyeong
+    ? [
+        { label: "미병(未病) 도입", value: editDeviceReading, onChange: setEditDeviceReading, rows: 3 },
+        { label: "이번 결과와 추이", value: editClinicalMeaning, onChange: setEditClinicalMeaning, rows: 4 },
+        { label: "한의학적 해석", value: editTcmInterpretation, onChange: setEditTcmInterpretation, rows: 4 },
+        { label: "치미병 양생 안내", value: editLifestyleGuide, onChange: setEditLifestyleGuide, rows: 3 },
+      ]
+    : [
+        { label: "기기 판독 요약", value: editDeviceReading, onChange: setEditDeviceReading, rows: 3 },
+        { label: "임상적 의미", value: editClinicalMeaning, onChange: setEditClinicalMeaning, rows: 4 },
+        { label: "생활관리 안내", value: editLifestyleGuide, onChange: setEditLifestyleGuide, rows: 3 },
+        { label: "한의학적 해석", value: editTcmInterpretation, onChange: setEditTcmInterpretation, rows: 4 },
+      ];
+
   return (
     <div className={styles.container}>
       <div className={styles.pageHeader}>
@@ -250,6 +268,7 @@ export default function HrvExaminationDetailPage() {
                 tcmInterpretation: detail.aiTcmInterpretation,
               }}
               legacyText={detail.aiCommentary}
+              commentaryVersion={detail.aiCommentaryVersion}
             />
             <div className={styles.actionRow}>
               <button type="button" className={styles.editButton} onClick={startEdit}>
@@ -278,42 +297,17 @@ export default function HrvExaminationDetailPage() {
 
         {editing && (
           <>
-            <label className={styles.editLabel}>
-              기기 판독 요약
-              <textarea
-                className={styles.editTextarea}
-                rows={3}
-                value={editDeviceReading}
-                onChange={(e) => setEditDeviceReading(e.target.value)}
-              />
-            </label>
-            <label className={styles.editLabel}>
-              임상적 의미
-              <textarea
-                className={styles.editTextarea}
-                rows={4}
-                value={editClinicalMeaning}
-                onChange={(e) => setEditClinicalMeaning(e.target.value)}
-              />
-            </label>
-            <label className={styles.editLabel}>
-              생활관리 안내
-              <textarea
-                className={styles.editTextarea}
-                rows={3}
-                value={editLifestyleGuide}
-                onChange={(e) => setEditLifestyleGuide(e.target.value)}
-              />
-            </label>
-            <label className={styles.editLabel}>
-              한의학적 해석
-              <textarea
-                className={styles.editTextarea}
-                rows={4}
-                value={editTcmInterpretation}
-                onChange={(e) => setEditTcmInterpretation(e.target.value)}
-              />
-            </label>
+            {editFields.map((field) => (
+              <label key={field.label} className={styles.editLabel}>
+                {field.label}
+                <textarea
+                  className={styles.editTextarea}
+                  rows={field.rows}
+                  value={field.value}
+                  onChange={(e) => field.onChange(e.target.value)}
+                />
+              </label>
+            ))}
 
             {saveError && <p className={styles.errorText}>{saveError}</p>}
 

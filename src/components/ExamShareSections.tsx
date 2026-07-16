@@ -178,6 +178,7 @@ function HrvEntry({ entry }: { entry: Extract<ShareLinkExamEntry, { examType: "H
         sections={entry.sections ?? { deviceReading: null, clinicalMeaning: null, lifestyleGuide: null, tcmInterpretation: null }}
         legacyText={entry.legacyCommentary}
         variant="patient"
+        commentaryVersion={entry.commentaryVersion}
       />
 
       <div className={styles.safetyNoticeBox}>

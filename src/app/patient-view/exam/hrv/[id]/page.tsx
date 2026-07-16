@@ -130,6 +130,7 @@ export default function PatientViewHrvPage() {
         sections={view.sections ?? { deviceReading: null, clinicalMeaning: null, lifestyleGuide: null, tcmInterpretation: null }}
         legacyText={view.legacyCommentary}
         variant="patient"
+        commentaryVersion={view.commentaryVersion}
       />
 
       {/* 5단계 "안전 안내"(task.md) — AI가 생성한 텍스트가 아니라 고정 문구를 항상 별도

@@ -1,6 +1,11 @@
 import { prisma } from "@/lib/db";
 import { saveHrvResultImage } from "@/lib/image-upload";
-import { generateHrvExplanation, type TcmPatternMapEntry, type HrvExplanationSections } from "@/lib/hrv-explanation";
+import {
+  generateHrvExplanation,
+  HRV_COMMENTARY_VERSION,
+  type TcmPatternMapEntry,
+  type HrvExplanationSections,
+} from "@/lib/hrv-explanation";
 import { getExamAcademicGuide } from "@/lib/exam-academic-guide";
 import { listConsultationNotesForPatient } from "@/lib/consultation-notes";
 import type { HrvTestRecord } from "@/generated/prisma/client";
@@ -61,14 +66,15 @@ async function buildPatientSymptomMaterial(patientId: number): Promise<string | 
   return parts.length > 0 ? parts.join("\n\n") : null;
 }
 
-function formatSignedDiff(diff: number): string {
-  const rounded = Math.round(diff * 10) / 10;
-  return rounded > 0 ? `+${rounded}` : `${rounded}`;
-}
-
 /**
- * 같은 환자의 HRV 검사 최근 2건을 비교한 변화량 요약(exam-explanation.ts의 getExamTrend와
- * 동일 원칙) — 혈관건강지수를 핵심 지표로 비교한다. 기록이 1건뿐이면(첫 검사) null.
+ * 같은 환자의 HRV 검사 최근 2건을 비교한 변화 요약(exam-explanation.ts의 getExamTrend와
+ * 동일 원칙) — "미병" 재설계(task.md)로 혈관건강지수 하나만이 아니라 4개 지표(혈관건강지수/
+ * 혈관건강도/평균맥박/스트레스지수) 모두 방향성을 언급해야 해서 구조화된 다줄 텍스트로
+ * 확장했다. 조회 건수는 2건(최신+직전)으로 충분하다는 결론(task2.md) — 신규 코멘트 스펙이
+ * "직전 기록과 비교"만 요구하므로 3건 이상 가져와도 실질적 이득이 없다.
+ * 기록이 1건뿐이면(첫 검사) null — 값이 서로 같은 지표가 있어도(구버전과 달리) 있는 그대로
+ * 4개 다 내려준다. 방향 판단(어느 쪽이 양호한지)은 프롬프트가 고정 설명으로 갖고 있어
+ * 여기서는 순수 사실(직전→최근 값)만 전달한다.
  */
 export async function getHrvTrend(patientId: number): Promise<string | null> {
   const records = await prisma.hrvTestRecord.findMany({
@@ -78,9 +84,12 @@ export async function getHrvTrend(patientId: number): Promise<string | null> {
   });
   if (records.length < 2) return null;
   const [latest, previous] = records;
-  const diff = latest.vascularHealthIndex - previous.vascularHealthIndex;
-  if (diff === 0) return null;
-  return `혈관건강지수 ${formatSignedDiff(diff)} 변화(직전 ${previous.vascularHealthIndex} → 최근 ${latest.vascularHealthIndex})`;
+  return [
+    `혈관건강지수: 직전 ${previous.vascularHealthIndex} → 이번 ${latest.vascularHealthIndex}`,
+    `혈관건강도: 직전 ${previous.vascularHealthType}등급 → 이번 ${latest.vascularHealthType}등급`,
+    `평균맥박: 직전 ${previous.avgPulse} → 이번 ${latest.avgPulse}`,
+    `스트레스지수: 직전 ${previous.stressIndex} → 이번 ${latest.stressIndex}`,
+  ].join("\n");
 }
 
 // AI 해설 생성 실패해도 검사 저장 자체는 반드시 성공해야 한다(examinations.ts와 동일 원칙) —
@@ -154,6 +163,10 @@ export async function createHrvTestRecord(input: CreateHrvTestRecordInput) {
   return saveHrvCommentarySections(record.id, commentary);
 }
 
+// 코멘트를 실제로 새로 생성해서 저장하는 유일한 지점이라, aiCommentaryVersion도 여기서만
+// 함께 채운다("미병" 재설계, task.md/task2.md) — 캐시된 값을 그대로 반환하는 경로
+// (ensureHrvExplanation의 조기 반환)는 이 함수를 거치지 않으므로 기존 버전 값이 그대로
+// 유지된다.
 function saveHrvCommentarySections(id: number, commentary: HrvExplanationSections) {
   return prisma.hrvTestRecord.update({
     where: { id },
@@ -162,6 +175,7 @@ function saveHrvCommentarySections(id: number, commentary: HrvExplanationSection
       aiClinicalMeaning: commentary.clinicalMeaning,
       aiLifestyleGuide: commentary.lifestyleGuide,
       aiTcmInterpretation: commentary.tcmInterpretation,
+      aiCommentaryVersion: HRV_COMMENTARY_VERSION,
     },
   });
 }
