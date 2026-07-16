@@ -7,8 +7,8 @@
 .metricGrid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-  gap: 12px 24px;
-  margin-top: 20px;
+  gap: 18px 28px;
+  margin-top: 24px;
 }
 
 .metricRow {
@@ -16,21 +16,39 @@
   align-items: baseline;
   justify-content: space-between;
   gap: 12px;
-  padding-bottom: 10px;
+  padding-bottom: 14px;
   border-bottom: 1px solid rgba(110, 148, 140, 0.2);
 }
 
 .metricLabel {
-  font-size: 15px;
+  font-size: 17px;
   color: var(--color-ink);
   opacity: 0.75;
 }
 
+/* 기본색(정상/경계/위험 판정이 안 되는 경우의 폴백) — 기존 톤 그대로. */
 .metricValue {
   font-family: var(--font-mono);
   font-weight: 700;
-  font-size: 20px;
+  font-size: 24px;
   color: var(--color-celadon-dark);
+}
+
+/* 정상/비정상 색상강조(task2.md) — 강조 대상은 주변 텍스트(.metricLabel 17px)보다 한 단계
+   이상 크게(28px), 밝은 배경 위에서도 대비가 충분한 진한 톤만 사용한다. */
+.metricValueNormal {
+  color: var(--color-celadon-dark);
+  font-size: 28px;
+}
+
+.metricValueCaution {
+  color: var(--color-warning);
+  font-size: 28px;
+}
+
+.metricValueDanger {
+  color: var(--color-seal);
+  font-size: 28px;
 }
 
 .explanationBox {
@@ -45,22 +63,23 @@
 }
 
 /* AI가 생성한 텍스트(explanationBox)와 명확히 구분되도록 인장색(seal) 강조 — 이 블록은
-   항상 고정 문구가 그대로 붙는 것이라 AI 코멘트로 오해되지 않게 스타일을 다르게 둔다. */
+   항상 고정 문구가 그대로 붙는 것이라 AI 코멘트로 오해되지 않게 스타일을 다르게 둔다.
+   배경/테두리 색은 기존 그대로 유지하고(task2.md) 글자 크기/줄간격만 키운다. */
 .safetyNoticeBox {
-  margin-top: 14px;
-  padding: 16px 20px;
+  margin-top: 18px;
+  padding: 20px 24px;
   background: rgba(179, 60, 46, 0.06);
   border: 1px solid rgba(179, 60, 46, 0.3);
   border-radius: 8px;
   text-align: left;
-  font-size: 14px;
-  line-height: 1.6;
+  font-size: 16px;
+  line-height: 1.75;
   color: var(--color-ink);
 }
 
 .safetyNoticeLabel {
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 700;
   color: var(--color-seal);
-  margin-bottom: 6px;
+  margin-bottom: 8px;
 }

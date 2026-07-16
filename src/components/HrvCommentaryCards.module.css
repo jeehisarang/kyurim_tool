@@ -37,3 +37,47 @@
   line-height: 1.6;
   color: var(--color-ink);
 }
+
+/* 원장 확인화면 전용 — ** 마커를 굵게만 처리하고 크기는 바꾸지 않는다(task2.md, 기존
+   화면 그대로 유지). */
+.emphasisStaff {
+  font-weight: 700;
+}
+
+/* 환자화면 전용(task2.md "전반적 가독성" + "안 C" 강조) — 카드 간 여백/폰트/줄간격을 한 단계
+   키운다. 원장 확인화면(.card 등)과 클래스를 분리해서 이 스타일이 그쪽에 전파되지 않는다. */
+.cardListPatient {
+  margin-top: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.cardPatient {
+  padding: 22px 26px;
+  background: rgba(110, 148, 140, 0.08);
+  border: 1px solid rgba(110, 148, 140, 0.2);
+  border-radius: 10px;
+  text-align: left;
+}
+
+.cardLabelPatient {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--color-celadon-dark);
+  margin-bottom: 10px;
+}
+
+.cardBodyPatient {
+  font-size: 19px;
+  line-height: 1.85;
+  color: var(--color-ink);
+  white-space: pre-wrap;
+}
+
+/* 중요 문구(안 C: 핵심 결론 문장 + 한의학적 패턴명) — 문단 전체가 아니라 이 span만 굵게+확대. */
+.emphasisPatient {
+  font-weight: 700;
+  font-size: 1.15em;
+  color: var(--color-celadon-dark);
+}

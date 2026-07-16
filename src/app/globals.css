@@ -5,6 +5,10 @@
   --color-celadon-dark: #435F59;
   --color-ink: #2B2723;
   --color-seal: #B33C2E;
+  /* HRV 환자화면 수치 강조용 "경계" 색상(task2.md) — 정상=celadon-dark(녹색), 위험=seal(빨강)은
+     기존 토큰을 재사용하고, 이 토큰만 새로 추가한다. 밝은 hanji 배경 위 텍스트 대비 5.8:1
+     (WCAG AA 통과). */
+  --color-warning: #8F5000;
 }
 
 html {

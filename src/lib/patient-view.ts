@@ -1,4 +1,11 @@
 import { computeBmi, gripAgePatientMessage, type GripAgeOutOfRange } from "@/lib/exam-thresholds";
+import {
+  judgeVascularHealthIndex,
+  judgeAvgPulse,
+  judgeStressIndex,
+  judgeVascularHealthType,
+  type HrvSeverity,
+} from "@/lib/hrv-thresholds";
 import type { ExaminationRow } from "@/lib/examination-format";
 
 // "환자와 함께보기"(/patient-view/exam/[examType]/[id]) 전용 화이트리스트 변환 —
@@ -115,6 +122,12 @@ export type PatientSafeHrvView = {
   vascularHealthType: string;
   avgPulse: number;
   stressIndex: number;
+  // 정상/경계/위험 색상강조용 판정(task2.md 기준, hrv-thresholds.ts) — 등급 문자를 못 알아보는
+  // 과거 오기입 등은 vascularHealthTypeSeverity가 null이라 화면에서 색칠하지 않는다.
+  vascularHealthIndexSeverity: HrvSeverity;
+  avgPulseSeverity: HrvSeverity;
+  stressIndexSeverity: HrvSeverity;
+  vascularHealthTypeSeverity: HrvSeverity | null;
   sourceImagePath: string;
   // 2페이지(상세결과) — 없을 수 있다(과거 1장짜리 레코드, task.md).
   sourceImagePath2: string | null;
@@ -153,6 +166,10 @@ export function toPatientSafeHrvView(detail: RawHrvDetail): PatientSafeHrvView {
     vascularHealthType: detail.vascularHealthType,
     avgPulse: detail.avgPulse,
     stressIndex: detail.stressIndex,
+    vascularHealthIndexSeverity: judgeVascularHealthIndex(detail.vascularHealthIndex),
+    avgPulseSeverity: judgeAvgPulse(detail.avgPulse),
+    stressIndexSeverity: judgeStressIndex(detail.stressIndex),
+    vascularHealthTypeSeverity: judgeVascularHealthType(detail.vascularHealthType),
     sourceImagePath: detail.sourceImagePath,
     sourceImagePath2: detail.sourceImagePath2 ?? null,
     sections,

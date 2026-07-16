@@ -9,6 +9,7 @@ import ImageZoomPan from "@/components/ImageZoomPan";
 import HrvCommentaryCards from "@/components/HrvCommentaryCards";
 import { toPatientSafeHrvView, type PatientSafeHrvView, type PatientSafeHrvSections } from "@/lib/patient-view";
 import { HRV_SAFETY_NOTICE } from "@/lib/hrv-constants";
+import type { HrvSeverity } from "@/lib/hrv-thresholds";
 
 // 진입 시 자동 1단계 확대(task.md 3번) — ImageZoomPan 내부 ZOOM_STEP(0.4)만큼 미리 확대된
 // 값과 맞춰, "+" 버튼을 한 번 더 누른 것과 동일한 배율로 시작한다.
@@ -17,6 +18,15 @@ const AUTO_ZOOM_SCALE = 1.4;
 function formatDate(iso: string): string {
   const d = new Date(iso);
   return `${d.getFullYear()}년 ${d.getMonth() + 1}월 ${d.getDate()}일`;
+}
+
+// 정상/경계/위험 severity → CSS 클래스(task2.md 색상 매핑 원칙: 정상=녹색/경계=주황/위험=빨강).
+// vascularHealthTypeSeverity처럼 null(판정불가)일 수도 있는 경우 기본색(강조 없음)으로 둔다.
+function severityClass(styles: Record<string, string>, severity: HrvSeverity | null): string {
+  if (severity === "NORMAL") return styles.metricValueNormal;
+  if (severity === "CAUTION") return styles.metricValueCaution;
+  if (severity === "DANGER") return styles.metricValueDanger;
+  return "";
 }
 
 /**
@@ -92,26 +102,39 @@ export default function PatientViewHrvPage() {
       <div className={styles.metricGrid}>
         <div className={styles.metricRow}>
           <span className={styles.metricLabel}>혈관건강지수</span>
-          <span className={styles.metricValue}>{view.vascularHealthIndex}</span>
+          <span className={`${styles.metricValue} ${severityClass(styles, view.vascularHealthIndexSeverity)}`}>
+            {view.vascularHealthIndex}
+          </span>
         </div>
         <div className={styles.metricRow}>
           <span className={styles.metricLabel}>혈관건강도</span>
-          <span className={styles.metricValue}>{view.vascularHealthType}</span>
+          <span className={`${styles.metricValue} ${severityClass(styles, view.vascularHealthTypeSeverity)}`}>
+            {view.vascularHealthType}
+          </span>
         </div>
         <div className={styles.metricRow}>
           <span className={styles.metricLabel}>평균맥박</span>
-          <span className={styles.metricValue}>{view.avgPulse}</span>
+          <span className={`${styles.metricValue} ${severityClass(styles, view.avgPulseSeverity)}`}>
+            {view.avgPulse}
+          </span>
         </div>
         <div className={styles.metricRow}>
           <span className={styles.metricLabel}>스트레스지수</span>
-          <span className={styles.metricValue}>{view.stressIndex}</span>
+          <span className={`${styles.metricValue} ${severityClass(styles, view.stressIndexSeverity)}`}>
+            {view.stressIndex}
+          </span>
         </div>
       </div>
 
-      <HrvCommentaryCards sections={view.sections ?? { deviceReading: null, clinicalMeaning: null, lifestyleGuide: null, tcmInterpretation: null }} legacyText={view.legacyCommentary} />
+      <HrvCommentaryCards
+        sections={view.sections ?? { deviceReading: null, clinicalMeaning: null, lifestyleGuide: null, tcmInterpretation: null }}
+        legacyText={view.legacyCommentary}
+        variant="patient"
+      />
 
       {/* 5단계 "안전 안내"(task.md) — AI가 생성한 텍스트가 아니라 고정 문구를 항상 별도
-          블록으로 붙인다. aiCommentary와 시각적으로 명확히 구분되게 스타일을 다르게 둔다. */}
+          블록으로 붙인다. aiCommentary와 시각적으로 명확히 구분되게 스타일을 다르게 둔다.
+          경고색 배경/테두리는 기존 그대로 유지하고 글자 크기/줄간격만 키운다(task2.md). */}
       <div className={styles.safetyNoticeBox}>
         <div className={styles.safetyNoticeLabel}>안전 안내</div>
         <p>{HRV_SAFETY_NOTICE}</p>
