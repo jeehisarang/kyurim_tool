@@ -189,6 +189,15 @@ export default function HrvExaminationDetailPage() {
 
   // 편집폼 라벨/순서도 코멘트 버전에 맞춰야 제목과 내용이 어긋나지 않는다(task2.md 확인사항,
   // HrvCommentaryCards의 SECTION_LABELS_MIBYEONG/LEGACY와 동일한 라벨을 그대로 씀).
+  // 코멘트 생성 실패 표시(task.md 작업 C) — 수동 등록/CSV 자동임포트 모두 저장 시점에
+  // AI 코멘트 생성을 시도하지만(hrv.ts tryGenerateHrvCommentary), 실패해도 검사 저장 자체는
+  // 성공하도록 null만 남기고 조용히 넘어간다(safety-first 원칙). 그 결과 두 섹션 필드가
+  // 전부 비어 HrvCommentaryCards가 아무것도 렌더링하지 않는 경우, 원장이 "코멘트가 아직
+  // 없는 정상 상태"인지 "생성이 실패한 것"인지 구분할 수 없었던 게 이번 작업의 확인 대상.
+  // 미매칭 대기열(HrvImportPending)과는 별개 개념 — 이미 정상 생성된 검사기록인데 코멘트만
+  // 실패한 경우를 여기서 표시한다.
+  const commentaryGenerationFailed = !detail.aiDeviceReading && !detail.aiCommentary;
+
   const isMibyeong = detail.aiCommentaryVersion === "MIBYEONG_V1";
   const editFields = isMibyeong
     ? [
@@ -261,6 +270,12 @@ export default function HrvExaminationDetailPage() {
 
         {!editing && (
           <>
+            {commentaryGenerationFailed && (
+              <p className={styles.commentaryFailedNotice}>
+                ⚠ 코멘트 생성 실패 — 검사 기록은 정상 저장됐지만 AI 코멘트 생성에 실패했습니다.
+                아래 &quot;AI 코멘트 재생성&quot; 버튼으로 다시 시도해주세요.
+              </p>
+            )}
             <HrvCommentaryCards
               sections={{
                 deviceReading: detail.aiDeviceReading,

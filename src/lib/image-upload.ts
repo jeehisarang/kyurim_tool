@@ -1,4 +1,4 @@
-import { mkdir, unlink, writeFile } from "fs/promises";
+import { mkdir, readFile, unlink, writeFile } from "fs/promises";
 import path from "path";
 import crypto from "crypto";
 import sharp from "sharp";
@@ -132,6 +132,20 @@ export async function saveCompositeImage(file: File): Promise<{ path: string }> 
   const filename = `${crypto.randomUUID()}.png`;
   await writeFile(path.join(EVENT_UPLOAD_DIR, filename), buffer);
   return { path: `${EVENT_PUBLIC_PATH_PREFIX}/${filename}` };
+}
+
+// HRV AI 코멘트 비전 입력용(task.md 작업 B) — 저장된 결과지 이미지를 base64로 다시 읽어
+// OpenAI 비전 입력에 붙인다. 파일이 없거나(삭제됨 등) 읽기 실패 시 null만 반환하고 절대
+// throw하지 않는다 — 이미지 판독은 AI 코멘트 생성의 부가 재료일 뿐, 이게 실패했다고 코멘트
+// 생성 전체(텍스트 기반)가 막혀서는 안 된다.
+export async function readUploadedImageAsBase64(publicPath: string): Promise<string | null> {
+  const filePath = path.join(process.cwd(), "public", ...publicPath.split("/").filter(Boolean));
+  try {
+    const buffer = await readFile(filePath);
+    return buffer.toString("base64");
+  } catch {
+    return null;
+  }
 }
 
 // EventImage 완전 삭제/이미지 교체(수정) 시 디스크에서 파일을 정리한다 — publicPath는

@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/db";
-import { saveHrvResultImage } from "@/lib/image-upload";
+import { saveHrvResultImage, readUploadedImageAsBase64 } from "@/lib/image-upload";
 import {
   generateHrvExplanation,
   HRV_COMMENTARY_VERSION,
@@ -66,6 +66,13 @@ async function buildPatientSymptomMaterial(patientId: number): Promise<string | 
   return parts.length > 0 ? parts.join("\n\n") : null;
 }
 
+// 자율신경균형도/맥박다양성 데이터는 리포트 이미지에 있다 — 과거 2장 체제에서는 2페이지가
+// 그 상세 리포트였고(task4.md 조사로 확인), 1장 체제로 바뀐 신규 기록은 sourceImagePath
+// 자체가 그 종합 리포트다(task.md 작업 A). sourceImagePath2가 있으면 그쪽을 우선한다.
+function primaryHrvImagePath(record: Pick<HrvTestRecord, "sourceImagePath" | "sourceImagePath2">): string {
+  return record.sourceImagePath2 ?? record.sourceImagePath;
+}
+
 /**
  * 같은 환자의 HRV 검사 최근 2건을 비교한 변화 요약(exam-explanation.ts의 getExamTrend와
  * 동일 원칙) — "미병" 재설계(task.md)로 혈관건강지수 하나만이 아니라 4개 지표(혈관건강지수/
@@ -75,14 +82,19 @@ async function buildPatientSymptomMaterial(patientId: number): Promise<string | 
  * 기록이 1건뿐이면(첫 검사) null — 값이 서로 같은 지표가 있어도(구버전과 달리) 있는 그대로
  * 4개 다 내려준다. 방향 판단(어느 쪽이 양호한지)은 프롬프트가 고정 설명으로 갖고 있어
  * 여기서는 순수 사실(직전→최근 값)만 전달한다.
+ * 자율신경균형도 구역 이동 방향 서술(task.md 작업 B)을 위해 직전 레코드의 리포트 이미지도
+ * 함께 조회한다 — 트렌드 계산과 하나의 함수로 합쳐서 findMany 결과를 재사용하고, 별도
+ * 쿼리를 추가로 날리지 않게 한다.
  */
-export async function getHrvTrend(patientId: number): Promise<string | null> {
+export async function getHrvTrendAndPreviousImage(
+  patientId: number,
+): Promise<{ trend: string | null; previousImageBase64: string | null }> {
   const records = await prisma.hrvTestRecord.findMany({
     where: { patientId, isActive: true },
     orderBy: { testDate: "desc" },
     take: 2,
   });
-  if (records.length < 2) return null;
+  if (records.length < 2) return { trend: null, previousImageBase64: null };
   const [latest, previous] = records;
   const lines = [
     `혈관건강지수: 직전 ${previous.vascularHealthIndex} → 이번 ${latest.vascularHealthIndex}`,
@@ -95,19 +107,30 @@ export async function getHrvTrend(patientId: number): Promise<string | null> {
   if (previous.stressIndex !== null && latest.stressIndex !== null) {
     lines.push(`스트레스지수: 직전 ${previous.stressIndex} → 이번 ${latest.stressIndex}`);
   }
-  return lines.join("\n");
+  const previousImageBase64 = await readUploadedImageAsBase64(primaryHrvImagePath(previous));
+  return { trend: lines.join("\n"), previousImageBase64 };
 }
 
 // AI 해설 생성 실패해도 검사 저장 자체는 반드시 성공해야 한다(examinations.ts와 동일 원칙) —
 // 절대 throw하지 않고 실패 시 null만 반환한다.
 async function tryGenerateHrvCommentary(
-  record: Pick<HrvTestRecord, "patientId" | "vascularHealthIndex" | "vascularHealthType" | "avgPulse" | "stressIndex">,
+  record: Pick<
+    HrvTestRecord,
+    | "patientId"
+    | "vascularHealthIndex"
+    | "vascularHealthType"
+    | "avgPulse"
+    | "stressIndex"
+    | "sourceImagePath"
+    | "sourceImagePath2"
+  >,
 ): Promise<HrvExplanationSections | null> {
   try {
-    const [trend, guide, patientSymptomMaterial] = await Promise.all([
-      getHrvTrend(record.patientId),
+    const [{ trend, previousImageBase64 }, guide, patientSymptomMaterial, imageBase64] = await Promise.all([
+      getHrvTrendAndPreviousImage(record.patientId),
       getExamAcademicGuide("HRV"),
       buildPatientSymptomMaterial(record.patientId),
+      readUploadedImageAsBase64(primaryHrvImagePath(record)),
     ]);
     return await generateHrvExplanation({
       vascularHealthIndex: record.vascularHealthIndex,
@@ -118,6 +141,8 @@ async function tryGenerateHrvCommentary(
       academicGuide: guide?.content ?? null,
       tcmPatternMap: parseTcmPatternMap(guide?.tcmPatternMapJson),
       patientSymptomMaterial,
+      imageBase64,
+      previousImageBase64,
     });
   } catch (err) {
     console.error("[hrv] AI 해설 생성 실패:", err);

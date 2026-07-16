@@ -70,6 +70,19 @@
   margin: 4px 0 12px;
 }
 
+/* 코멘트 생성 실패 표시(task.md 작업 C) — 미매칭 대기열 알림과 헷갈리지 않도록 카드형으로
+   눈에 띄게 분리한다(그냥 텍스트 한 줄이면 조용히 묻히기 쉬움). */
+.commentaryFailedNotice {
+  background: rgba(179, 60, 46, 0.08);
+  border: 1px solid rgba(179, 60, 46, 0.35);
+  border-radius: 6px;
+  color: var(--color-seal);
+  font-size: 13px;
+  font-weight: 500;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+}
+
 .resultGrid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);

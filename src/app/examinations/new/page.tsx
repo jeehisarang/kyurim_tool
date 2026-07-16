@@ -156,12 +156,13 @@ function NewExaminationPageInner() {
   // 가져오기(HrvImportModal)는 GOOGLE_HRV_DRIVE_FOLDER_ID 미설정으로 현재 항상 실패하는
   // 미완성 경로라 이 화면에서는 더 이상 쓰지 않는다. 컴포넌트/API 자체는 나중에 폴더 공유가
   // 끝나면 재사용할 수 있도록 남겨둔다(삭제하지 않음, 원장님 확인).
-  // 기기 리포트는 항상 2장(1p 요약/2p 상세)이라 두 슬롯을 각각 관리한다(task.md 1번) —
-  // 2페이지는 선택사항이라 비워도 등록 가능.
+  // 이미지 슬롯 1장으로 축소(task.md) — 운영규칙이 "스트레스 지수 측정 1회만 진행"으로
+  // 바뀌어서 앞으로는 자율신경균형도/맥박다양성/상세분석까지 다 담긴 종합 리포트 1장만
+  // 나온다(2페이지로 나뉠 일이 없음). 기존에 이미 2장으로 저장된 과거 레코드는 스키마상
+  // sourceImagePath2가 그대로 남아있어 조회 시 문제없이 그대로 보인다 — 이건 등록 화면의
+  // 입력 슬롯만 줄이는 변경이라 마이그레이션이 필요 없다.
   const [hrvImageFile, setHrvImageFile] = useState<File | null>(null);
   const [hrvImagePreviewUrl, setHrvImagePreviewUrl] = useState<string | null>(null);
-  const [hrvImageFile2, setHrvImageFile2] = useState<File | null>(null);
-  const [hrvImagePreviewUrl2, setHrvImagePreviewUrl2] = useState<string | null>(null);
   const [vascularHealthIndex, setVascularHealthIndex] = useState("");
   const [vascularHealthType, setVascularHealthType] = useState("");
   const [avgPulse, setAvgPulse] = useState("");
@@ -274,8 +275,6 @@ function NewExaminationPageInner() {
     setExamDate(TODAY_PARAM);
     setHrvImageFile(null);
     setHrvImagePreviewUrl(null);
-    setHrvImageFile2(null);
-    setHrvImagePreviewUrl2(null);
     setVascularHealthIndex("");
     setVascularHealthType("");
     setAvgPulse("");
@@ -285,11 +284,6 @@ function NewExaminationPageInner() {
   function handleHrvFileSelect(file: File | null) {
     setHrvImageFile(file);
     setHrvImagePreviewUrl(file ? URL.createObjectURL(file) : null);
-  }
-
-  function handleHrvFileSelect2(file: File | null) {
-    setHrvImageFile2(file);
-    setHrvImagePreviewUrl2(file ? URL.createObjectURL(file) : null);
   }
 
   const activePrescriptions = useMemo(
@@ -369,7 +363,6 @@ function NewExaminationPageInner() {
     formData.set("avgPulse", String(pulse));
     formData.set("stressIndex", String(stress));
     formData.set("image", hrvImageFile);
-    if (hrvImageFile2) formData.set("image2", hrvImageFile2);
 
     setSubmitting(true);
     try {
@@ -949,10 +942,11 @@ function NewExaminationPageInner() {
               // 가져오기는 폴더 미설정으로 현재 비활성이라 이 화면에서 제외, task3.md).
               <div className={styles.hrvLayout}>
                 <div className={styles.hrvImageColumn}>
-                  {/* 기기 리포트는 항상 2장(1p 요약/2p 상세)이라 슬롯을 분리했다(task.md 1번) —
-                      2페이지는 없을 수도 있어 선택사항으로 둔다. */}
+                  {/* 운영규칙이 "스트레스 지수 측정 1회만 진행"으로 바뀌면서 자율신경균형도/
+                      맥박다양성/상세분석까지 다 담긴 종합 리포트 1장만 나온다(task.md 작업 A) —
+                      슬롯을 하나로 통일한다. */}
                   <label className={styles.hrvFileLabel}>
-                    <span className={styles.muted}>1페이지 결과지(필수)</span>
+                    <span className={styles.muted}>결과지 이미지(필수)</span>
                     <input
                       type="file"
                       accept="image/*,application/pdf"
@@ -960,19 +954,7 @@ function NewExaminationPageInner() {
                     />
                   </label>
                   {hrvImagePreviewUrl && (
-                    <ImageZoomPan src={hrvImagePreviewUrl} alt="HRV 결과지 1페이지 미리보기" viewportHeight="420px" />
-                  )}
-
-                  <label className={styles.hrvFileLabel}>
-                    <span className={styles.muted}>2페이지 결과지(선택)</span>
-                    <input
-                      type="file"
-                      accept="image/*,application/pdf"
-                      onChange={(e) => handleHrvFileSelect2(e.target.files?.[0] ?? null)}
-                    />
-                  </label>
-                  {hrvImagePreviewUrl2 && (
-                    <ImageZoomPan src={hrvImagePreviewUrl2} alt="HRV 결과지 2페이지 미리보기" viewportHeight="420px" />
+                    <ImageZoomPan src={hrvImagePreviewUrl} alt="HRV 결과지 미리보기" viewportHeight="420px" />
                   )}
                 </div>
 

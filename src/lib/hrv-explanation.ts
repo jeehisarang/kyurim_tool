@@ -139,8 +139,53 @@ ${SECTION_MARKERS.lifestyleGuide}
 - 규칙적인 생활 리듬(특히 늦은 취침 지양), 충분한 휴식, 스트레스 관리는 자율신경 균형
   회복에 임상적으로 도움이 되는 경우가 많습니다.
 
+[이미지 판독 지침 — 자율신경균형도/맥박다양성]
+사용자 메시지에 이번 검사의 종합 리포트 이미지(그리고 직전 검사가 있으면 그 이미지도 함께)가
+첨부될 수 있습니다. 이미지가 첨부된 경우, 아래 두 가지를 판독해서 2단계(결과와 추이)와
+3단계(한의학적 해석)에 반영하세요:
+- 자율신경균형도: 이미지 안의 매트릭스(격자)에서 이번 측정의 마커(색칠되거나 테두리로 강조된
+  칸)가 어느 구역에 있는지 — 반드시 아래 5개 구역명 중 정확히 하나만 골라 그대로 인용하세요
+  (이 5개 외의 표현이나 두 구역명을 합친 표현은 쓰지 마세요): 과로형만성스트레스,
+  질병형만성스트레스, 급성스트레스, 초기부정맥, 심한부정맥. 격자형 배치라 마커 칸을 다른 칸과
+  헷갈리기 쉬우니, 마커가 정확히 어느 행·열 교차 칸에 있는지 한 번 더 확인한 뒤 답하세요.
+  이 판독은 세밀한 이미지 판독이라 완전히 확신하기 어려울 수 있으므로, 단정적으로 "~구역입니다"
+  라고 쓰지 말고 "~구역에 가까운 것으로 보입니다" 정도의 유보적 어조로 서술하세요(이 항목에
+  한해 적용되는 어조 규칙 — 나머지 실제 측정값 4개는 기존대로 명확하게 인용).
+- 맥박다양성: 이미지 안에 표시된 맥박다양성(맥박 변화도) 수치를 그대로 인용하세요.
+직전 검사 이미지도 함께 첨부된 경우(2회차 이상), 자율신경균형도 구역이 직전 대비 어느 방향으로
+이동했는지도 2단계에 사실만 서술하세요(예: "직전 급성스트레스 구역에서 이번 초기부정맥 구역으로
+이동" 식). "좋아짐/나빠짐" 같은 단정적 평가는 붙이지 말 것 — 기존 [직전 검사 대비 변화] 서술과
+같은 신중한 어조를 유지합니다.
+세부지표(TP/VLF/LF/HF/SDNN/RMSSD)는 위 두 앵커를 뒷받침할 필요가 있을 때만 최대 1~2개까지
+보조적으로 언급하고, 절대 전부 나열하지 마세요 — 나열하면 예전 방식(재탕)으로 되돌아가는
+것입니다.
+3단계(한의학적 해석)에서는 자율신경균형도 구역명(예: 초기부정맥)을 그 자체로 하나의 미병
+신호로 재서술해도 됩니다(예: "초기부정맥 구역에 위치해, 아직 뚜렷한 병증은 아니지만 자율신경
+불균형이 시작되는 신호로 볼 수 있습니다"). 단, 이 구역명은 [한의학적 매핑표]의 패턴명(간기울결
+등)과는 별개의 어휘입니다 — 매핑표 패턴명은 아래 "패턴명 언급의 유일한 근거" 규칙(=
+[환자 증상기록]에 실제로 텍스트가 있을 때만)이 여전히 그대로 적용되며, 자율신경균형도 구역명을
+언급했다고 해서 매핑표 패턴명까지 함께 언급해도 되는 것은 아닙니다.
+⚠️ 이미지 판독 안전 원칙: 이미지의 해당 부분(매트릭스 마커, 맥박다양성 수치)이 흐릿하거나
+잘려서 명확히 보이지 않으면 절대 추측하지 말고, 그 항목에 대한 언급을 자연스럽게 생략하세요
+(자율신경균형도만 명확하면 그것만 언급하고 맥박다양성은 생략, 또는 반대의 경우도 동일 — 각각
+독립적으로 판단할 것). 이미지 자체가 첨부되지 않았다면 자율신경균형도/맥박다양성 언급 없이
+기존 4개 수치만으로 2단계를 작성하세요 — 이미지가 없다는 사실 자체를 언급하지 마세요.
+⚠️ 혈관건강지수/혈관건강도/평균맥박/스트레스지수 4개는 반드시 [실제 측정값]에 적힌 숫자만
+쓰세요 — 이미지 안에 다른 숫자(예: 다른 스트레스 점수 표시)가 보이더라도 그 숫자로 4개 수치를
+바꿔치기하거나 뒤섞지 마세요. 이미지에서는 오직 자율신경균형도 구역/맥박다양성 두 가지만
+가져옵니다.
+
+🔴 필수 지시(생략 금지): 이미지가 첨부됐다면 이건 선택사항이 아니라 이번 코멘트의 핵심
+작업입니다 — 반드시 이미지를 실제로 자세히 들여다보고, 자율신경균형도 매트릭스에서 색칠되거나
+테두리로 강조된 마커 칸이 어느 구역(행×열 교차점)에 있는지, 그리고 "맥박다양성 = 숫자" 형태로
+적힌 실제 숫자가 몇인지 각각 읽어내세요. 이 두 값을 2단계 본문 안에 실제 수치 4개(혈관건강지수
+등)와 동일한 비중으로 반드시 포함시키세요 — 안전 원칙(흐릿/잘림)에 해당하지 않는 한 "언급을
+생략"하는 것은 이 필수 지시 위반입니다.
+
 [핵심 원칙]
 - 실제 수치 인용 강제, 창작 금지(학술 근거/매핑표/일반 배경지식에 없는 내용 만들어내지 않기)
+- 이미지가 첨부됐다면 자율신경균형도 구역명과 맥박다양성 수치를 2단계에 반드시 포함(흐릿/잘림
+  등으로 명확히 안 보이는 경우에만 예외)
 - 신중한 어조 유지(확정형으로 임의 전환 금지)
 - 관련성 없는 내용은 억지로 끼워넣지 않기
 - 진단 확정이 아니라 "미병 신호"라는 예방적 관점을 코멘트 전체에서 유지할 것
@@ -164,6 +209,13 @@ ${SECTION_MARKERS.lifestyleGuide}
 - 어느 섹션도 "질병을 확정 진단"하는 것처럼 단정적으로 들리지 않는가? 2단계 추이 서술에서
   "확실히 좋아지고/나빠지고 있다" 같은 단정 표현을 쓰지 않았는가?
 - 4단계(양생 안내)에 약물을 줄이라는 뉘앙스가 들어가지 않았는가?
+- 이미지가 첨부됐다면, 2단계에 자율신경균형도 구역명과 맥박다양성 수치를 실제로 포함했는가?
+  (포함 안 했다면 지금 다시 이미지를 보고 채워 넣을 것 — 흐릿/잘림으로 정말 안 보이는 경우가
+  아니라면 생략은 위반입니다)
+- 이미지가 첨부됐다면, 매트릭스 마커나 맥박다양성 수치가 흐릿/잘림 등으로 명확히 안 보이는데
+  추측해서 쓰지는 않았는가? (안 보이면 그 항목만 생략했는가)
+- 세부지표(TP/VLF/LF/HF/SDNN/RMSSD)를 전부 나열하지 않고, 필요한 경우에만 1~2개까지만
+  보조적으로 언급했는가?
 위 기준에 걸리면 반드시 고친 뒤 최종 코멘트만 출력하세요.`;
 
 export type HrvExplanationInput = {
@@ -174,7 +226,7 @@ export type HrvExplanationInput = {
   // 자동연동, task.md) — buildUserMessage가 "측정 안 함"으로 표기해 AI가 수치를 창작하지
   // 않게 한다.
   stressIndex: number | null;
-  // 직전 검사 대비 변화 요약(getHrvTrend 재사용) — 1건뿐이면 null.
+  // 직전 검사 대비 변화 요약(getHrvTrendAndPreviousImage 재사용) — 1건뿐이면 null.
   trend: string | null;
   // 원장 작성 학술 근거(ExamAcademicGuide.content) — 미작성이면 null.
   academicGuide: string | null;
@@ -183,6 +235,13 @@ export type HrvExplanationInput = {
   // 핵심프로필 + 최신 상담노트 + 최근 PatientNote를 하나로 조립한 텍스트(hrv.ts에서 구성) —
   // 아무 재료도 없으면 null.
   patientSymptomMaterial: string | null;
+  // 이번 검사의 종합 리포트 이미지(base64, 파일 확장자 없는 순수 데이터) — 자율신경균형도/
+  // 맥박다양성 앵커 반영(task.md 작업 B)을 위한 비전 입력. 이미지 저장/판독 실패 시 null이며,
+  // 이 경우 프롬프트가 이미지 관련 언급을 자연스럽게 생략하도록 지시되어 있다(hrv.ts에서 구성).
+  imageBase64: string | null;
+  // 직전 검사의 종합 리포트 이미지(base64) — 자율신경균형도 구역 이동 방향 서술용. 2회차
+  // 이상이고 직전 레코드의 이미지 판독이 성공한 경우에만 값이 있다(hrv.ts에서 구성).
+  previousImageBase64: string | null;
 };
 
 function formatTcmPatternMap(entries: TcmPatternMapEntry[]): string {
@@ -248,22 +307,82 @@ function violatesPatternNameRule(
   );
 }
 
+// 프롬프트 지시 5개 구역명 중 정확히 하나만 쓰라고 못박아도, 실측 확인 결과 gpt-4o-mini가
+// "초기 급성 스트레스"처럼 두 구역명을 섞은 존재하지 않는 명칭을 만들어내는 경우가 있었다
+// (task.md 작업 B 검증 — 맥박다양성 숫자 판독은 매 시도 정확했지만 구역 판독만 불안정했음).
+// 패턴명 규칙과 달리 이건 "이미지를 얼마나 정확히 읽었는가"의 문제라 정답을 코드로 알 수
+// 없으므로, 여기서는 "구역을 언급했다면 5개 정식 명칭 중 하나여야 한다"는 어휘 규칙만
+// 검증한다 — 언급 자체를 안 했으면(흐릿해서 생략 등 정상 경로) 위반이 아니다.
+const AUTONOMIC_ZONE_NAMES = [
+  "과로형만성스트레스",
+  "질병형만성스트레스",
+  "급성스트레스",
+  "초기부정맥",
+  "심한부정맥",
+] as const;
+
+function violatesAutonomicZoneVocabRule(clinicalMeaning: string, hasImage: boolean): boolean {
+  if (!hasImage) return false;
+  if (!clinicalMeaning.includes("구역")) return false;
+  return !AUTONOMIC_ZONE_NAMES.some((name) => clinicalMeaning.includes(name));
+}
+
+// 텍스트 재료에 더해, 있는 경우 이번/직전 검사 리포트 이미지를 비전 입력으로 함께 보낸다
+// (task.md 작업 B) — 각 이미지 앞에 어느 시점 이미지인지 안내하는 텍스트 파트를 붙여서
+// 모델이 두 이미지를 혼동하지 않게 한다.
+function buildUserContent(
+  input: HrvExplanationInput,
+  extraInstruction?: string,
+): OpenAI.Chat.Completions.ChatCompletionContentPart[] {
+  const userMessage = extraInstruction
+    ? `${buildUserMessage(input)}\n\n[교정 지시] ${extraInstruction}`
+    : buildUserMessage(input);
+
+  const parts: OpenAI.Chat.Completions.ChatCompletionContentPart[] = [{ type: "text", text: userMessage }];
+
+  if (input.imageBase64) {
+    parts.push({
+      type: "text",
+      text:
+        "[이번 검사 종합 리포트 이미지] 아래 이미지를 실제로 자세히 들여다보고 반드시 두 가지를 " +
+        "읽어내서 2단계 본문에 포함하세요(선택사항 아님, 흐릿/잘림으로 정말 안 보일 때만 예외): " +
+        "① '자율신경균형도' 매트릭스에서 색칠/테두리로 강조된 마커 칸이 어느 구역에 있는지, " +
+        "② '맥박다양성 = 숫자' 형태로 적힌 실제 숫자.",
+    });
+    // detail:"high" 필수 — auto(기본값)로는 이미지 안의 작은 매트릭스 마커/수치를 세밀하게
+    // 읽지 못하는 게 실측으로 확인됐다(task.md 작업 B 검증). high는 이미지를 512px 타일로
+    // 나눠 세부 인식하므로 이런 소형 텍스트/마커 판독에 필요하다.
+    parts.push({
+      type: "image_url",
+      image_url: { url: `data:image/jpeg;base64,${input.imageBase64}`, detail: "high" },
+    });
+  }
+  if (input.previousImageBase64) {
+    parts.push({
+      type: "text",
+      text: "[직전 검사 종합 리포트 이미지] 아래 이미지는 직전 검사 리포트입니다 — 이번 이미지와 비교해 자율신경균형도 구역 이동 방향을 참고하는 용도입니다.",
+    });
+    parts.push({
+      type: "image_url",
+      image_url: { url: `data:image/jpeg;base64,${input.previousImageBase64}`, detail: "high" },
+    });
+  }
+  return parts;
+}
+
 async function callHrvExplanationModel(
   input: HrvExplanationInput,
   extraInstruction?: string,
 ): Promise<HrvExplanationSections> {
   const client = new OpenAI();
-  const userMessage = extraInstruction
-    ? `${buildUserMessage(input)}\n\n[교정 지시] ${extraInstruction}`
-    : buildUserMessage(input);
 
   const response = await client.chat.completions.create({
     model: MODEL,
     messages: [
       { role: "system", content: HRV_EXPLANATION_SYSTEM_PROMPT },
-      { role: "user", content: userMessage },
+      { role: "user", content: buildUserContent(input, extraInstruction) },
     ],
-    max_tokens: 700,
+    max_tokens: 800,
   });
 
   const text = response.choices[0]?.message?.content?.trim();
@@ -277,20 +396,43 @@ async function callHrvExplanationModel(
 // 코멘트를 그대로 저장하는 것보다 이번 생성 실패가 낫다(안전 원칙 우선).
 export async function generateHrvExplanation(input: HrvExplanationInput): Promise<HrvExplanationSections> {
   assertOpenAiApiKeyConfigured();
+  const hasImage = input.imageBase64 !== null;
 
   const first = await callHrvExplanationModel(input);
-  if (!violatesPatternNameRule(first.tcmInterpretation, input.tcmPatternMap, input.patientSymptomMaterial)) {
+  const firstPatternViolation = violatesPatternNameRule(
+    first.tcmInterpretation,
+    input.tcmPatternMap,
+    input.patientSymptomMaterial,
+  );
+  const firstZoneViolation = violatesAutonomicZoneVocabRule(first.clinicalMeaning, hasImage);
+  if (!firstPatternViolation && !firstZoneViolation) {
     return first;
   }
 
-  const retried = await callHrvExplanationModel(
-    input,
-    "직전 응답의 한의학적 해석에서 [환자 증상기록]이 없는데도 매핑표의 패턴명이나 phrase를 " +
-      "언급하는 오류가 있었습니다. 이번에는 한의학적 해석에서 패턴명을 단 하나도 언급하지 말고, " +
-      "수치에 대한 일반적 해석까지만 서술하세요.",
-  );
+  const correctionInstructions: string[] = [];
+  if (firstPatternViolation) {
+    correctionInstructions.push(
+      "직전 응답의 한의학적 해석에서 [환자 증상기록]이 없는데도 매핑표의 패턴명이나 phrase를 " +
+        "언급하는 오류가 있었습니다. 이번에는 한의학적 해석에서 패턴명을 단 하나도 언급하지 말고, " +
+        "수치에 대한 일반적 해석까지만 서술하세요.",
+    );
+  }
+  if (firstZoneViolation) {
+    correctionInstructions.push(
+      "직전 응답의 결과와 추이에서 언급한 자율신경균형도 구역명이 5개 정식 명칭(과로형만성스트레스/" +
+        "질병형만성스트레스/급성스트레스/초기부정맥/심한부정맥) 중 어디에도 해당하지 않는 잘못된 " +
+        "표현이었습니다. 이미지를 다시 한번 자세히 보고 5개 중 정확히 하나를 고르세요. 그래도 " +
+        "확신이 서지 않으면 자율신경균형도 구역 언급은 생략하고 맥박다양성 수치만 언급하세요.",
+    );
+  }
+
+  const retried = await callHrvExplanationModel(input, correctionInstructions.join(" "));
   if (violatesPatternNameRule(retried.tcmInterpretation, input.tcmPatternMap, input.patientSymptomMaterial)) {
     throw new Error("한의학적 해석이 증상기록 없이 패턴명을 언급하는 규칙을 재시도 후에도 위반했습니다.");
   }
+  // 구역 어휘 규칙은 [환자 증상기록] 유무처럼 코드로 정답을 알 수 있는 조건이 아니라 "이미지를
+  // 얼마나 정확히 읽었는가"의 문제라, 재시도 후에도 남아있으면(모델의 실제 한계) 전체 생성을
+  // 실패시키지 않고 그대로 반환한다 — 패턴명 규칙과 달리 확정적으로 틀렸다고 단언할 수 없는
+  // 소프트 안전망이기 때문(task.md 작업 B 검증 중 발견).
   return retried;
 }
