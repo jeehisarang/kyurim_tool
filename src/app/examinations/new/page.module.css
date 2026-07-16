@@ -310,12 +310,58 @@
   cursor: pointer;
 }
 
-.hrvPreviewImage {
-  display: block;
-  max-width: 100%;
-  max-height: 320px;
-  border-radius: 6px;
-  border: 1px solid rgba(110, 148, 140, 0.35);
-  margin-bottom: 16px;
-  object-fit: contain;
+/* HRV 검사종류를 골랐을 때만 폭을 넓힌다(task3.md) — 결과지 이미지 미리보기 + 수치입력
+   폼을 한 화면에 나란히 두려면 기존 720px로는 좁다. 인바디/근력검사는 그대로 720px 유지. */
+.containerWide {
+  max-width: 1040px;
+}
+
+/* 이미지 미리보기(좌)와 수치입력(우)을 나란히 배치(task3.md) — 종이 검사지 없이 업로드한
+   이미지를 보면서 수치를 입력할 수 있어야 한다는 요청. 860px 이하에서는 세로로 쌓는다
+   (TodoSplitView.module.css와 동일한 브레이크포인트). */
+.hrvLayout {
+  display: grid;
+  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+  gap: 24px;
+  align-items: start;
+}
+
+@media (max-width: 860px) {
+  .hrvLayout {
+    grid-template-columns: 1fr;
+  }
+}
+
+.hrvImageColumn {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.hrvFormColumn {
+  position: sticky;
+  top: 16px;
+}
+
+@media (max-width: 860px) {
+  .hrvFormColumn {
+    position: static;
+  }
+}
+
+.hrvFileLabel {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+  color: var(--color-ink);
+}
+
+/* .fieldGrid input/select는 원래 720px 폭 단일컬럼 안에서만 쓰이던 브라우저 기본크기라,
+   여기 좁은 우측 컬럼(hrvFormColumn) 안에서는 넘칠 수 있다. 인바디/근력검사가 쓰는
+   .fieldGrid 자체는 건드리지 않고(task3.md 스코프 제한) 이 컬럼 안에서만 폭을 맞춘다. */
+.hrvFormColumn .fieldGrid input,
+.hrvFormColumn .fieldGrid select {
+  width: 100%;
+  box-sizing: border-box;
 }

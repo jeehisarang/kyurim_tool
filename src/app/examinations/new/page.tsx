@@ -6,7 +6,7 @@ import { useSearchParams } from "next/navigation";
 import styles from "./page.module.css";
 import BackButton from "@/components/BackButton";
 import NewPatientForm from "@/components/NewPatientForm";
-import HrvImportModal, { type HrvDriveFile } from "@/components/HrvImportModal";
+import ImageZoomPan from "@/components/ImageZoomPan";
 import { getCurrentUserId } from "@/lib/currentUser";
 import { openPatientViewPopup, HRV_PATIENT_VIEW_POPUP_SIZE } from "@/lib/patient-view-popup";
 import {
@@ -152,17 +152,16 @@ function NewExaminationPageInner() {
   const [previousGripAge, setPreviousGripAge] = useState<GripAgeResult | null>(null);
 
   // HRV(자율신경맥파기) 입력 — 기기가 이미 판정까지 끝낸 결과지 이미지 + 핵심 수치 4개만
-  // 옮겨 적는다(task2.md). 이미지는 구글드라이브 가져오기 또는 직접 파일 선택 둘 다 지원.
+  // 옮겨 적는다(task2.md). 업로드는 직접 파일 선택 하나로 통일한다(task3.md) — 구글드라이브
+  // 가져오기(HrvImportModal)는 GOOGLE_HRV_DRIVE_FOLDER_ID 미설정으로 현재 항상 실패하는
+  // 미완성 경로라 이 화면에서는 더 이상 쓰지 않는다. 컴포넌트/API 자체는 나중에 폴더 공유가
+  // 끝나면 재사용할 수 있도록 남겨둔다(삭제하지 않음, 원장님 확인).
   // 기기 리포트는 항상 2장(1p 요약/2p 상세)이라 두 슬롯을 각각 관리한다(task.md 1번) —
   // 2페이지는 선택사항이라 비워도 등록 가능.
   const [hrvImageFile, setHrvImageFile] = useState<File | null>(null);
-  const [hrvDriveFileId, setHrvDriveFileId] = useState<string | null>(null);
   const [hrvImagePreviewUrl, setHrvImagePreviewUrl] = useState<string | null>(null);
   const [hrvImageFile2, setHrvImageFile2] = useState<File | null>(null);
-  const [hrvDriveFileId2, setHrvDriveFileId2] = useState<string | null>(null);
   const [hrvImagePreviewUrl2, setHrvImagePreviewUrl2] = useState<string | null>(null);
-  // 어느 슬롯을 채우는 중인지(1페이지/2페이지) — 모달 하나를 공유하고 선택 결과만 분기한다.
-  const [hrvImportTarget, setHrvImportTarget] = useState<1 | 2 | null>(null);
   const [vascularHealthIndex, setVascularHealthIndex] = useState("");
   const [vascularHealthType, setVascularHealthType] = useState("");
   const [avgPulse, setAvgPulse] = useState("");
@@ -274,12 +273,9 @@ function NewExaminationPageInner() {
     setGripRightKg("");
     setExamDate(TODAY_PARAM);
     setHrvImageFile(null);
-    setHrvDriveFileId(null);
     setHrvImagePreviewUrl(null);
     setHrvImageFile2(null);
-    setHrvDriveFileId2(null);
     setHrvImagePreviewUrl2(null);
-    setHrvImportTarget(null);
     setVascularHealthIndex("");
     setVascularHealthType("");
     setAvgPulse("");
@@ -288,33 +284,12 @@ function NewExaminationPageInner() {
 
   function handleHrvFileSelect(file: File | null) {
     setHrvImageFile(file);
-    setHrvDriveFileId(null);
     setHrvImagePreviewUrl(file ? URL.createObjectURL(file) : null);
   }
 
   function handleHrvFileSelect2(file: File | null) {
     setHrvImageFile2(file);
-    setHrvDriveFileId2(null);
     setHrvImagePreviewUrl2(file ? URL.createObjectURL(file) : null);
-  }
-
-  // 구글드라이브 모달은 슬롯(1페이지/2페이지) 하나를 공유하고, 어느 버튼으로 열었는지에
-  // 따라 선택 결과를 해당 슬롯에 반영한다(task.md 1번). 환자 자동매칭은 1페이지 선택
-  // 시에만 적용한다 — 기존 동작 그대로 유지.
-  function handleHrvDriveSelect(file: HrvDriveFile) {
-    if (hrvImportTarget === 2) {
-      setHrvImageFile2(null);
-      setHrvDriveFileId2(file.id);
-      setHrvImagePreviewUrl2(file.thumbnailLink);
-    } else {
-      setHrvImageFile(null);
-      setHrvDriveFileId(file.id);
-      setHrvImagePreviewUrl(file.thumbnailLink);
-      if (file.matchedPatient) {
-        selectPatient({ ...file.matchedPatient, height: null, gender: null });
-      }
-    }
-    setHrvImportTarget(null);
   }
 
   const activePrescriptions = useMemo(
@@ -380,8 +355,8 @@ function NewExaminationPageInner() {
       setSubmitError("혈관건강지수/혈관건강도/평균맥박/스트레스지수를 모두 입력하세요.");
       return;
     }
-    if (!hrvImageFile && !hrvDriveFileId) {
-      setSubmitError("결과지 이미지를 선택하거나 구글드라이브에서 가져오세요.");
+    if (!hrvImageFile) {
+      setSubmitError("결과지 이미지를 선택하세요.");
       return;
     }
 
@@ -393,10 +368,8 @@ function NewExaminationPageInner() {
     formData.set("vascularHealthType", vascularHealthType.trim());
     formData.set("avgPulse", String(pulse));
     formData.set("stressIndex", String(stress));
-    if (hrvImageFile) formData.set("image", hrvImageFile);
-    if (hrvDriveFileId) formData.set("driveFileId", hrvDriveFileId);
+    formData.set("image", hrvImageFile);
     if (hrvImageFile2) formData.set("image2", hrvImageFile2);
-    if (hrvDriveFileId2) formData.set("driveFileId2", hrvDriveFileId2);
 
     setSubmitting(true);
     try {
@@ -574,7 +547,7 @@ function NewExaminationPageInner() {
   }
 
   return (
-    <div className={styles.container}>
+    <div className={examType === "HRV" ? `${styles.container} ${styles.containerWide}` : styles.container}>
       <div className={styles.pageHeader}>
         <div className={styles.titleGroup}>
           <BackButton />
@@ -970,98 +943,82 @@ function NewExaminationPageInner() {
             )}
 
             {examType === "HRV" && (
-              <>
-                {/* 기기 리포트는 항상 2장(1p 요약/2p 상세)이라 슬롯을 분리했다(task.md 1번) —
-                    2페이지는 없을 수도 있어 선택사항으로 둔다. */}
-                <div className={styles.checkboxRow}>
-                  <span className={styles.muted}>1페이지(필수)</span>
-                  <button
-                    type="button"
-                    className={styles.submitButton}
-                    onClick={() => setHrvImportTarget(1)}
-                  >
-                    구글드라이브에서 가져오기
-                  </button>
-                  <label>
-                    또는 직접 파일 선택{" "}
+              // 이미지 미리보기(좌)와 수치 입력(우)을 한 화면에 나란히 배치한다(task3.md) —
+              // 종이 검사지 없이 업로드한 이미지를 보면서 바로 수치를 옮겨 적을 수 있어야
+              // 한다는 실사용 피드백. 업로드는 직접 파일 선택 하나로 통일(구글드라이브
+              // 가져오기는 폴더 미설정으로 현재 비활성이라 이 화면에서 제외, task3.md).
+              <div className={styles.hrvLayout}>
+                <div className={styles.hrvImageColumn}>
+                  {/* 기기 리포트는 항상 2장(1p 요약/2p 상세)이라 슬롯을 분리했다(task.md 1번) —
+                      2페이지는 없을 수도 있어 선택사항으로 둔다. */}
+                  <label className={styles.hrvFileLabel}>
+                    <span className={styles.muted}>1페이지 결과지(필수)</span>
                     <input
                       type="file"
                       accept="image/*,application/pdf"
                       onChange={(e) => handleHrvFileSelect(e.target.files?.[0] ?? null)}
                     />
                   </label>
-                </div>
+                  {hrvImagePreviewUrl && (
+                    <ImageZoomPan src={hrvImagePreviewUrl} alt="HRV 결과지 1페이지 미리보기" viewportHeight="420px" />
+                  )}
 
-                {hrvImagePreviewUrl && (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={hrvImagePreviewUrl} alt="HRV 결과지 1페이지 미리보기" className={styles.hrvPreviewImage} />
-                )}
-
-                <div className={styles.checkboxRow}>
-                  <span className={styles.muted}>2페이지(선택)</span>
-                  <button
-                    type="button"
-                    className={styles.submitButton}
-                    onClick={() => setHrvImportTarget(2)}
-                  >
-                    구글드라이브에서 가져오기
-                  </button>
-                  <label>
-                    또는 직접 파일 선택{" "}
+                  <label className={styles.hrvFileLabel}>
+                    <span className={styles.muted}>2페이지 결과지(선택)</span>
                     <input
                       type="file"
                       accept="image/*,application/pdf"
                       onChange={(e) => handleHrvFileSelect2(e.target.files?.[0] ?? null)}
                     />
                   </label>
+                  {hrvImagePreviewUrl2 && (
+                    <ImageZoomPan src={hrvImagePreviewUrl2} alt="HRV 결과지 2페이지 미리보기" viewportHeight="420px" />
+                  )}
                 </div>
 
-                {hrvImagePreviewUrl2 && (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={hrvImagePreviewUrl2} alt="HRV 결과지 2페이지 미리보기" className={styles.hrvPreviewImage} />
-                )}
-
-                <div className={styles.fieldGrid}>
-                  <label>
-                    혈관건강지수
-                    <input
-                      type="number"
-                      step="0.1"
-                      value={vascularHealthIndex}
-                      onChange={(e) => setVascularHealthIndex(e.target.value)}
-                    />
-                  </label>
-                  <label>
-                    혈관건강도(A~G)
-                    <select value={vascularHealthType} onChange={(e) => setVascularHealthType(e.target.value)}>
-                      <option value="">선택</option>
-                      {["A", "B", "C", "D", "E", "F", "G"].map((grade) => (
-                        <option key={grade} value={grade}>
-                          {grade}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <label>
-                    평균맥박
-                    <input
-                      type="number"
-                      step="0.1"
-                      value={avgPulse}
-                      onChange={(e) => setAvgPulse(e.target.value)}
-                    />
-                  </label>
-                  <label>
-                    스트레스지수
-                    <input
-                      type="number"
-                      step="0.1"
-                      value={stressIndex}
-                      onChange={(e) => setStressIndex(e.target.value)}
-                    />
-                  </label>
+                <div className={styles.hrvFormColumn}>
+                  <div className={styles.fieldGrid}>
+                    <label>
+                      혈관건강지수
+                      <input
+                        type="number"
+                        step="0.1"
+                        value={vascularHealthIndex}
+                        onChange={(e) => setVascularHealthIndex(e.target.value)}
+                      />
+                    </label>
+                    <label>
+                      혈관건강도(A~G)
+                      <select value={vascularHealthType} onChange={(e) => setVascularHealthType(e.target.value)}>
+                        <option value="">선택</option>
+                        {["A", "B", "C", "D", "E", "F", "G"].map((grade) => (
+                          <option key={grade} value={grade}>
+                            {grade}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label>
+                      평균맥박
+                      <input
+                        type="number"
+                        step="0.1"
+                        value={avgPulse}
+                        onChange={(e) => setAvgPulse(e.target.value)}
+                      />
+                    </label>
+                    <label>
+                      스트레스지수
+                      <input
+                        type="number"
+                        step="0.1"
+                        value={stressIndex}
+                        onChange={(e) => setStressIndex(e.target.value)}
+                      />
+                    </label>
+                  </div>
                 </div>
-              </>
+              </div>
             )}
 
             {submitError && <p className={styles.errorText}>{submitError}</p>}
@@ -1073,10 +1030,6 @@ function NewExaminationPageInner() {
             )}
           </form>
         </div>
-      )}
-
-      {hrvImportTarget !== null && (
-        <HrvImportModal onSelect={handleHrvDriveSelect} onClose={() => setHrvImportTarget(null)} />
       )}
     </div>
   );

@@ -22,6 +22,7 @@ export default function ImageZoomPan({
   src,
   alt,
   initialScale = MIN_SCALE,
+  viewportHeight,
 }: {
   src: string;
   alt: string;
@@ -29,6 +30,10 @@ export default function ImageZoomPan({
   // 크기가 작아 리포트 글씨가 안 보인다는 실사용 피드백). 리셋 버튼은 이 값이 아니라
   // MIN_SCALE(1)로 돌아간다 — "원래크기"는 항상 무확대를 의미해야 직관적이라서.
   initialScale?: number;
+  // 뷰포트 높이 override(CSS 값, 예: "420px") — 지정 안 하면 기존 80vh/최소480px 그대로
+  // 유지된다(patient-view 전체화면 표시용 기본값). 검사등록 화면(task3.md)처럼 폼과 나란히
+  // 좁은 컬럼에 넣을 때만 더 작은 고정 높이를 넘겨서 쓴다.
+  viewportHeight?: string;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(() => clampScale(initialScale));
@@ -150,6 +155,7 @@ export default function ImageZoomPan({
       <div
         ref={containerRef}
         className={`${styles.viewport} ${scale > MIN_SCALE ? (isDragging ? styles.grabbing : styles.grabbable) : ""}`}
+        style={viewportHeight ? { height: viewportHeight, minHeight: viewportHeight } : undefined}
         onWheel={handleWheel}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
