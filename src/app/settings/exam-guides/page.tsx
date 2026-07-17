@@ -26,6 +26,14 @@ function parseTcmPatternMap(json: string | null | undefined): TcmPatternMapEntry
 
 const EXAM_TYPE_LABEL: Record<string, string> = { HRV: "자율신경맥파기(HRV)" };
 
+type TcmCategoryAdmin = {
+  id: number;
+  categoryCode: string;
+  patientLabel: string;
+  treatmentPrinciple: string | null;
+  questions: { id: number; questionCode: string; patientQuestion: string }[];
+};
+
 /**
  * 검사종류별 학술 근거 관리 화면(task2.md) — 원장 전용. 여기 작성한 내용이 AI 해설 생성의
  * 입력재료로 그대로 쓰이므로(hrv-explanation.ts), 잘못된 내용이 환자에게 노출되지 않도록
@@ -44,6 +52,12 @@ export default function ExamGuidesSettingsPage() {
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
 
+  const [categories, setCategories] = useState<TcmCategoryAdmin[] | null>(null);
+  const [treatmentPrinciples, setTreatmentPrinciples] = useState<Record<number, string>>({});
+  const [categorySaving, setCategorySaving] = useState(false);
+  const [categorySaveError, setCategorySaveError] = useState<string | null>(null);
+  const [categorySaved, setCategorySaved] = useState(false);
+
   useEffect(() => {
     fetch(`/api/exam-guides/${examType}`)
       .then((res) => res.json())
@@ -53,7 +67,47 @@ export default function ExamGuidesSettingsPage() {
         setTcmRows(parseTcmPatternMap(data?.tcmPatternMapJson));
         setLoaded(true);
       });
+    fetch("/api/tcm-categories")
+      .then((res) => res.json())
+      .then((data: TcmCategoryAdmin[]) => {
+        setCategories(data);
+        setTreatmentPrinciples(
+          Object.fromEntries(data.map((c) => [c.id, c.treatmentPrinciple ?? ""])),
+        );
+      });
   }, []);
+
+  async function handleSaveCategories() {
+    if (!currentUser) return;
+    setCategorySaving(true);
+    setCategorySaveError(null);
+    setCategorySaved(false);
+    try {
+      const res = await fetch("/api/tcm-categories", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          staffUserId: currentUser.id,
+          categories: Object.entries(treatmentPrinciples).map(([id, treatmentPrinciple]) => ({
+            id: Number(id),
+            treatmentPrinciple: treatmentPrinciple.trim() ? treatmentPrinciple : null,
+          })),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setCategorySaveError(data.error ?? "저장에 실패했습니다.");
+        return;
+      }
+      setCategories(data);
+      setCategorySaved(true);
+      setTimeout(() => setCategorySaved(false), 2000);
+    } catch {
+      setCategorySaveError("서버에 연결하지 못했습니다. 다시 시도해주세요.");
+    } finally {
+      setCategorySaving(false);
+    }
+  }
 
   function updateTcmRow(index: number, field: keyof TcmPatternMapEntry, value: string) {
     setTcmRows((rows) => rows.map((row, i) => (i === index ? { ...row, [field]: value } : row)));
@@ -178,6 +232,58 @@ export default function ExamGuidesSettingsPage() {
               {saving ? "저장 중..." : saved ? "저장됨" : "저장"}
             </button>
             {saveError && <p className={styles.errorText}>{saveError}</p>}
+          </>
+        )}
+      </div>
+
+      <div className={styles.section}>
+        <div className={styles.sectionTitle}>증상 패턴 프로필 — 카테고리별 치료원칙</div>
+        <p className={styles.muted}>
+          "상담설문"에서 환자가 체크한 카테고리별 응답을 바탕으로 AI가 HRV 코멘트에 구체적 치료
+          방향을 언급할 때 참고하는 문구입니다. 카테고리명과 문항 문구는 이 화면에서 수정할 수
+          없습니다(확정된 문항) — 치료원칙만 입력/수정하세요. 비워두면 AI는 해당 카테고리의
+          신호만 언급하고 구체적 치료법은 언급하지 않습니다.
+        </p>
+        {!isDirector && <p className={styles.errorText}>원장만 치료원칙을 수정할 수 있습니다.</p>}
+
+        {!categories ? (
+          <p className={styles.muted}>불러오는 중...</p>
+        ) : (
+          <>
+            {categories.map((c) => (
+              <div key={c.id} className={styles.tcmCategoryRow}>
+                <div className={styles.tcmCategoryHeader}>
+                  <strong>{c.patientLabel}</strong>
+                  <span className={styles.muted}> ({c.categoryCode})</span>
+                </div>
+                {c.questions.length > 0 && (
+                  <ul className={styles.tcmQuestionList}>
+                    {c.questions.map((q) => (
+                      <li key={q.id}>{q.patientQuestion}</li>
+                    ))}
+                  </ul>
+                )}
+                <textarea
+                  className={styles.contentTextarea}
+                  rows={2}
+                  placeholder="치료원칙 (예: 소간이기) — 비워두면 AI가 구체적 치료법을 언급하지 않습니다"
+                  value={treatmentPrinciples[c.id] ?? ""}
+                  onChange={(e) =>
+                    setTreatmentPrinciples((prev) => ({ ...prev, [c.id]: e.target.value }))
+                  }
+                  disabled={!isDirector}
+                />
+              </div>
+            ))}
+            <button
+              type="button"
+              className={styles.saveButton}
+              onClick={handleSaveCategories}
+              disabled={!isDirector || categorySaving}
+            >
+              {categorySaving ? "저장 중..." : categorySaved ? "저장됨" : "저장"}
+            </button>
+            {categorySaveError && <p className={styles.errorText}>{categorySaveError}</p>}
           </>
         )}
       </div>

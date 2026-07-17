@@ -5,7 +5,8 @@ import { useParams } from "next/navigation";
 import styles from "./page.module.css";
 import TeachingPageContent, { type TeachingPageContentView } from "@/components/TeachingPageContent";
 import ExamShareSections from "@/components/ExamShareSections";
-import type { ShareLinkExamEntry } from "@/lib/share-links";
+import ConsultationSurveyShareSection from "@/components/ConsultationSurveyShareSection";
+import type { ShareLinkExamEntry, ShareLinkConsultationSurveyView } from "@/lib/share-links";
 
 // TeachingPageContent.tsx와 동일한 채널(task.md) — 클라이언트 컴포넌트에서 읽어야 해서
 // NEXT_PUBLIC_ 접두사가 필요하다.
@@ -16,13 +17,16 @@ type ShareLinkView = {
   teaching: (TeachingPageContentView & { token: string }) | null;
   event: { finalTitle: string; compositeImagePath: string; finalCopy: string } | null;
   exams: ShareLinkExamEntry[];
+  consultationSurvey: ShareLinkConsultationSurveyView | null;
 };
 
 /**
- * 환자별 통합 공유링크(14-11) 공개 페이지 — 프로그램티칭/이벤트/검사결과를 하나의 링크로
- * 묶어서 톡생성기에서 발송한다. 표시 순서는 항상 검사결과 → 프로그램티칭 → 이벤트로
- * 고정한다(task.md) — 포함된 조합이 무엇이든(2개만 있어도 3개 다 있어도) 이 순서를
- * 그대로 적용하고, 없는 섹션은 건너뛴다.
+ * 환자별 통합 공유링크(14-11) 공개 페이지 — 프로그램티칭/이벤트/검사결과/상담설문을 하나의
+ * 링크로 묶어서 톡생성기에서 발송한다. 표시 순서는 항상 검사결과 → 상담설문 → 프로그램티칭
+ * → 이벤트로 고정한다(task.md, 상담설문은 task2.md에서 이 위치로 확정) — 포함된 조합이
+ * 무엇이든 이 순서를 그대로 적용하고, 없는 섹션은 건너뛴다. 상담설문은 다른 3개와 달리
+ * 링크 생성 시점에 선택하는 축이 아니라, 해당 환자의 응답이 1건 이상 있으면 자동으로
+ * 노출된다(task2.md 결정사항 2 — 옵트인 체크박스 없음).
  */
 export default function ShareLinkPublicPage() {
   const params = useParams<{ token: string }>();
@@ -83,6 +87,7 @@ export default function ShareLinkPublicPage() {
   }
 
   const hasExams = view.exams.length > 0;
+  const hasSurvey = view.consultationSurvey !== null;
   const hasTeaching = view.teaching !== null;
   const hasEvent = view.event !== null;
 
@@ -90,7 +95,12 @@ export default function ShareLinkPublicPage() {
     <div className={styles.page}>
       <div className={styles.card}>
         {hasExams && <ExamShareSections exams={view.exams} />}
-        {hasExams && (hasTeaching || hasEvent) && <hr className={styles.sectionDivider} />}
+        {hasExams && (hasSurvey || hasTeaching || hasEvent) && <hr className={styles.sectionDivider} />}
+
+        {view.consultationSurvey && (
+          <ConsultationSurveyShareSection token={token} summary={view.consultationSurvey} />
+        )}
+        {hasSurvey && (hasTeaching || hasEvent) && <hr className={styles.sectionDivider} />}
 
         {view.teaching && <TeachingPageContent token={view.teaching.token} view={view.teaching} />}
         {hasTeaching && hasEvent && <hr className={styles.sectionDivider} />}

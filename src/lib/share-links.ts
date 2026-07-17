@@ -15,6 +15,7 @@ import {
   type PatientSafeExamView,
   type PatientSafeHrvView,
 } from "@/lib/patient-view";
+import { getLatestChecklistResponse } from "@/lib/tcm-checklist";
 
 export type ShareLinkExamRecordInput = { examType: string; examRecordId: number };
 
@@ -100,10 +101,21 @@ export type ShareLinkExamEntry =
   | ({ id: number } & PatientSafeExamView)
   | ({ id: number; examType: "HRV" } & PatientSafeHrvView);
 
+// 상담설문(task.md) 4번째 섹션 — 자동 노출, 단 응답이 1건 이상 있을 때만(task2.md 결정사항
+// 2). candidateLabels가 비어있으면 "특이 증상 확인되지 않음"으로 표시(0점/후보없음, 이 화면
+// 상태는 정상 케이스이지 오류가 아니다). 환자 화면이라 ratio 숫자는 절대 넘기지 않고 3단계
+// 라벨(tierLabel)만 내려준다.
+export type ShareLinkConsultationSurveyView = {
+  updatedAt: string;
+  candidateLabels: string[];
+  tiers: { patientLabel: string; tierLabel: "낮음" | "보통" | "뚜렷함" }[];
+};
+
 export type PublicShareLinkView = {
   teaching: TeachingPageContentForShare | null;
   event: ShareLinkEventView | null;
   exams: ShareLinkExamEntry[];
+  consultationSurvey: ShareLinkConsultationSurveyView | null;
   viewCount: number;
 };
 
@@ -191,14 +203,24 @@ export async function getShareLinkByToken(token: string): Promise<PublicShareLin
     },
   });
 
-  const [teaching, event, examEntries] = await Promise.all([
+  const [teaching, event, examEntries, checklistResponse] = await Promise.all([
     updated.teachingPageId ? getTeachingPageContentById(updated.teachingPageId) : null,
     updated.eventImageId ? getEventImage(updated.eventImageId) : null,
     Promise.all(existing.examLinks.map(buildExamEntry)),
+    getLatestChecklistResponse(updated.patientId),
   ]);
+
+  const consultationSurvey: ShareLinkConsultationSurveyView | null = checklistResponse
+    ? {
+        updatedAt: checklistResponse.updatedAt.toISOString(),
+        candidateLabels: checklistResponse.categoryScores.filter((s) => s.isCandidate).map((s) => s.patientLabel),
+        tiers: checklistResponse.categoryScores.map((s) => ({ patientLabel: s.patientLabel, tierLabel: s.tierLabel })),
+      }
+    : null;
 
   return {
     teaching,
+    consultationSurvey,
     event: event
       ? { finalTitle: event.finalTitle, compositeImagePath: event.compositeImagePath, finalCopy: event.finalCopy }
       : null,

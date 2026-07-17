@@ -440,3 +440,48 @@
   opacity: 0.55;
   cursor: not-allowed;
 }
+
+.tcmChecklistBlock {
+  margin-top: 8px;
+}
+
+.tcmCategoryBlock {
+  border-top: 1px solid rgba(110, 148, 140, 0.2);
+  padding: 12px 0;
+}
+
+.tcmCategoryBlock:first-child {
+  border-top: none;
+  padding-top: 0;
+}
+
+.tcmCategoryTitle {
+  font-weight: 500;
+  color: var(--color-ink);
+  margin-bottom: 8px;
+  font-size: 17px;
+}
+
+.tcmQuestionRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 0;
+  font-size: 16px;
+}
+
+.tcmScoreOptions {
+  display: flex;
+  gap: 14px;
+  flex-shrink: 0;
+}
+
+.tcmScoreOption {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 14px;
+  white-space: nowrap;
+  cursor: pointer;
+}

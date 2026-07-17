@@ -1,64 +1,58 @@
-# 환자 상담모드 설문(상담설문) — 스키마 설계 v2 (환자 종속, 검사 비종속)
+# 증상 패턴 프로필 — 스키마 설계 v2 확정판 (task.md 기준)
 
-이 문서는 task.md 지시에 따라 **schema-proposal.md(90c7c87)의 "검사 종속" 설계를 "환자 종속"으로
-전면 수정**한 v2입니다. 아직 마이그레이션/코드 구현 전이며, 이 대화에서 확인을 받은 뒤 실제
-구현으로 넘어갑니다(task.md 명시 지시).
+이 문서는 최신 task.md("환자 상담모드 '증상 패턴 프로필' — 스키마 v2 확정 + 구현")에 맞춰
+전면 재작성한 최종안입니다. 이전 버전(examRecordId 제거만 반영한 초안)에서 다음이 바뀌었습니다:
+
+- 응답 방식이 **체크박스(있음/없음)에서 3단계 점수(0/1/2)로 변경**
+- 7개 대분류 카테고리 + 정확히 12문항 + "그외" 자유기록 1개로 **문항 구조가 완전히 확정**
+- 모델명을 `TcmPattern`→**`TcmCategory`**, `TcmPatternScore`→**`TcmCategoryScore`**로 변경
+  (task.md가 "변증"이 아니라 "카테고리"라는 용어를 명시적으로 씀 — 과신 방지 목적과 일치)
+- **HRV AI 코멘트 생성 연동까지 이번 라운드 구현 범위**에 포함(이전엔 "향후"로 미뤄뒀던 부분)
+- 관리자 입력 화면은 신규 화면 대신 `/settings/exam-guides` 확장으로 확정(질문 4의 1번 답변)
 
 ---
-
-## v1 대비 핵심 변경
-
-- `examRecordId`/`examType`(검사기록 연동 필드)를 **완전히 제거**했습니다. 응답은 `patientId`
-  하나로만 환자에 연결되고, 특정 HRV/인바디 검사와 무관하게 독립적으로 존재합니다.
-- 점수 계산 방식을 "비율"(`checkedCount ÷ totalCount`)로 확정했습니다(결정사항 5번).
-- `treatmentPrinciple`, `TcmChecklistQuestion.questionText`는 **필드/테이블 구조만 만들고
-  값은 비워둡니다**(task.md 3·4번 지시) — 마이그레이션 직후에는 `TcmPattern`/
-  `TcmChecklistQuestion` 테이블 자체가 빈 상태입니다.
-- 기존 `ExamAcademicGuide.tcmPatternMapJson`은 그대로 유지(병행)합니다 — 코드 변경은
-  이번 라운드에서 하지 않지만, 향후 `hrv-explanation.ts` 쪽에서 "상담설문 응답 있으면
-  그것 우선, 없으면 기존 자유텍스트 판단 방식 유지"(결정사항 6번)를 구현할 근거가 됩니다.
 
 ## 제안 스키마
 
 ```prisma
-// 변증 1개 = 1행. examType 필드를 v1에서 제거했습니다 — 이 기능 자체가 특정 검사 종류와
-// 무관한 "환자의 지속적 증상 프로필"이므로 examType 구분이 의미가 없습니다.
-model TcmPattern {
+// 7개 대분류(EMOTION_STAGNATION 등) 1개 = 1행. 문항 문구는 별도 테이블(TcmChecklistQuestion).
+model TcmCategory {
   id                 Int      @id @default(autoincrement())
-  name               String   @unique          // 변증명, 예: "간기울결"
-  phrase             String                    // AI가 인용할 문구(기존 tcmPatternMapJson의 phrase 역할)
-  treatmentPrinciple String?                   // 치료원칙 — 이번 라운드는 null로 비워둠(원장 입력 예정)
-  sortOrder          Int      @default(0)
+  categoryCode       String   @unique // "EMOTION_STAGNATION" 등 7개 고정값(task.md 표 그대로)
+  patientLabel       String   // 환자 표시명, 예: "스트레스·정서긴장"
+  treatmentPrinciple String?  // 치료원칙 — 이번 라운드는 전부 null로 비워둠(원장 추후 입력)
+  displayOrder       Int      @default(0)
   isActive           Boolean  @default(true)
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
 
-  questions          TcmChecklistQuestion[]
-  patternScores      TcmPatternScore[]
+  questions      TcmChecklistQuestion[]
+  categoryScores TcmCategoryScore[]
 }
 
-// 변증 1개에 딸린 체크리스트 문항. 이번 라운드는 테이블만 만들고 실제 row(질문 문장)는
-// 하나도 넣지 않습니다(task.md 4번) — 원장 확인 후 다음 라운드에 채웁니다.
+// 카테고리 1개에 딸린 문항. 12개 전부 task.md 표의 문구 그대로 시드(임의 수정 안 함).
 model TcmChecklistQuestion {
-  id           Int        @id @default(autoincrement())
-  patternId    Int
-  pattern      TcmPattern @relation(fields: [patternId], references: [id])
-  questionText String
-  sortOrder    Int        @default(0)
-  isActive     Boolean    @default(true)
-  createdAt    DateTime   @default(now())
+  id              Int         @id @default(autoincrement())
+  categoryId      Int
+  category        TcmCategory @relation(fields: [categoryId], references: [id])
+  questionCode    String      @unique // 예: "EMOTION_STAGNATION_1"
+  patientQuestion String      // 환자에게 보여줄 실제 질문 문장(task.md 표 그대로)
+  weight          Int         @default(1) // 향후 문항별 가중치 조정용, 이번엔 전부 1
+  displayOrder    Int         @default(0)
+  isActive        Boolean     @default(true)
+  createdAt       DateTime    @default(now())
 
-  answers      TcmChecklistAnswer[]
+  answers TcmChecklistAnswer[]
 
-  @@index([patternId])
+  @@index([categoryId])
 }
 
-// 상담설문 응답 1건 = 환자가 한 번 설문을 작성한 세션. examRecordId 없음 — patientId만으로 연결.
-// 재작성 시 새 행으로 계속 쌓이는 이력 구조(결정사항 2번 "재작성 시 이력으로 누적 보관").
+// 응답 1건 = 환자의 설문 작성 세션(이력 누적, deletedAt 없음). "그외" 자유기록은 여기 직접
+// 필드로 둬서 점수화 테이블과 분리(task.md 지시).
 model TcmChecklistResponse {
-  id        Int      @id @default(autoincrement())
+  id        Int     @id @default(autoincrement())
   patientId Int
-  patient   Patient  @relation(fields: [patientId], references: [id])
+  patient   Patient @relation(fields: [patientId], references: [id])
 
   source             String            // "IN_CLINIC" | "SHARE_LINK"
   shareLinkId        Int?
@@ -66,124 +60,152 @@ model TcmChecklistResponse {
   submittedByStaffId Int?
   submittedByStaff   StaffUser?        @relation(fields: [submittedByStaffId], references: [id])
 
-  createdAt DateTime @default(now())
+  otherSymptomsText String? // "그외" 자유기록, 점수화 안 함
 
-  answers       TcmChecklistAnswer[]
-  patternScores TcmPatternScore[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt // 같은 달 재작성 시 이 값만 갱신(덮어쓰기), 달이 바뀌면 새 행
+
+  answers        TcmChecklistAnswer[]
+  categoryScores TcmCategoryScore[]
 
   @@index([patientId])
 }
 
+// 문항별 응답값 — 0=없다, 1=경미하다, 2=심하다(정수 그대로 저장, task.md 지시).
 model TcmChecklistAnswer {
   id         Int                  @id @default(autoincrement())
   responseId Int
   response   TcmChecklistResponse @relation(fields: [responseId], references: [id])
   questionId Int
   question   TcmChecklistQuestion @relation(fields: [questionId], references: [id])
-  checked    Boolean
+  score      Int // 0 | 1 | 2
 
   @@unique([responseId, questionId])
 }
 
-// 응답 1건에 대한 변증별 점수 — 제출 시점 스냅샷(v1과 동일 원칙 유지, HrvTestRecord의 AI
-// 코멘트 캐싱과 같은 이유: 나중에 문항이 바뀌어도 과거 응답의 "그때 결과"가 보존됨).
-model TcmPatternScore {
-  id           Int                  @id @default(autoincrement())
-  responseId   Int
-  response     TcmChecklistResponse @relation(fields: [responseId], references: [id])
-  patternId    Int
-  pattern      TcmPattern           @relation(fields: [patternId], references: [id])
-  checkedCount Int
-  totalCount   Int
-  ratio        Float                // checkedCount / totalCount (결정사항 5번, 비율 방식 확정)
-  rank         Int?                 // 1=최종 후보 1순위, 2=2순위(null=후보권 밖)
-  isCandidate  Boolean              @default(false)
+// 응답 1건의 카테고리별 계산 결과(제출 시점 스냅샷 — 문항이 나중에 바뀌어도 과거 응답의
+// "그때 결과"가 보존됨, HrvTestRecord의 AI 코멘트 캐싱과 동일 원칙).
+model TcmCategoryScore {
+  id          Int                  @id @default(autoincrement())
+  responseId  Int
+  response    TcmChecklistResponse @relation(fields: [responseId], references: [id])
+  categoryId  Int
+  category    TcmCategory          @relation(fields: [categoryId], references: [id])
+  rawScore    Int   // 해당 카테고리 문항 점수 합
+  maxScore    Int   // 문항수 × 2
+  ratio       Float // rawScore / maxScore (0.0~1.0) — 내부 저장용, 환자 화면엔 숫자 노출 안 함
+  isCandidate Boolean @default(false) // 동점 병렬 포함 후보 여부(전부 0점이면 전부 false)
 
-  @@unique([responseId, patternId])
+  @@unique([responseId, categoryId])
 }
 ```
 
-기존 모델에 역참조 필드만 추가합니다: `Patient.tcmChecklistResponses`,
-`PatientShareLink.tcmChecklistResponses`, `StaffUser.tcmChecklistSubmissions` — 전부 기존
-FK 관례 그대로입니다.
+기존 모델에 역참조만 추가: `Patient.tcmChecklistResponses`,
+`PatientShareLink.tcmChecklistResponses`, `StaffUser.tcmChecklistResponses`.
 
-### "최신 응답 = 현재 기준" 조회 방식(결정사항 2번)
+### 시드 데이터 (task.md 표 그대로, 문구 임의 수정 없음)
 
-새 테이블이나 플래그 없이 `TcmChecklistResponse.findFirst({ where: { patientId }, orderBy:
-{ createdAt: "desc" } })`로 항상 최신 응답 1건을 가져오면 됩니다. 이력은 전부 보존되고,
-"현재값"은 조회 시점에 정렬만으로 결정됩니다(HrvTestRecord 이력 조회와 동일 패턴).
+| categoryCode | patientLabel | questionCode | patientQuestion |
+|---|---|---|---|
+| EMOTION_STAGNATION | 스트레스·정서긴장 | EMOTION_STAGNATION_1 | 가슴이 답답하고 한숨이 잦으신가요? |
+| EMOTION_STAGNATION | 스트레스·정서긴장 | EMOTION_STAGNATION_2 | 짜증이나 화, 열감이 갑자기 치밀어 오르시나요? |
+| QI_YANG_DEFICIENCY | 기력·냉증 | QI_YANG_DEFICIENCY_1 | 쉽게 피곤하고 기운이 없으신가요? |
+| QI_YANG_DEFICIENCY | 기력·냉증 | QI_YANG_DEFICIENCY_2 | 손발이 차거나 평소 추위를 많이 타시나요? |
+| YIN_DRYNESS | 열감·건조 | YIN_DRYNESS_1 | 입이 자주 마르고 손발이나 가슴에 열감이 있으신가요? |
+| YIN_DRYNESS | 열감·건조 | YIN_DRYNESS_2 | 밤에 잠이 얕거나 식은땀이 나시나요? |
+| DIGESTIVE | 소화기 | DIGESTIVE_1 | 속이 더부룩하고 소화가 잘 안 되시나요? |
+| DIGESTIVE | 소화기 | DIGESTIVE_2 | 대변이 무르거나 변비가 있으신가요? |
+| PHLEGM_DAMPNESS | 담습·부종 | PHLEGM_DAMPNESS_1 | 몸이나 머리가 무겁고 개운하지 않으신가요? |
+| BLOOD_DEFICIENCY | 혈허 경향 | BLOOD_DEFICIENCY_1 | 어지럽거나 안색이 창백하다는 말을 들으시나요? |
+| BLOOD_STASIS | 순환·어혈 | BLOOD_STASIS_1 | 아픈 부위가 일정하고 찌르듯 아프신가요? |
+| OTHER | 그외 | (문항 없음, 자유기록 전용) | — |
 
----
+`OTHER`는 `TcmCategory` 행은 만들되(관리자 화면에 표시/치료원칙 입력 대상으로 남겨두기 위해)
+`TcmChecklistQuestion`은 만들지 않습니다 — 응답은 `TcmChecklistResponse.otherSymptomsText`
+자유 텍스트로만 받고 점수 계산에서 제외합니다.
 
-## 공유링크 4번째 섹션 — 조사 결과 및 예상 변경 범위
+### 점수 계산 (task.md 공식 그대로)
 
-### 현재 구조 (조사 결과)
+```
+rawScore(카테고리) = 그 카테고리 문항들의 score(0/1/2) 합
+maxScore(카테고리) = 문항수 × 2
+ratio = rawScore / maxScore
+```
 
-- `PatientShareLink`는 **환자 1명 + teaching(0/1) + event(0/1) + 검사기록(0~N)** 3개 축을
-  독립적으로 조합하는 구조입니다(`src/lib/share-links.ts` `createOrReuseShareLink`).
-- 표시 순서(검사결과→티칭→이벤트)는 `src/app/s/[token]/page.tsx`에 **하드코딩된 JSX 순서**로
-  고정되어 있고, 각 섹션은 데이터가 있을 때만(`hasExams`/`hasTeaching`/`hasEvent`) 렌더링되며
-  섹션 사이 `<hr>` 구분선도 수동으로 조건 처리되어 있습니다.
-- 링크 생성 UI(`src/components/ShareLinkPanel.tsx`)는 3축을 각각 체크박스/선택으로 고르고,
-  `ShareLinkFlags`(`{hasTeaching, hasEvent, hasExam}`) 조합에 따라 톡 문구 인트로를
-  `INTRO_BY_COMBO`라는 **8가지(2³) 조합 고정 문구 맵**에서 골라 씁니다.
-- 공개 페이지의 유일한 비인증 쓰기 동작은 "이벤트문의하기" 버튼(`event-cta-click`,
-  `event-consult-request`) — `patientId`를 클라이언트가 아니라 `token → PatientShareLink.patientId`
-  서버 조회로 해석합니다(클라이언트 신뢰 안 함). 상담설문 제출도 동일 원칙을 따라야 합니다.
+**환자 노출용 3단계 표시** — 정확한 구간 값은 task.md에 명시되어 있지 않아 균등 3분할로
+가정했습니다(아래 "확인 필요" 참고):
+- `ratio < 1/3` → "관련 증상 낮음"
+- `1/3 ≤ ratio < 2/3` → "보통"
+- `ratio ≥ 2/3` → "뚜렷함"
 
-### 예상 변경 파일 목록
+숫자(ratio)는 내부 저장만 하고 환자 대상 화면(원장실 결과 표시, 공유링크)에는 항상 위 3단계
+라벨만 노출합니다.
 
-| 파일 | 변경 내용(예상) |
-|---|---|
-| `prisma/schema.prisma` | 위 5개 테이블 신규 + `Patient`/`PatientShareLink`/`StaffUser` 역참조 추가. `PatientShareLink`에 "이 링크가 상담설문 섹션을 포함하는지" 여부 필드 추가 여부는 **미결정**(아래 질문 참고) |
-| `src/lib/share-links.ts` | `CreateShareLinkInput`에 4번째 축 추가, `createOrReuseShareLink` 중복 판정 키에 반영, `getShareLinkByToken`이 환자의 최신 `TcmChecklistResponse`(+ 필요 시 문항/변증 목록)를 조회해 `PublicShareLinkView`에 포함 |
-| `src/app/api/share-links/route.ts` | POST body에 4번째 축 필드 추가 수신 |
-| `src/app/s/[token]/page.tsx` | 4번째 섹션 렌더링 + 순서/구분선 로직에 새 분기 추가(현재 하드코딩 구조라 순서 변경 시 이 파일을 직접 고쳐야 함) |
-| 신규 컴포넌트 (예: `src/components/ConsultationSurveySection.tsx`) | 공유링크 화면에서 "이미 답변함" 요약 표시 또는 "아직 안 함" 시 체크리스트 폼 렌더링 |
-| 신규 API (예: `src/app/api/share-links/[token]/consultation-survey/route.ts`) | 비인증 제출 — `event-cta-click`과 동일하게 token→patientId 서버 해석, `TcmChecklistResponse` 생성 |
-| `src/components/ShareLinkPanel.tsx` | `ShareLinkFlags`를 4축으로 확장(`comboKey`가 2³=8 → 2⁴=16 조합이 됨), `INTRO_BY_COMBO` 맵 확장, 링크 생성 UI에 "상담설문 포함" 체크박스 추가 |
-| `src/components/Sidebar.tsx` | `MENU_ITEMS`에 "상담설문" 독립 메뉴 추가 |
-| 신규 페이지 (예: `src/app/consultation-survey/page.tsx`) | 원장실 독립 메뉴 진입점 — 환자 검색 후 체크리스트 작성/이력 조회 |
-| 신규 API (예: `src/app/api/consultation-survey/route.ts`) | 원장실(인증) 경로 제출/조회 |
-| `src/app/examinations/new/page.tsx` | 환자 선택 완료 후 "상담설문 바로가기" 버튼 추가(기존 `?patientId=` 프리필 관례 재사용) |
-| (미결정) 신규 관리자 UI | 아래 "애매한 점" 1번 참고 — `TcmPattern`/`TcmChecklistQuestion`/치료원칙을 원장이 입력할 화면이 이번 범위에 없으면, 마이그레이션 후에도 체크리스트가 계속 빈 채로 남습니다 |
+**후보(candidate) 선정**(task2.md 결정사항 4, HRV 코멘트 연동에 사용) — 전체 카테고리 중 최고
+ratio를 찾아, 그 값이 0이면 후보 없음("특이 증상 확인되지 않음"), 0보다 크면 그 최고값과 동일한
+ratio를 가진 카테고리 전부를 `isCandidate=true`로 병렬 표시(억지로 1개만 뽑지 않음).
 
----
+### "최신 응답 = 현재 기준" + 월별 갱신 규칙
 
-## 애매한 점 / 추가 확인 필요 사항 (임의로 결정하지 않음)
+`TcmChecklistResponse.findFirst({ where: { patientId }, orderBy: { createdAt: "desc" } })`로
+최신 응답을 가져옵니다. 제출 시:
+1. 환자의 최신 응답을 조회
+2. 그 응답의 `createdAt`이 **오늘과 같은 연-월**이면 → 그 응답의 `answers`/`categoryScores`를
+   전부 지우고 새로 채운 뒤 `updatedAt`만 갱신(UPDATE, task2.md 결정사항 5)
+3. 없거나 다른 연-월이면 → 새 `TcmChecklistResponse` 행 INSERT(새 이력)
 
-1. **변증/문항/치료원칙을 원장이 실제로 입력할 화면이 이번 구현 범위에 없습니다.**
-   task.md 3·4번은 "값은 채우지 말 것"이라고 했지만, 그 값을 나중에 입력할 **화면 자체**를
-   이번에 만들지는 명시돼 있지 않습니다. 기존 `/settings/exam-guides`를 확장해 같은 화면에서
-   `TcmPattern`/`TcmChecklistQuestion`도 관리하게 할지, 아니면 완전히 새 관리자 화면
-   (`/settings/consultation-survey` 등)을 이번에 함께 만들지 확인 부탁드립니다. 안 만들면
-   당장은 DB에 직접 스크립트로 넣는 방법밖에 없습니다.
+### HRV AI 코멘트 연동 설계 (이번 라운드 구현 범위)
 
-2. **공유링크 4번째 섹션이 "옵트인"인지 "항상 노출"인지.** 기존 teaching/event/exam은 링크
-   생성 시점에 스태프가 명시적으로 골라 담는 방식입니다. 상담설문도 같은 방식(링크 생성 화면에
-   체크박스 추가)으로 할지, 아니면 환자별로 항상 붙어있는 섹션이라 모든 링크에 조건 없이
-   최신 상태(이미 답변함 요약 또는 미답변 시 작성 폼)를 자동으로 보여줄지 확인이 필요합니다.
-   전자면 `PatientShareLink`에 boolean 필드가 하나 더 필요하고, `ShareLinkFlags`/
-   `INTRO_BY_COMBO` 조합이 8→16가지로 늘어납니다.
-
-3. **4번째 섹션의 정확한 표시 위치.** "기존 검사결과→프로그램티칭→이벤트 순서에 자연스럽게
-   편입"이라고 하셨는데, 정확히 몇 번째 자리인지(맨 앞? 검사결과 바로 뒤? 맨 끝?) 확인
-   부탁드립니다.
-
-4. **동점/후보 없음 처리 규칙.** 비율 방식으로 계산했을 때 여러 변증이 동일 비율이면 어떻게
-   순위를 매길지, 그리고 모든 변증 비율이 낮아 "후보 자체가 없음"인 경우 AI 코멘트 쪽에
-   어떻게 반영할지(현재 방식과 동일하게 "관련 증상 없음"으로 처리하면 될지) 확인이 필요합니다.
-
-5. **원장실 UI에서 이미 이번 달에 작성한 응답이 있을 때 동작.** "월 1회 권장(강제 아님)"이라고
-   하셨는데, 이미 이번 달 응답이 있으면 새로 작성 시 "새 이력으로 추가"인지 "기존 응답 수정"인지
-   확인 부탁드립니다(제안 스키마는 항상 새 행을 추가하는 이력 구조로 설계했습니다).
-
-6. **공유링크로 제출된 응답의 `submittedByStaffId`.** 공유링크 경로는 스태프가 없으니 당연히
-   `null`이 될 텐데, 이 필드를 "누가 스태프 앞에서 태블릿을 조작했는지" 용도로 계속 쓸지,
-   아니면 사용하지 않을지(원장실 경로에서도 항상 null로 둘지) 확인 부탁드립니다 — 실사용
-   여부에 따라 이 필드 자체를 없앨 수도 있습니다.
+- `hrv.ts`의 `tryGenerateHrvCommentary`에서 환자의 최신 `TcmChecklistResponse` +
+  `categoryScores`(isCandidate=true인 것만) + 해당 `TcmCategory.treatmentPrinciple`을 함께 조회.
+- `HrvExplanationInput`에 `tcmCategoryProfile: { patientLabel: string; treatmentPrinciple: string
+  | null }[] | null` 필드 추가(후보가 하나도 없으면 `null` — 이 경우 **기존 자유텍스트
+  `tcmPatternMap` 방식이 그대로 동작**, 병행 원칙 유지).
+- 시스템 프롬프트(3단계 한의학적 해석)에 분기 추가: `tcmCategoryProfile`이 주어지면 이걸
+  우선 근거로 쓰고, 기기 수치 기반 판단(자율신경균형도 등)보다 신뢰도 높은 안정적 데이터이므로
+  좀 더 적극적인 어조 허용(task.md 배경 원장 판단 반영) — 단 `treatmentPrinciple`이 `null`인
+  카테고리는 그 카테고리명/신호만 언급하고 구체적 치료방향은 절대 창작하지 않음.
+- 기존 `violatesPatternNameRule`과 유사한 코드 가드 신규 추가: `tcmCategoryProfile`이 주어졌을
+  때 AI가 그 안에 없는 카테고리명을 언급하거나, `treatmentPrinciple`이 null인데도 구체적
+  치료법을 언급하면 위반으로 보고 재시도.
 
 ---
 
-**다음 단계**: 위 1~6번에 답을 주시면 실제 Prisma 마이그레이션 + 원장실 UI + 공유링크 4번째
-섹션 구현으로 진행하겠습니다.
+## 공유링크 4번째 섹션 — 확정 사항 반영
+
+- 순서: 검사결과 → **상담설문(신규)** → 프로그램티칭 → 이벤트(task2.md 결정사항 3)
+- 노출: 자동 노출, 단 응답이 1건 이상 있을 때만(task2.md 결정사항 2) — `ShareLinkPanel.tsx`의
+  기존 3축(teaching/event/exam) 선택 UI는 **건드리지 않습니다**(옵트인 체크박스 불필요, 조합
+  맵도 그대로 8가지 유지).
+- **쓰기 지원**: 최신 task.md 검증체크리스트가 "공유링크에서 환자가 직접 응답 입력 가능"을
+  명시하므로, 응답이 없을 때는 작성 폼을, 있을 때는 3단계 요약을 보여주고 재작성도 지원합니다
+  (비인증 제출은 `event-cta-click`과 동일하게 서버가 token→patientId를 직접 해석).
+
+## 관리자 입력 화면 — 확정 사항 반영
+
+`/settings/exam-guides`에 탭 하나 추가("증상 패턴 프로필") — 기존 "학술 근거" 탭과 나란히.
+7개 카테고리를 목록으로 보여주고(카테고리명/문항은 읽기 전용, 이번 라운드는 문항 수정 UI
+없음 — task.md가 문항 문구를 확정했고 "임의 수정 금지"라고 했으므로), `treatmentPrinciple`
+텍스트만 원장이 입력/수정할 수 있게 합니다.
+
+---
+
+## 확인이 필요한 점 (구현 진행하되, 아래는 최선의 가정으로 처리하고 보고합니다)
+
+task.md가 대부분을 확정해줘서 이번엔 "구현을 막는" 수준의 질문은 없습니다. 다만 명시되지
+않아 제가 가정하고 진행하는 부분을 투명하게 남깁니다 — 원하시면 언제든 조정 요청해주세요:
+
+1. **3단계 표시 구간 값**을 균등 3분할(1/3, 2/3)로 가정했습니다. 임상적으로 다른 컷오프
+   (예: 0%면 무조건 낮음, 50%부터 뚜렷함 등)를 원하시면 `src/lib/tcm-checklist.ts`의
+   `tierLabel()` 함수 숫자만 바꾸면 됩니다.
+2. **공유링크에서 재작성 허용 여부** — 이미 이번 달 응답이 있어도 공유링크에서 환자가 다시
+   체크하면 원장실 제출과 동일하게 "같은 달이면 덮어쓰기" 규칙을 그대로 적용합니다(별도
+   잠금 없음).
+3. **PHLEGM_DAMPNESS/BLOOD_DEFICIENCY/BLOOD_STASIS는 1문항뿐**이라 그 카테고리는 사실상
+   0점/2점(비율 0%/100%) 둘 중 하나만 나옵니다(1점=50%는 나올 수 있음: 없다=0, 경미=1(50%),
+   심하다=2(100%)). 문항 수가 다른 카테고리와 비교 시 이 비대칭은 task.md가 이미 정한 문항
+   구성 그대로 반영한 것이라 별도 보정 로직은 넣지 않았습니다.
+
+---
+
+**진행**: 위 가정대로 실제 마이그레이션 + UI + HRV 연동 구현을 시작합니다.

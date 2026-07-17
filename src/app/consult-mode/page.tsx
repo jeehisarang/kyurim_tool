@@ -8,6 +8,19 @@ import { copyToClipboard } from "@/lib/clipboard";
 
 type Patient = { id: number; chartNumber: string; name: string };
 type ConsultationType = { id: number; name: string };
+
+// "증상 패턴 체크"(task2.md 긴급 추가) — 실제 ConsultationType DB row가 아니라 이 화면
+// 전용 sentinel 옵션이다. 선택하면 저장 경로 자체가 완전히 달라지므로(ConsultationNote가
+// 아니라 TcmChecklistResponse) 실제 상담유형 목록에 섞어 넣지 않는다.
+const TCM_CHECKLIST_OPTION_VALUE = "TCM_CHECKLIST";
+
+type TcmChecklistCategory = {
+  id: number;
+  patientLabel: string;
+  questions: { id: number; patientQuestion: string }[];
+};
+
+const SCORE_LABEL: Record<0 | 1 | 2, string> = { 0: "없다", 1: "경미하다", 2: "심하다" };
 type ConsultationNote = {
   id: number;
   visitDate: string;
@@ -54,6 +67,16 @@ export default function ConsultModePage() {
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
 
+  // 증상 패턴 체크(task2.md) — 기존 상담기록 상태와 완전히 독립적인 저장 경로.
+  const [checklistCategories, setChecklistCategories] = useState<TcmChecklistCategory[] | null>(null);
+  const [checklistOtherCategory, setChecklistOtherCategory] = useState<TcmChecklistCategory | null>(null);
+  const [checklistAnswers, setChecklistAnswers] = useState<Record<number, 0 | 1 | 2>>({});
+  const [checklistOtherText, setChecklistOtherText] = useState("");
+  const [checklistLoading, setChecklistLoading] = useState(false);
+  const [checklistSaving, setChecklistSaving] = useState(false);
+  const [checklistSaveError, setChecklistSaveError] = useState<string | null>(null);
+  const [checklistSaved, setChecklistSaved] = useState(false);
+
   const [editingNoteId, setEditingNoteId] = useState<number | null>(null);
   const [editVisitDate, setEditVisitDate] = useState("");
   const [editRawText, setEditRawText] = useState("");
@@ -79,6 +102,57 @@ export default function ConsultModePage() {
     }
     refreshNotes(selectedPatient.id);
   }, [selectedPatient]);
+
+  // 증상 패턴 체크(task2.md) — "상담유형" 드롭다운에서 이 옵션을 고르고 환자가 선택돼 있으면
+  // 문항/기존 응답을 불러온다. 기존 상담기록 조회(refreshNotes)와는 완전히 독립된 경로.
+  useEffect(() => {
+    if (!selectedPatient || selectedTypeId !== TCM_CHECKLIST_OPTION_VALUE) return;
+    setChecklistLoading(true);
+    setChecklistSaved(false);
+    fetch(`/api/consultation-survey?patientId=${selectedPatient.id}`)
+      .then((res) => res.json())
+      .then((data: { categories: TcmChecklistCategory[]; latestResponse: { otherSymptomsText: string | null } | null; answers: Record<string, 0 | 1 | 2> }) => {
+        setChecklistCategories(data.categories.filter((c) => c.questions.length > 0));
+        setChecklistOtherCategory(data.categories.find((c) => c.questions.length === 0) ?? null);
+        setChecklistOtherText(data.latestResponse?.otherSymptomsText ?? "");
+        setChecklistAnswers(Object.fromEntries(Object.entries(data.answers).map(([qId, score]) => [Number(qId), score])));
+      })
+      .finally(() => setChecklistLoading(false));
+  }, [selectedPatient, selectedTypeId]);
+
+  async function handleSaveChecklist() {
+    if (!currentUser || !selectedPatient || !checklistCategories) return;
+    const allAnswered = checklistCategories.every((c) => c.questions.every((q) => checklistAnswers[q.id] !== undefined));
+    if (!allAnswered) {
+      setChecklistSaveError("모든 문항에 응답해야 저장할 수 있습니다.");
+      return;
+    }
+    setChecklistSaving(true);
+    setChecklistSaveError(null);
+    setChecklistSaved(false);
+    try {
+      const res = await fetch("/api/consultation-survey", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          patientId: selectedPatient.id,
+          staffUserId: currentUser.id,
+          otherSymptomsText: checklistOtherText,
+          answers: Object.entries(checklistAnswers).map(([questionId, score]) => ({ questionId: Number(questionId), score })),
+        }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        setChecklistSaveError(data.error ?? "저장에 실패했습니다.");
+        return;
+      }
+      setChecklistSaved(true);
+    } catch {
+      setChecklistSaveError("서버에 연결하지 못했습니다. 다시 시도해주세요.");
+    } finally {
+      setChecklistSaving(false);
+    }
+  }
 
   function refreshNotes(patientId: number) {
     fetch(`/api/consultation-notes?patientId=${patientId}`)
@@ -454,53 +528,115 @@ export default function ConsultModePage() {
                 {t.name}
               </option>
             ))}
+            <option value={TCM_CHECKLIST_OPTION_VALUE}>증상 패턴 체크</option>
           </select>
         </label>
 
-        <textarea
-          className={styles.rawTextarea}
-          placeholder="상담 내용을 자유롭게 입력하세요"
-          value={rawText}
-          onChange={(e) => setRawText(e.target.value)}
-          rows={6}
-        />
-
-        <div className={styles.convertRow}>
-          <button
-            type="button"
-            className={styles.convertButton}
-            onClick={handleConvert}
-            disabled={!rawText.trim() || converting}
-          >
-            {converting ? "변환 중..." : "AI 차팅변환"}
-          </button>
-          <span className={styles.convertHint}>주로 초진상담에 사용 (선택사항)</span>
-        </div>
-        {convertError && <p className={styles.errorText}>{convertError}</p>}
-
-        {convertedText && (
-          <div className={styles.convertedBox}>
+        {selectedTypeId !== TCM_CHECKLIST_OPTION_VALUE && (
+          <>
             <textarea
-              className={styles.convertedTextarea}
-              value={convertedText}
-              onChange={(e) => setConvertedText(e.target.value)}
+              className={styles.rawTextarea}
+              placeholder="상담 내용을 자유롭게 입력하세요"
+              value={rawText}
+              onChange={(e) => setRawText(e.target.value)}
               rows={6}
             />
-            <button type="button" className={styles.copyButton} onClick={handleCopyConverted}>
-              {copied ? "복사됨" : "복사"}
+
+            <div className={styles.convertRow}>
+              <button
+                type="button"
+                className={styles.convertButton}
+                onClick={handleConvert}
+                disabled={!rawText.trim() || converting}
+              >
+                {converting ? "변환 중..." : "AI 차팅변환"}
+              </button>
+              <span className={styles.convertHint}>주로 초진상담에 사용 (선택사항)</span>
+            </div>
+            {convertError && <p className={styles.errorText}>{convertError}</p>}
+
+            {convertedText && (
+              <div className={styles.convertedBox}>
+                <textarea
+                  className={styles.convertedTextarea}
+                  value={convertedText}
+                  onChange={(e) => setConvertedText(e.target.value)}
+                  rows={6}
+                />
+                <button type="button" className={styles.copyButton} onClick={handleCopyConverted}>
+                  {copied ? "복사됨" : "복사"}
+                </button>
+              </div>
+            )}
+
+            {saveError && <p className={styles.errorText}>{saveError}</p>}
+            <button
+              type="button"
+              className={styles.saveButton}
+              onClick={handleSave}
+              disabled={saving || !rawText.trim()}
+            >
+              {saving ? "저장 중..." : "저장"}
             </button>
-          </div>
+          </>
         )}
 
-        {saveError && <p className={styles.errorText}>{saveError}</p>}
-        <button
-          type="button"
-          className={styles.saveButton}
-          onClick={handleSave}
-          disabled={saving || !rawText.trim()}
-        >
-          {saving ? "저장 중..." : "저장"}
-        </button>
+        {selectedTypeId === TCM_CHECKLIST_OPTION_VALUE && (
+          <div className={styles.tcmChecklistBlock}>
+            {!selectedPatient && (
+              <p className={styles.convertHint}>증상 패턴 체크는 환자를 먼저 선택해야 합니다.</p>
+            )}
+            {selectedPatient && checklistLoading && <p className={styles.convertHint}>불러오는 중...</p>}
+            {selectedPatient && !checklistLoading && checklistCategories && (
+              <>
+                {checklistCategories.map((c) => (
+                  <div key={c.id} className={styles.tcmCategoryBlock}>
+                    <div className={styles.tcmCategoryTitle}>{c.patientLabel}</div>
+                    {c.questions.map((q) => (
+                      <div key={q.id} className={styles.tcmQuestionRow}>
+                        <span>{q.patientQuestion}</span>
+                        <div className={styles.tcmScoreOptions}>
+                          {([0, 1, 2] as const).map((score) => (
+                            <label key={score} className={styles.tcmScoreOption}>
+                              <input
+                                type="radio"
+                                name={`consult-tcm-q-${q.id}`}
+                                checked={checklistAnswers[q.id] === score}
+                                onChange={() => setChecklistAnswers((prev) => ({ ...prev, [q.id]: score }))}
+                              />
+                              {SCORE_LABEL[score]}
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ))}
+                {checklistOtherCategory && (
+                  <div className={styles.tcmCategoryBlock}>
+                    <div className={styles.tcmCategoryTitle}>{checklistOtherCategory.patientLabel}</div>
+                    <textarea
+                      className={styles.rawTextarea}
+                      placeholder="위 항목에 없는 증상이 있으면 자유롭게 적어주세요"
+                      value={checklistOtherText}
+                      onChange={(e) => setChecklistOtherText(e.target.value)}
+                      rows={3}
+                    />
+                  </div>
+                )}
+                {checklistSaveError && <p className={styles.errorText}>{checklistSaveError}</p>}
+                <button
+                  type="button"
+                  className={styles.saveButton}
+                  onClick={handleSaveChecklist}
+                  disabled={checklistSaving}
+                >
+                  {checklistSaving ? "저장 중..." : checklistSaved ? "저장됨" : "저장"}
+                </button>
+              </>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

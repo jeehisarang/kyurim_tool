@@ -142,3 +142,26 @@
 .addRowButton:hover {
   background: rgba(110, 148, 140, 0.1);
 }
+
+.tcmCategoryRow {
+  border-top: 1px solid rgba(110, 148, 140, 0.2);
+  padding: 12px 0;
+}
+
+.tcmCategoryRow:first-child {
+  border-top: none;
+  padding-top: 0;
+}
+
+.tcmCategoryHeader {
+  font-size: 14px;
+  margin-bottom: 4px;
+}
+
+.tcmQuestionList {
+  margin: 0 0 8px;
+  padding-left: 18px;
+  font-size: 13px;
+  color: var(--color-ink);
+  opacity: 0.75;
+}

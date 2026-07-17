@@ -1,0 +1,130 @@
+.section {
+  margin: 16px 0;
+}
+
+.title {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 16px;
+  color: var(--color-ink);
+  margin-bottom: 8px;
+}
+
+.muted {
+  color: var(--color-ink);
+  opacity: 0.6;
+  font-size: 13px;
+}
+
+.tierList {
+  list-style: none;
+  padding: 0;
+  margin: 8px 0;
+  font-size: 13px;
+  color: var(--color-ink);
+}
+
+.tierList li {
+  padding: 2px 0;
+}
+
+.openButton {
+  border: 1px solid var(--color-celadon);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--color-celadon-dark);
+  padding: 8px 14px;
+  font-size: 13px;
+  font-family: var(--font-body);
+  cursor: pointer;
+  margin-top: 8px;
+}
+
+.openButton:hover {
+  background: rgba(110, 148, 140, 0.1);
+}
+
+.form {
+  margin-top: 12px;
+}
+
+.categoryBlock {
+  border-top: 1px solid rgba(110, 148, 140, 0.2);
+  padding: 10px 0;
+}
+
+.categoryBlock:first-child {
+  border-top: none;
+  padding-top: 0;
+}
+
+.categoryTitle {
+  font-weight: 500;
+  color: var(--color-ink);
+  margin-bottom: 6px;
+}
+
+.questionRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 5px 0;
+  font-size: 13px;
+  color: var(--color-ink);
+}
+
+.scoreOptions {
+  display: flex;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.scoreOption {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.otherTextarea {
+  width: 100%;
+  border: 1px solid rgba(110, 148, 140, 0.4);
+  border-radius: 4px;
+  background: var(--color-hanji-bg);
+  color: var(--color-ink);
+  padding: 6px 8px;
+  font-size: 13px;
+  font-family: var(--font-body);
+  resize: vertical;
+}
+
+.submitButton {
+  border: none;
+  border-radius: 6px;
+  background: var(--color-celadon);
+  color: var(--color-hanji-card);
+  padding: 8px 16px;
+  font-size: 13px;
+  font-family: var(--font-body);
+  font-weight: 500;
+  cursor: pointer;
+  margin-top: 10px;
+}
+
+.submitButton:hover:not(:disabled) {
+  background: var(--color-celadon-dark);
+}
+
+.submitButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.errorText {
+  color: var(--color-seal);
+  font-size: 12px;
+  margin-top: 4px;
+}

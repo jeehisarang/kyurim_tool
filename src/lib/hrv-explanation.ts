@@ -114,17 +114,36 @@ ${SECTION_MARKERS.lifestyleGuide}
      방향 판단 참고(단, 이 표현을 "좋아짐/나빠짐"으로 그대로 옮기지 말고 방향 서술에만
      참고할 것): 혈관건강지수·스트레스지수는 낮을수록, 평균맥박은 60~100 범위에 머무를수록,
      혈관건강도는 A/B 쪽일수록 상대적으로 안정적인 방향입니다.
-3) 한의학적 해석 — [환자 증상기록]과 [한의학적 매핑표]를 대조해서, 매핑표의 symptoms와
-   실제로 관련 있는 내용이 확인되면 그 pattern의 phrase를 자연스럽게 인용하며, "미병
-   신호" 관점으로 풀어 쓸 것 — 예를 들어 "간기울결 패턴 가능성을 시사합니다"처럼 진단명을
-   통보하듯 쓰지 말고 "정서적 긴장이 누적되며 나타날 수 있는 간기울결 유형의 미병 신호로
-   볼 수 있습니다"처럼 재구성할 것(정확한 문구는 상황에 맞게 변형). 반드시 "최종적인
-   변증은 문진·설진·맥진을 통해 확정됩니다" 같은 문구를 덧붙일 것. 관련 증상이 확인되지
-   않으면 특정 패턴을 절대 억지로 끼워맞추지 말고 "동반 증상을 함께 확인하면 더 정확한
-   판단이 가능합니다" 정도로 유보적으로 마무리할 것. [한의학적 매핑표]에 없는 새로운
-   한의학적 병증/변증명을 스스로 창작하지 말 것.
+3) 한의학적 해석 —
 
-   ⚠️ 패턴명 언급의 유일한 근거는 [환자 증상기록]에 실제로 적힌 텍스트뿐입니다. 아래
+   🩺 [증상 패턴 프로필](task.md, 환자가 직접 체크한 상담설문 결과)이 사용자 메시지에
+   "없음"이 아닌 실제 카테고리 목록으로 주어졌다면, 이번엔 이 프로필을 최우선 근거로
+   삼고 아래 [환자 증상기록]/[한의학적 매핑표] 기반 대조 방식은 이번 생성에서 쓰지
+   마세요(두 체계를 한 번에 섞어서 언급하지 않습니다 — 상담설문이 있으면 상담설문만
+   근거로 삼습니다). 이 프로필은 기기 수치(자율신경균형도 등)보다 재현성이 안정적인
+   데이터이므로, 유보 어조를 다소 줄이고 좀 더 적극적으로 구체적 치료 방향을 제안해도
+   됩니다(원장 판단). 목록에 있는 카테고리명(patientLabel)을 그대로 인용해 미병 신호로
+   풀어 쓰고, "치료원칙: X"가 함께 주어진 카테고리는 그 문구를 자연스럽게 녹여 한약/침
+   치료 등 구체적 치료 방향까지 언급하세요. "(치료원칙 미입력)"이라고 표시된 카테고리는
+   그 카테고리명/신호만 언급하고 구체적 치료법(어떤 처방·치료 종류든)은 절대 창작하지
+   마세요 — 아직 원장이 입력하지 않은 정보입니다. 목록에 없는 카테고리명을 지어내지
+   마세요. 여러 카테고리가 나열돼 있으면(동점 병렬 후보) 전부 자연스럽게 함께 언급하되
+   등수를 매기듯 서술하지 마세요. 이 경우에도 "최종적인 변증은 문진·설진·맥진을 통해
+   확정됩니다" 문구는 그대로 유지하세요.
+
+   [증상 패턴 프로필]이 "없음"이면(상담설문 응답이 없거나 후보 카테고리가 없는 경우)
+   아래 기존 방식대로 판단하세요 — [환자 증상기록]과 [한의학적 매핑표]를 대조해서,
+   매핑표의 symptoms와 실제로 관련 있는 내용이 확인되면 그 pattern의 phrase를 자연스럽게
+   인용하며, "미병 신호" 관점으로 풀어 쓸 것 — 예를 들어 "간기울결 패턴 가능성을
+   시사합니다"처럼 진단명을 통보하듯 쓰지 말고 "정서적 긴장이 누적되며 나타날 수 있는
+   간기울결 유형의 미병 신호로 볼 수 있습니다"처럼 재구성할 것(정확한 문구는 상황에 맞게
+   변형). 반드시 "최종적인 변증은 문진·설진·맥진을 통해 확정됩니다" 같은 문구를 덧붙일
+   것. 관련 증상이 확인되지 않으면 특정 패턴을 절대 억지로 끼워맞추지 말고 "동반 증상을
+   함께 확인하면 더 정확한 판단이 가능합니다" 정도로 유보적으로 마무리할 것. [한의학적
+   매핑표]에 없는 새로운 한의학적 병증/변증명을 스스로 창작하지 말 것.
+
+   ⚠️ ([증상 패턴 프로필]이 "없음"일 때만 적용) 패턴명 언급의 유일한 근거는 [환자
+   증상기록]에 실제로 적힌 텍스트뿐입니다. 아래
    나열한 것은 전부 패턴명을 언급할 근거가 "될 수 없습니다" — 이 중 하나라도 근거로 삼아
    패턴명(간기울결, 심비양허 등)을 언급했다면 그 언급은 반드시 삭제하세요:
    - 혈관건강지수·스트레스지수·평균맥박·혈관건강도 등 수치 자체
@@ -238,6 +257,9 @@ ${SECTION_MARKERS.lifestyleGuide}
   취지로만 썼는가(절대적 정상/비정상 판정처럼 쓰지 않았는가)?
 - 이번 검사 구역이 초기부정맥 또는 심한부정맥이면 "정밀 검사(심전도 등) 확인 권고" 취지의
   안내를 2단계에 포함했는가? (그 두 구역이 아니면 이 안내를 쓰지 않았는가?)
+- [증상 패턴 프로필]이 "없음"이 아니면, 3단계에서 그 프로필만 근거로 쓰고 [한의학적
+  매핑표]/[환자 증상기록] 기반 패턴명은 함께 언급하지 않았는가? 목록에 없는 카테고리명을
+  지어내지 않았는가? "(치료원칙 미입력)"인 카테고리에 구체적 치료법을 창작하지 않았는가?
 위 기준에 걸리면 반드시 고친 뒤 최종 코멘트만 출력하세요.`;
 
 export type HrvExplanationInput = {
@@ -264,12 +286,25 @@ export type HrvExplanationInput = {
   // 직전 검사의 종합 리포트 이미지(base64) — 자율신경균형도 구역 이동 방향 서술용. 2회차
   // 이상이고 직전 레코드의 이미지 판독이 성공한 경우에만 값이 있다(hrv.ts에서 구성).
   previousImageBase64: string | null;
+  // 증상 패턴 프로필(task.md) — 환자가 상담설문에서 직접 체크한 응답의 후보(동점 병렬 포함)
+  // 카테고리만 뽑아 넘긴다(tcm-checklist.ts getTcmCategoryProfileForAi). 응답이 없거나
+  // 후보가 하나도 없으면 null — 이 경우 기존 [환자 증상기록]/[한의학적 매핑표] 방식이
+  // 그대로 동작한다(병행 원칙, task2.md 결정사항 6). treatmentPrinciple이 null인 카테고리는
+  // 원장이 아직 입력하지 않은 상태라는 뜻 — AI가 구체적 치료법을 창작하면 안 된다.
+  tcmCategoryProfile: { patientLabel: string; treatmentPrinciple: string | null }[] | null;
 };
 
 function formatTcmPatternMap(entries: TcmPatternMapEntry[]): string {
   if (entries.length === 0) return "없음";
   return entries
     .map((e) => `- symptoms: ${e.symptoms} / pattern: ${e.pattern} / phrase: ${e.phrase}`)
+    .join("\n");
+}
+
+function formatTcmCategoryProfile(profile: { patientLabel: string; treatmentPrinciple: string | null }[] | null): string {
+  if (!profile || profile.length === 0) return "없음 — 아래 [한의학적 매핑표]/[환자 증상기록] 기반 방식으로 판단할 것";
+  return profile
+    .map((c) => `- ${c.patientLabel} (${c.treatmentPrinciple ? `치료원칙: ${c.treatmentPrinciple}` : "치료원칙 미입력"})`)
     .join("\n");
 }
 
@@ -281,6 +316,7 @@ function buildUserMessage(input: HrvExplanationInput, readingSummary: string): s
 [이미지 판독 결과]
 ${readingSummary}
 [학술 근거] ${input.academicGuide ?? "없음 — 양생 안내는 아주 짧고 담백하게만 작성할 것"}
+[증상 패턴 프로필] ${formatTcmCategoryProfile(input.tcmCategoryProfile)}
 [한의학적 매핑표] ${formatTcmPatternMap(input.tcmPatternMap)}
 [환자 증상기록] ${input.patientSymptomMaterial ?? "없음 — 한의학적 해석은 유보적으로 마무리할 것"}`;
 }
@@ -324,11 +360,47 @@ function violatesPatternNameRule(
   tcmInterpretation: string,
   tcmPatternMap: TcmPatternMapEntry[],
   patientSymptomMaterial: string | null,
+  tcmCategoryProfileGiven: boolean,
 ): boolean {
+  // 증상 패턴 프로필(task.md)이 주어지면 이번 생성은 그 프로필만 근거로 삼도록 지시했으므로
+  // (두 체계를 섞지 않음), 기존 매핑표 기반 패턴명은 증상기록 유무와 무관하게 등장하면 안 된다.
+  if (tcmCategoryProfileGiven) {
+    return tcmPatternMap.some(
+      (entry) => tcmInterpretation.includes(entry.pattern) || tcmInterpretation.includes(entry.phrase),
+    );
+  }
   if (patientSymptomMaterial !== null) return false;
   return tcmPatternMap.some(
     (entry) => tcmInterpretation.includes(entry.pattern) || tcmInterpretation.includes(entry.phrase),
   );
+}
+
+// 증상 패턴 프로필(task.md)의 후보 카테고리 전부가 치료원칙 미입력 상태인데도(마이그레이션
+// 직후 초기 상태가 정확히 이 경우다) AI가 구체적 치료법 어휘를 언급하면 창작으로 본다 —
+// 이 경우는 입력 자체에 치료 관련 정보가 전혀 없어 코드로 결정적으로 검증 가능하다(일부만
+// 미입력인 경우는 어느 카테고리 소속 언급인지 텍스트만으로 구분 불가해 이 규칙 대상이 아님).
+const TREATMENT_KEYWORDS = ["한약", "침 치료", "탕약", "처방", "뜸"];
+
+function violatesInventedTreatmentRule(
+  tcmInterpretation: string,
+  tcmCategoryProfile: { patientLabel: string; treatmentPrinciple: string | null }[] | null,
+): boolean {
+  if (!tcmCategoryProfile || tcmCategoryProfile.length === 0) return false;
+  const allMissing = tcmCategoryProfile.every((c) => c.treatmentPrinciple === null);
+  if (!allMissing) return false;
+  return TREATMENT_KEYWORDS.some((k) => tcmInterpretation.includes(k));
+}
+
+// [증상 패턴 프로필]이 실제로 주어졌는데도(후보 카테고리 존재) 3단계 본문이 그중 어느 것도
+// 언급하지 않은 채 기존 방식(기기 판독/자유텍스트 스타일)으로만 서술하는 경우가 실측 확인됨 —
+// patientLabel은 정확한 문자열이라 코드로 결정적으로 검증 가능하다(task.md 검증체크리스트
+// "응답이 있으면 반영되고" 요건).
+function violatesMissingCategoryProfileMention(
+  tcmInterpretation: string,
+  tcmCategoryProfile: { patientLabel: string; treatmentPrinciple: string | null }[] | null,
+): boolean {
+  if (!tcmCategoryProfile || tcmCategoryProfile.length === 0) return false;
+  return !tcmCategoryProfile.some((c) => tcmInterpretation.includes(c.patientLabel));
 }
 
 // 프롬프트 지시 5개 구역명 중 정확히 하나만 쓰라고 못박아도, 실측 확인 결과 gpt-4o-mini가
@@ -529,25 +601,53 @@ export async function generateHrvExplanation(input: HrvExplanationInput): Promis
   const readingSummary = buildReadingSummary(input, currentReading, previousReading);
 
   const currentZone = currentReading?.zone ?? null;
+  const tcmCategoryProfileGiven = input.tcmCategoryProfile !== null && input.tcmCategoryProfile.length > 0;
 
   const first = await callHrvExplanationModel(input, readingSummary);
   const firstPatternViolation = violatesPatternNameRule(
     first.tcmInterpretation,
     input.tcmPatternMap,
     input.patientSymptomMaterial,
+    tcmCategoryProfileGiven,
   );
   const firstZoneViolation = violatesAutonomicZoneVocabRule(first.clinicalMeaning, hasImage);
   const firstDuplicateViolation = violatesDuplicateSentenceRule(first);
-  if (!firstPatternViolation && !firstZoneViolation && !firstDuplicateViolation) {
+  const firstInventedTreatmentViolation = violatesInventedTreatmentRule(first.tcmInterpretation, input.tcmCategoryProfile);
+  const firstMissingProfileMention = violatesMissingCategoryProfileMention(first.tcmInterpretation, input.tcmCategoryProfile);
+  if (
+    !firstPatternViolation &&
+    !firstZoneViolation &&
+    !firstDuplicateViolation &&
+    !firstInventedTreatmentViolation &&
+    !firstMissingProfileMention
+  ) {
     return { ...first, clinicalMeaning: ensureArrhythmiaNotice(first.clinicalMeaning, currentZone) };
   }
 
   const correctionInstructions: string[] = [];
+  if (firstMissingProfileMention) {
+    correctionInstructions.push(
+      "직전 응답의 한의학적 해석이 [증상 패턴 프로필]에 나열된 카테고리를 전혀 언급하지 않고 " +
+        "기존 방식으로만 서술했습니다. 이번에는 [증상 패턴 프로필]에 나열된 카테고리명을 반드시 " +
+        "그대로 인용해서 한의학적 해석을 작성하세요(생략 금지).",
+    );
+  }
   if (firstPatternViolation) {
     correctionInstructions.push(
-      "직전 응답의 한의학적 해석에서 [환자 증상기록]이 없는데도 매핑표의 패턴명이나 phrase를 " +
-        "언급하는 오류가 있었습니다. 이번에는 한의학적 해석에서 패턴명을 단 하나도 언급하지 말고, " +
-        "수치에 대한 일반적 해석까지만 서술하세요.",
+      tcmCategoryProfileGiven
+        ? "직전 응답의 한의학적 해석에서 [증상 패턴 프로필]이 주어졌는데도 기존 [한의학적 " +
+            "매핑표]의 패턴명/phrase를 함께 언급하는 오류가 있었습니다. 이번에는 [증상 패턴 " +
+            "프로필]에 나열된 카테고리명만 근거로 쓰고, 매핑표 쪽 패턴명은 전혀 언급하지 마세요."
+        : "직전 응답의 한의학적 해석에서 [환자 증상기록]이 없는데도 매핑표의 패턴명이나 phrase를 " +
+            "언급하는 오류가 있었습니다. 이번에는 한의학적 해석에서 패턴명을 단 하나도 언급하지 말고, " +
+            "수치에 대한 일반적 해석까지만 서술하세요.",
+    );
+  }
+  if (firstInventedTreatmentViolation) {
+    correctionInstructions.push(
+      "직전 응답에서 [증상 패턴 프로필]의 모든 카테고리가 치료원칙 미입력 상태인데도 구체적인 " +
+        "치료법(한약/침 치료 등)을 언급하는 오류가 있었습니다. 이번에는 치료원칙이 미입력인 " +
+        "카테고리에 대해 카테고리명/신호만 언급하고 구체적 치료법은 절대 언급하지 마세요.",
     );
   }
   if (firstZoneViolation) {
@@ -566,11 +666,17 @@ export async function generateHrvExplanation(input: HrvExplanationInput): Promis
   }
 
   const retried = await callHrvExplanationModel(input, readingSummary, correctionInstructions.join(" "));
-  if (violatesPatternNameRule(retried.tcmInterpretation, input.tcmPatternMap, input.patientSymptomMaterial)) {
-    throw new Error("한의학적 해석이 증상기록 없이 패턴명을 언급하는 규칙을 재시도 후에도 위반했습니다.");
+  if (violatesPatternNameRule(retried.tcmInterpretation, input.tcmPatternMap, input.patientSymptomMaterial, tcmCategoryProfileGiven)) {
+    throw new Error("한의학적 해석이 증상 패턴 프로필/증상기록 규칙을 재시도 후에도 위반했습니다.");
   }
   if (violatesDuplicateSentenceRule(retried)) {
     throw new Error("강조 문장이 중복 등장하는 반복 문장 버그가 재시도 후에도 남아있습니다.");
+  }
+  if (violatesInventedTreatmentRule(retried.tcmInterpretation, input.tcmCategoryProfile)) {
+    throw new Error("치료원칙 미입력 상태인데 구체적 치료법을 창작하는 규칙을 재시도 후에도 위반했습니다.");
+  }
+  if (violatesMissingCategoryProfileMention(retried.tcmInterpretation, input.tcmCategoryProfile)) {
+    throw new Error("증상 패턴 프로필이 주어졌는데도 재시도 후에도 전혀 언급하지 않았습니다.");
   }
   // 구역 어휘 규칙은 [환자 증상기록] 유무처럼 코드로 정답을 알 수 있는 조건이 아니라 "판독
   // 결과를 텍스트 생성 모델이 얼마나 그대로 옮겼는가"의 문제라, 재시도 후에도 남아있으면

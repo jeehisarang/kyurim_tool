@@ -654,6 +654,9 @@ function NewExaminationPageInner() {
             <button type="button" onClick={resetForm}>
               다른 환자 선택
             </button>
+            <Link href={`/consultation-survey?patientId=${selectedPatient.id}`} target="_blank" rel="noopener noreferrer">
+              상담설문 바로가기 ↗
+            </Link>
           </div>
         )}
       </div>

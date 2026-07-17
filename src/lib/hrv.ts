@@ -8,6 +8,7 @@ import {
 } from "@/lib/hrv-explanation";
 import { getExamAcademicGuide } from "@/lib/exam-academic-guide";
 import { listConsultationNotesForPatient } from "@/lib/consultation-notes";
+import { getTcmCategoryProfileForAi } from "@/lib/tcm-checklist";
 import type { HrvTestRecord } from "@/generated/prisma/client";
 
 const RECENT_PATIENT_NOTE_LIMIT = 5;
@@ -126,11 +127,14 @@ async function tryGenerateHrvCommentary(
   >,
 ): Promise<HrvExplanationSections | null> {
   try {
-    const [{ trend, previousImageBase64 }, guide, patientSymptomMaterial, imageBase64] = await Promise.all([
+    const [{ trend, previousImageBase64 }, guide, patientSymptomMaterial, imageBase64, tcmCategoryProfile] = await Promise.all([
       getHrvTrendAndPreviousImage(record.patientId),
       getExamAcademicGuide("HRV"),
       buildPatientSymptomMaterial(record.patientId),
       readUploadedImageAsBase64(primaryHrvImagePath(record)),
+      // 증상 패턴 프로필(task.md) — 후보가 있으면 이걸 우선 근거로 쓰고, 없으면(null) 기존
+      // tcmPatternMap/patientSymptomMaterial 자유텍스트 방식이 그대로 동작한다(병행 원칙).
+      getTcmCategoryProfileForAi(record.patientId),
     ]);
     return await generateHrvExplanation({
       vascularHealthIndex: record.vascularHealthIndex,
@@ -143,6 +147,7 @@ async function tryGenerateHrvCommentary(
       patientSymptomMaterial,
       imageBase64,
       previousImageBase64,
+      tcmCategoryProfile,
     });
   } catch (err) {
     console.error("[hrv] AI 해설 생성 실패:", err);
