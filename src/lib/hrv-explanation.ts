@@ -75,16 +75,21 @@ ${SECTION_MARKERS.lifestyleGuide}
 (4단계 본문)
 
 [강조 표시 — 환자화면 굵게/확대 표시에 사용됨(task2.md)]
-각 단계(1~4) 본문을 다 쓴 뒤, 그 안에서 이미 당신이 작성한 핵심 결론 문장을 그대로 골라
-앞뒤에 별표 두 개(*)씩 붙이세요. 예를 들어 본문에 "스트레스지수가 높아 자율신경 균형이
-저하될 수 있습니다."라는 문장을 이미 썼다면 그 문장을 **스트레스지수가 높아 자율신경
-균형이 저하될 수 있습니다.**처럼 고칩니다 — 반드시 방금 작성한 실제 문장 원문을 별표로
-감싸는 것이며, "문장"이라는 단어나 다른 placeholder를 감싸는 게 절대 아닙니다. 문단 전체나
-여러 문장을 감싸지 말고 반드시 1개 문장만 감쌀 것. 추가로 3단계(한의학적 해석)에서
-한의학적 패턴명(간기울결, 심비양허 등)을 실제로 언급했다면, 그 패턴명 단어 자체도
-**간기울결**처럼(패턴명 실제 표기 그대로) 별표로 감싸세요(핵심 문장 강조와 별개로 추가
-적용 — 패턴명이 이미 핵심 문장 안에 있다면 문장 강조 안에 패턴명을 다시 이중으로 감싸지
-말고 문장 강조만 유지). 패턴명을 언급하지 않았다면(증상기록 없음 등) 이 추가 강조는 생략.
+각 단계(1~4) 본문을 쓰는 과정에서, 핵심 결론 문장이 될 부분은 처음 쓸 때부터 그 자리에서
+바로 앞뒤에 별표 두 개(**)씩 붙여서 쓰세요. 예를 들어 "스트레스지수가 높아 자율신경 균형이
+저하될 수 있습니다."가 핵심 문장이라면 본문을 쓰는 그 순간에 바로 **스트레스지수가 높아
+자율신경 균형이 저하될 수 있습니다.**라고 쓰고, 그 문장은 그 자리에 그것 하나만 존재해야
+합니다.
+🚫 절대 금지(반복 문장 버그): 본문을 먼저 별표 없이 쓴 뒤 문단 끝(또는 다른 위치)에 그
+문장을 별표로 감싸 한 번 더 반복해서 쓰는 것은 명백한 오류입니다 — 같은 문장이 한 섹션
+안에 두 번(강조 없는 버전 + 강조된 버전) 나타나서는 절대 안 됩니다. 강조는 "이미 쓴 문장에
+표시를 추가하는 것"이지 "그 문장을 다시 한번 쓰는 것"이 아닙니다. 각 섹션에는 동일하거나
+거의 동일한 의미의 문장이 정확히 1번만 있어야 합니다. 문단 전체나 여러 문장을 감싸지도
+말 것. 추가로 3단계(한의학적 해석)에서 한의학적 패턴명(간기울결, 심비양허 등)을 실제로
+언급했다면, 그 패턴명 단어 자체도 **간기울결**처럼(패턴명 실제 표기 그대로) 별표로
+감싸세요(핵심 문장 강조와 별개로 추가 적용 — 패턴명이 이미 핵심 문장 안에 있다면 문장 강조
+안에 패턴명을 다시 이중으로 감싸지 말고 문장 강조만 유지). 패턴명을 언급하지 않았다면(증상
+기록 없음 등) 이 추가 강조는 생략.
 
 [4단 구조]
 1) 미병 도입 — "이 검사는 질병이 있는지 없는지를 가르는 검사가 아니라, 아직 뚜렷한 병으로
@@ -156,11 +161,20 @@ ${SECTION_MARKERS.lifestyleGuide}
   아예 언급하지 마세요(추측 금지) — 언급을 생략하는 것이 정답입니다. 두 값은 서로 독립적으로
   판단하세요(하나만 판독 불가일 수 있음).
 - 값이 정상적으로 주어졌다면 2단계에 실제 수치 4개(혈관건강지수 등)와 동일한 비중으로 반드시
-  포함하세요. 구역명은 이미 검증을 거친 값이지만, 그래도 단정적으로 "~구역입니다"라고 쓰지
-  말고 "~구역에 가까운 것으로 보입니다" 정도의 유보적 어조로 서술하세요(이 항목에 한해
-  적용되는 어조 규칙 — 나머지 실제 측정값 4개는 기존대로 명확하게 인용). 구역명을 쓸 때는
-  판독 결과에 주어진 명칭(과로형만성스트레스/질병형만성스트레스/급성스트레스/초기부정맥/
-  심한부정맥 중 하나) 그대로만 쓰고 다른 표현으로 바꾸거나 합치지 마세요.
+  포함하세요. 자율신경균형도 5유형과 맥박다양성은 독립된 학술 표준 분류가 아니라 기기
+  자체의 해석 레이어(task2.md 리서치 확인)이므로, 구역명은 절대 "~구역입니다"처럼 단정
+  하거나 학계 정의처럼 들리게 쓰지 말고 반드시 "기기 분석 기준으로는 ~구역에 가까운
+  패턴입니다" 형태로(이 표현 자체를 반드시 포함) 서술하세요(이 항목에 한해 적용되는 어조
+  규칙 — 나머지 실제 측정값 4개는 기존대로 명확하게 인용). 구역명을 쓸 때는 판독 결과에
+  주어진 명칭(과로형만성스트레스/질병형만성스트레스/급성스트레스/초기부정맥/심한부정맥 중
+  하나) 그대로만 쓰고 다른 표현으로 바꾸거나 합치지 마세요. 맥박다양성 수치를 언급할 때도
+  그 수치 자체가 절대적 정상/비정상 기준이 아니니 "본인의 이전 추세와 비교해 참고하시라"는
+  취지로만 서술하고, 특정 숫자를 정상/비정상으로 단정하지 마세요.
+  🔴 하드 제약(생략 절대 금지, task2.md): 이번 검사 구역이 "초기부정맥" 또는 "심한부정맥"
+  이면, "리듬 불규칙 가능성이 있어 필요 시 정밀 검사(심전도 등) 확인을 권고드립니다"라는
+  취지의 안내를 2단계 본문 안에 반드시 포함하세요(부정맥을 확정 진단처럼 단정하지 말고
+  "가능성이 있어 확인을 권고"하는 유보적 어조 유지). 이 두 구역이 아니면 이 안내를 쓰지
+  마세요.
 - 직전 검사 구역도 정상적으로 주어졌다면(2회차 이상), 이번 구역과 비교해 이동 방향을 2단계에
   사실만 서술하세요(예: "직전 급성스트레스 구역에서 이번 초기부정맥 구역으로 이동" 식).
   "좋아짐/나빠짐" 같은 단정적 평가는 붙이지 말 것.
@@ -215,6 +229,15 @@ ${SECTION_MARKERS.lifestyleGuide}
   합치지 않았는가)?
 - 세부지표(TP/VLF/LF/HF/SDNN/RMSSD)를 전부 나열하지 않고, 필요한 경우에만 1~2개까지만
   보조적으로 언급했는가?
+- 🚫 (반복 문장 버그 점검, 가장 중요) 1~4단계 각 섹션을 한 문장씩 다시 읽으며, 같은 문장
+  또는 거의 같은 의미의 문장이 강조 없는 버전과 강조된(**) 버전 두 번 나타나는 곳이 있는지
+  확인했는가? 하나라도 있으면 강조 없는 쪽을 지우고 강조된 문장 하나만 그 자리에 남기세요
+  (문장을 다시 쓰지 말고 지우기만 할 것).
+- 구역명을 언급했다면 "기기 분석 기준으로는 ~에 가까운 패턴입니다" 표현을 실제로 포함했는가
+  (학계 정의처럼 단정하지 않았는가)? 맥박다양성 수치는 "본인의 이전 추세와 비교해 참고"하는
+  취지로만 썼는가(절대적 정상/비정상 판정처럼 쓰지 않았는가)?
+- 이번 검사 구역이 초기부정맥 또는 심한부정맥이면 "정밀 검사(심전도 등) 확인 권고" 취지의
+  안내를 2단계에 포함했는가? (그 두 구역이 아니면 이 안내를 쓰지 않았는가?)
 위 기준에 걸리면 반드시 고친 뒤 최종 코멘트만 출력하세요.`;
 
 export type HrvExplanationInput = {
@@ -322,6 +345,28 @@ const AUTONOMIC_ZONE_NAMES = [
   "심한부정맥",
 ] as const;
 
+// 반복 문장 버그(task.md 2026-07-17) — 실측 확인 결과 gpt-4.1-mini가 "핵심 문장에 강조
+// 표시를 추가"하라는 지시를, "그 문장을 강조 표시와 함께 한 번 더 쓰기"로 잘못 수행해
+// 같은 문장이 강조 없는 버전 + **강조된** 버전으로 한 섹션 안에 두 번 나타나는 경우가
+// 있었다(실제 이순영 환자 레코드에서 재현 확인). 위 프롬프트 지시(강조 표시 섹션)로 근본
+// 원인을 수정했지만, 정확한 문자열 중복은 코드로 결정적으로 검증 가능하므로(패턴명 규칙과
+// 동일한 원칙) 한 번 더 코드로 걸러낸다 — 강조된 문장과 완전히 동일한 텍스트가 섹션 안에
+// 강조 없이 또 등장하면 위반으로 본다.
+function hasDuplicatedEmphasisSentence(text: string): boolean {
+  const boldMatches = [...text.matchAll(/\*\*(.+?)\*\*/g)];
+  return boldMatches.some(([full, inner]) => {
+    const innerTrimmed = inner.trim();
+    if (innerTrimmed.length < 8) return false; // 너무 짧은 강조(패턴명 등)는 우연히 겹칠 수 있어 제외
+    const idx = text.indexOf(full);
+    const withoutThisBold = text.slice(0, idx) + text.slice(idx + full.length);
+    return withoutThisBold.includes(innerTrimmed);
+  });
+}
+
+function violatesDuplicateSentenceRule(sections: HrvExplanationSections): boolean {
+  return Object.values(sections).some(hasDuplicatedEmphasisSentence);
+}
+
 function violatesAutonomicZoneVocabRule(clinicalMeaning: string, hasImage: boolean): boolean {
   if (!hasImage) return false;
   if (!clinicalMeaning.includes("구역")) return false;
@@ -408,6 +453,21 @@ async function readAutonomicBalance(imageBase64: string): Promise<AutonomicReadi
   return parseAutonomicReadingText(retried);
 }
 
+// 부정맥 구역 안전 안내(task2.md, GPT 딥리서치로 자율신경균형도 5유형/맥박다양성이 독립
+// 학술표준이 아니라 기기 해석 레이어임을 확인한 뒤 추가) — 프롬프트 지시만으로는(위 시스템
+// 프롬프트의 "하드 제약" 문구) 매 생성마다 100% 보장되지 않으므로, 이 문구는 AI가 자유롭게
+// 표현을 바꾸지 못하도록 고정 텍스트로 두고 코드가 직접 보장한다(HRV_SAFETY_NOTICE와 동일한
+// "AI가 만들지 않고 시스템이 붙인다" 원칙). 이미 AI가 취지에 맞는 문구를 스스로 포함했다면
+// (심전도/정밀 검사 키워드로 판단) 중복으로 덧붙이지 않는다.
+const ARRHYTHMIA_ZONES = ["초기부정맥", "심한부정맥"] as const;
+const ARRHYTHMIA_NOTICE = "리듬 불규칙 가능성이 있어 필요 시 정밀 검사(심전도 등) 확인을 권고드립니다.";
+
+function ensureArrhythmiaNotice(clinicalMeaning: string, currentZone: string | null): string {
+  if (!currentZone || !(ARRHYTHMIA_ZONES as readonly string[]).includes(currentZone)) return clinicalMeaning;
+  if (clinicalMeaning.includes("심전도") || clinicalMeaning.includes("정밀 검사")) return clinicalMeaning;
+  return `${clinicalMeaning} ${ARRHYTHMIA_NOTICE}`;
+}
+
 function formatReadingLine(reading: AutonomicReading | null, hasImage: boolean): string {
   if (!hasImage) return "이미지 없음";
   const zone = reading?.zone ?? "판독 불가(불명확)";
@@ -468,6 +528,8 @@ export async function generateHrvExplanation(input: HrvExplanationInput): Promis
   const previousReading = input.previousImageBase64 ? await readAutonomicBalance(input.previousImageBase64) : null;
   const readingSummary = buildReadingSummary(input, currentReading, previousReading);
 
+  const currentZone = currentReading?.zone ?? null;
+
   const first = await callHrvExplanationModel(input, readingSummary);
   const firstPatternViolation = violatesPatternNameRule(
     first.tcmInterpretation,
@@ -475,8 +537,9 @@ export async function generateHrvExplanation(input: HrvExplanationInput): Promis
     input.patientSymptomMaterial,
   );
   const firstZoneViolation = violatesAutonomicZoneVocabRule(first.clinicalMeaning, hasImage);
-  if (!firstPatternViolation && !firstZoneViolation) {
-    return first;
+  const firstDuplicateViolation = violatesDuplicateSentenceRule(first);
+  if (!firstPatternViolation && !firstZoneViolation && !firstDuplicateViolation) {
+    return { ...first, clinicalMeaning: ensureArrhythmiaNotice(first.clinicalMeaning, currentZone) };
   }
 
   const correctionInstructions: string[] = [];
@@ -494,15 +557,25 @@ export async function generateHrvExplanation(input: HrvExplanationInput): Promis
         "표현으로 바꾸거나 두 명칭을 합치지 마세요.",
     );
   }
+  if (firstDuplicateViolation) {
+    correctionInstructions.push(
+      "직전 응답에서 강조(**)를 위해 이미 쓴 문장을 그대로 한 번 더 반복해서 썼습니다(같은 " +
+        "문장이 강조 없는 버전과 강조된 버전으로 두 번 등장). 이번에는 각 섹션에서 핵심 문장을 " +
+        "처음 쓸 때부터 그 자리에서 바로 **로 감싸고, 그 문장을 별도로 다시 반복해서 쓰지 마세요.",
+    );
+  }
 
   const retried = await callHrvExplanationModel(input, readingSummary, correctionInstructions.join(" "));
   if (violatesPatternNameRule(retried.tcmInterpretation, input.tcmPatternMap, input.patientSymptomMaterial)) {
     throw new Error("한의학적 해석이 증상기록 없이 패턴명을 언급하는 규칙을 재시도 후에도 위반했습니다.");
+  }
+  if (violatesDuplicateSentenceRule(retried)) {
+    throw new Error("강조 문장이 중복 등장하는 반복 문장 버그가 재시도 후에도 남아있습니다.");
   }
   // 구역 어휘 규칙은 [환자 증상기록] 유무처럼 코드로 정답을 알 수 있는 조건이 아니라 "판독
   // 결과를 텍스트 생성 모델이 얼마나 그대로 옮겼는가"의 문제라, 재시도 후에도 남아있으면
   // 전체 생성을 실패시키지 않고 그대로 반환한다 — 이미지 판독 자체는 이미 readAutonomicBalance
   // 단계에서 VISION_MODEL + 자체 재시도로 한 번 더 검증됐으므로, 이 단계는 텍스트 생성 모델이
   // 그 검증된 값을 옮기는 과정에서 다시 틀릴 드문 경우에 대비한 2중 안전망이다(task.md).
-  return retried;
+  return { ...retried, clinicalMeaning: ensureArrhythmiaNotice(retried.clinicalMeaning, currentZone) };
 }
