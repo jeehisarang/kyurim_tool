@@ -20,7 +20,7 @@ type CategoryScoreView = {
   categoryCode: string;
   patientLabel: string;
   treatmentPrinciple: string | null;
-  tierLabel: "낮음" | "보통" | "뚜렷함";
+  tierLabel: "낮음" | "일부확인" | "뚜렷함";
   isCandidate: boolean;
 };
 

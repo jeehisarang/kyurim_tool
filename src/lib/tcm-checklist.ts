@@ -28,7 +28,7 @@ export type CategoryScoreView = {
   rawScore: number;
   maxScore: number;
   ratio: number;
-  tierLabel: "낮음" | "보통" | "뚜렷함";
+  tierLabel: "낮음" | "일부확인" | "뚜렷함";
   isCandidate: boolean;
 };
 
@@ -44,9 +44,10 @@ export type ChecklistResponseView = {
 
 // 3단계 표시 구간 — task.md에 정확한 컷오프가 명시되지 않아 균등 3분할로 가정한다
 // (schema-proposal-v2.md "확인이 필요한 점" 1번 — 조정 필요하면 이 숫자만 바꾸면 된다).
-function tierLabel(ratio: number): "낮음" | "보통" | "뚜렷함" {
-  if (ratio < 1 / 3) return "낮음";
-  if (ratio < 2 / 3) return "보통";
+// 3단계 표시 컷오프(원장 확인, task.md) — 0%는 낮음, 1~50%는 일부확인, 51~100%는 뚜렷함.
+function tierLabel(ratio: number): "낮음" | "일부확인" | "뚜렷함" {
+  if (ratio <= 0) return "낮음";
+  if (ratio <= 0.5) return "일부확인";
   return "뚜렷함";
 }
 

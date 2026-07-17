@@ -108,7 +108,7 @@ export type ShareLinkExamEntry =
 export type ShareLinkConsultationSurveyView = {
   updatedAt: string;
   candidateLabels: string[];
-  tiers: { patientLabel: string; tierLabel: "낮음" | "보통" | "뚜렷함" }[];
+  tiers: { patientLabel: string; tierLabel: "낮음" | "일부확인" | "뚜렷함" }[];
 };
 
 export type PublicShareLinkView = {
