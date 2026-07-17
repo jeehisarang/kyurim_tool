@@ -3,6 +3,7 @@
 import styles from "./ExamShareSections.module.css";
 import ImageZoomPan from "@/components/ImageZoomPan";
 import HrvCommentaryCards from "@/components/HrvCommentaryCards";
+import HrvHealthReportCards from "@/components/HrvHealthReportCards";
 import { HRV_SAFETY_NOTICE } from "@/lib/hrv-constants";
 import { EXAM_TYPE_LABEL } from "@/lib/examination-format";
 import type { HrvSeverity } from "@/lib/hrv-thresholds";
@@ -178,12 +179,16 @@ function HrvEntry({ entry }: { entry: Extract<ShareLinkExamEntry, { examType: "H
         </div>
       </div>
 
-      <HrvCommentaryCards
-        sections={entry.sections ?? { deviceReading: null, clinicalMeaning: null, lifestyleGuide: null, tcmInterpretation: null }}
-        legacyText={entry.legacyCommentary}
-        variant="patient"
-        commentaryVersion={entry.commentaryVersion}
-      />
+      {entry.healthReport ? (
+        <HrvHealthReportCards cards={entry.healthReport} variant="patient" />
+      ) : (
+        <HrvCommentaryCards
+          sections={entry.sections ?? { deviceReading: null, clinicalMeaning: null, lifestyleGuide: null, tcmInterpretation: null }}
+          legacyText={entry.legacyCommentary}
+          variant="patient"
+          commentaryVersion={entry.commentaryVersion}
+        />
+      )}
 
       <div className={styles.safetyNoticeBox}>
         <div className={styles.safetyNoticeLabel}>안전 안내</div>

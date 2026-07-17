@@ -12,17 +12,21 @@ function toEditableString(value: unknown): string | undefined {
   return typeof value === "string" ? value : undefined;
 }
 
-// 원장 전용 확인 화면(/examinations/hrv/[id])에서 AI 코멘트 4단 섹션을 수작업 편집 저장
-// (task.md — ProgramTeachingCreator와 동일한 필드별 textarea 편집 패턴).
+// 원장 전용 확인 화면(/examinations/hrv/[id])에서 건강 리포트 카드를 수작업 편집 저장
+// (task.md — ProgramTeachingCreator와 동일한 필드별 textarea 편집 패턴). 건강 리포트
+// (HEALTH_REPORT_V1)는 headline/tcmInterpretation/progression/treatmentAndLifestyle
+// 4개 키를 쓰고, 레거시 레코드는 clinicalMeaning도 함께 받는다(구버전 카드2 편집용,
+// updateHrvCommentary 참고).
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const body = await request.json();
 
   const record = await updateHrvCommentary(Number(id), {
-    deviceReading: toEditableString(body.deviceReading),
+    headline: toEditableString(body.headline),
     clinicalMeaning: toEditableString(body.clinicalMeaning),
-    lifestyleGuide: toEditableString(body.lifestyleGuide),
+    treatmentAndLifestyle: toEditableString(body.treatmentAndLifestyle),
     tcmInterpretation: toEditableString(body.tcmInterpretation),
+    progression: toEditableString(body.progression),
   });
   return NextResponse.json(record);
 }

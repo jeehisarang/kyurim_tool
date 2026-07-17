@@ -160,12 +160,16 @@ async function buildExamEntry(link: { examType: string; examRecordId: number }):
   }
 
   if (link.examType === "HRV") {
-    const record = await getHrvTestRecord(link.examRecordId);
+    let record = await getHrvTestRecord(link.examRecordId);
     if (!record || !record.isActive) return null;
     // ensureHrvExplanation은 aiDeviceReading이 비어있고 레거시 aiCommentary도 없을 때만
-    // 실제로 생성한다(hrv.ts 기존 원칙 그대로) — 그 외에는 record에 이미 있는 값을 쓴다.
-    const sections =
-      !record.aiDeviceReading && !record.aiCommentary ? await ensureHrvExplanation(record.id) : null;
+    // 실제로 생성한다(hrv.ts 기존 원칙 그대로) — 생성 성공 시 DB에 이미 저장됐으므로
+    // 레코드를 다시 읽어온다(반환값 shape이 레거시/건강 리포트 버전마다 달라 직접 병합하지
+    // 않는 편이 안전하다).
+    if (!record.aiDeviceReading && !record.aiCommentary) {
+      const generated = await ensureHrvExplanation(record.id);
+      if (generated) record = (await getHrvTestRecord(record.id)) ?? record;
+    }
     const safe = toPatientSafeHrvView({
       testDate: record.testDate.toISOString(),
       vascularHealthIndex: record.vascularHealthIndex,
@@ -175,10 +179,14 @@ async function buildExamEntry(link: { examType: string; examRecordId: number }):
       sourceImagePath: record.sourceImagePath,
       sourceImagePath2: record.sourceImagePath2,
       aiCommentary: record.aiCommentary,
-      aiDeviceReading: sections?.deviceReading ?? record.aiDeviceReading,
-      aiClinicalMeaning: sections?.clinicalMeaning ?? record.aiClinicalMeaning,
-      aiLifestyleGuide: sections?.lifestyleGuide ?? record.aiLifestyleGuide,
-      aiTcmInterpretation: sections?.tcmInterpretation ?? record.aiTcmInterpretation,
+      aiDeviceReading: record.aiDeviceReading,
+      aiClinicalMeaning: record.aiClinicalMeaning,
+      aiLifestyleGuide: record.aiLifestyleGuide,
+      aiTcmInterpretation: record.aiTcmInterpretation,
+      aiProgressionCard: record.aiProgressionCard,
+      aiCheckedSymptomsJson: record.aiCheckedSymptomsJson,
+      aiRedFlagNotice: record.aiRedFlagNotice,
+      aiCommentaryVersion: record.aiCommentaryVersion,
     });
     return { id: record.id, examType: "HRV" as const, ...safe };
   }

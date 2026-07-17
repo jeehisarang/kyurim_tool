@@ -7,6 +7,8 @@ import styles from "./page.module.css";
 import BackButton from "@/components/BackButton";
 import ImageZoomPan from "@/components/ImageZoomPan";
 import HrvCommentaryCards from "@/components/HrvCommentaryCards";
+import HrvHealthReportCards from "@/components/HrvHealthReportCards";
+import { toHealthReportCards } from "@/lib/patient-view";
 import { openPatientViewPopup, HRV_PATIENT_VIEW_POPUP_SIZE } from "@/lib/patient-view-popup";
 
 type HrvDetail = {
@@ -24,6 +26,10 @@ type HrvDetail = {
   aiClinicalMeaning: string | null;
   aiLifestyleGuide: string | null;
   aiTcmInterpretation: string | null;
+  // 건강 리포트(task.md 7카드 리뉴얼) 전용 필드 — HEALTH_REPORT_V1이 아니면 항상 null.
+  aiProgressionCard: string | null;
+  aiCheckedSymptomsJson: string | null;
+  aiRedFlagNotice: string | null;
   aiCommentaryVersion: string | null;
   // 유비오맥파 CSV 자동연동(task.md) 레코드는 담당 직원 정보가 없어 null.
   measuredByStaff: { name: string } | null;
@@ -52,6 +58,7 @@ export default function HrvExaminationDetailPage() {
   const [editClinicalMeaning, setEditClinicalMeaning] = useState("");
   const [editLifestyleGuide, setEditLifestyleGuide] = useState("");
   const [editTcmInterpretation, setEditTcmInterpretation] = useState("");
+  const [editProgression, setEditProgression] = useState("");
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [popupBlocked, setPopupBlocked] = useState(false);
@@ -79,22 +86,36 @@ export default function HrvExaminationDetailPage() {
     setEditClinicalMeaning(detail.aiClinicalMeaning ?? "");
     setEditLifestyleGuide(detail.aiLifestyleGuide ?? "");
     setEditTcmInterpretation(detail.aiTcmInterpretation ?? "");
+    setEditProgression(detail.aiProgressionCard ?? "");
     setEditing(true);
   }
 
   async function saveEdit() {
+    if (!detail) return;
     setSaving(true);
     setSaveError(null);
     try {
+      // 건강 리포트(HEALTH_REPORT_V1)는 카드2/3/6(체크증상/주목할 변화/위험신호)이 코드 계산
+      // 데이터라 이 화면에서 직접 편집하지 않는다 — 4개 AI 텍스트 카드만 편집 대상이다.
+      // 레거시 버전은 옛 4필드(clinicalMeaning 포함)를 그대로 편집한다(회귀 방지).
+      const isHealthReportNow = detail.aiCommentaryVersion === "HEALTH_REPORT_V1";
+      const body = isHealthReportNow
+        ? {
+            headline: editDeviceReading,
+            tcmInterpretation: editTcmInterpretation,
+            progression: editProgression,
+            treatmentAndLifestyle: editLifestyleGuide,
+          }
+        : {
+            headline: editDeviceReading,
+            clinicalMeaning: editClinicalMeaning,
+            treatmentAndLifestyle: editLifestyleGuide,
+            tcmInterpretation: editTcmInterpretation,
+          };
       const res = await fetch(`/api/hrv-records/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          deviceReading: editDeviceReading,
-          clinicalMeaning: editClinicalMeaning,
-          lifestyleGuide: editLifestyleGuide,
-          tcmInterpretation: editTcmInterpretation,
-        }),
+        body: JSON.stringify(body),
       });
       if (!res.ok) {
         const data = await res.json();
@@ -144,7 +165,7 @@ export default function HrvExaminationDetailPage() {
   // 필요하다(task.md — "재생성해도 그대로"였던 원인은 강제 재생성 수단 자체의 부재였음).
   // 수작업 편집분까지 덮어쓰므로 확인창을 거친다.
   async function handleRegenerate() {
-    if (!window.confirm("AI 코멘트를 최신 학술근거로 다시 생성합니다. 지금 저장된 내용(수작업 수정 포함)은 덮어써집니다. 계속하시겠습니까?")) {
+    if (!window.confirm("건강 리포트를 최신 학술근거로 다시 만듭니다. 지금 저장된 내용(수작업 수정 포함)은 덮어써집니다. 계속하시겠습니까?")) {
       return;
     }
     setRegenerating(true);
@@ -198,20 +219,30 @@ export default function HrvExaminationDetailPage() {
   // 실패한 경우를 여기서 표시한다.
   const commentaryGenerationFailed = !detail.aiDeviceReading && !detail.aiCommentary;
 
+  const isHealthReport = detail.aiCommentaryVersion === "HEALTH_REPORT_V1";
   const isMibyeong = detail.aiCommentaryVersion === "MIBYEONG_V1";
-  const editFields = isMibyeong
+  const healthReportCards = isHealthReport ? toHealthReportCards(detail) : null;
+
+  const editFields = isHealthReport
     ? [
-        { label: "미병(未病) 도입", value: editDeviceReading, onChange: setEditDeviceReading, rows: 3 },
-        { label: "이번 결과와 추이", value: editClinicalMeaning, onChange: setEditClinicalMeaning, rows: 4 },
-        { label: "한의학적 해석", value: editTcmInterpretation, onChange: setEditTcmInterpretation, rows: 4 },
-        { label: "치미병 양생 안내", value: editLifestyleGuide, onChange: setEditLifestyleGuide, rows: 3 },
+        { label: "카드1: 헤드라인", value: editDeviceReading, onChange: setEditDeviceReading, rows: 3 },
+        { label: "카드4: 한의건강해석", value: editTcmInterpretation, onChange: setEditTcmInterpretation, rows: 4 },
+        { label: "카드5: 이런 경향이 지속되면", value: editProgression, onChange: setEditProgression, rows: 3 },
+        { label: "카드7: 치료방향 & 생활관리", value: editLifestyleGuide, onChange: setEditLifestyleGuide, rows: 4 },
       ]
-    : [
-        { label: "기기 판독 요약", value: editDeviceReading, onChange: setEditDeviceReading, rows: 3 },
-        { label: "임상적 의미", value: editClinicalMeaning, onChange: setEditClinicalMeaning, rows: 4 },
-        { label: "생활관리 안내", value: editLifestyleGuide, onChange: setEditLifestyleGuide, rows: 3 },
-        { label: "한의학적 해석", value: editTcmInterpretation, onChange: setEditTcmInterpretation, rows: 4 },
-      ];
+    : isMibyeong
+      ? [
+          { label: "미병(未病) 도입", value: editDeviceReading, onChange: setEditDeviceReading, rows: 3 },
+          { label: "이번 결과와 추이", value: editClinicalMeaning, onChange: setEditClinicalMeaning, rows: 4 },
+          { label: "한의학적 해석", value: editTcmInterpretation, onChange: setEditTcmInterpretation, rows: 4 },
+          { label: "치미병 양생 안내", value: editLifestyleGuide, onChange: setEditLifestyleGuide, rows: 3 },
+        ]
+      : [
+          { label: "기기 판독 요약", value: editDeviceReading, onChange: setEditDeviceReading, rows: 3 },
+          { label: "임상적 의미", value: editClinicalMeaning, onChange: setEditClinicalMeaning, rows: 4 },
+          { label: "생활관리 안내", value: editLifestyleGuide, onChange: setEditLifestyleGuide, rows: 3 },
+          { label: "한의학적 해석", value: editTcmInterpretation, onChange: setEditTcmInterpretation, rows: 4 },
+        ];
 
   return (
     <div className={styles.container}>
@@ -266,32 +297,36 @@ export default function HrvExaminationDetailPage() {
       </div>
 
       <div className={styles.section}>
-        <div className={styles.sectionTitle}>AI 코멘트</div>
+        <div className={styles.sectionTitle}>건강 리포트</div>
 
         {!editing && (
           <>
             {commentaryGenerationFailed && (
               <p className={styles.commentaryFailedNotice}>
-                ⚠ 코멘트 생성 실패 — 검사 기록은 정상 저장됐지만 AI 코멘트 생성에 실패했습니다.
-                아래 &quot;AI 코멘트 재생성&quot; 버튼으로 다시 시도해주세요.
+                ⚠ 리포트 생성 실패 — 검사 기록은 정상 저장됐지만 건강 리포트 생성에 실패했습니다.
+                아래 &quot;리포트 다시 만들기&quot; 버튼으로 다시 시도해주세요.
               </p>
             )}
-            <HrvCommentaryCards
-              sections={{
-                deviceReading: detail.aiDeviceReading,
-                clinicalMeaning: detail.aiClinicalMeaning,
-                lifestyleGuide: detail.aiLifestyleGuide,
-                tcmInterpretation: detail.aiTcmInterpretation,
-              }}
-              legacyText={detail.aiCommentary}
-              commentaryVersion={detail.aiCommentaryVersion}
-            />
+            {healthReportCards ? (
+              <HrvHealthReportCards cards={healthReportCards} />
+            ) : (
+              <HrvCommentaryCards
+                sections={{
+                  deviceReading: detail.aiDeviceReading,
+                  clinicalMeaning: detail.aiClinicalMeaning,
+                  lifestyleGuide: detail.aiLifestyleGuide,
+                  tcmInterpretation: detail.aiTcmInterpretation,
+                }}
+                legacyText={detail.aiCommentary}
+                commentaryVersion={detail.aiCommentaryVersion}
+              />
+            )}
             <div className={styles.actionRow}>
               <button type="button" className={styles.editButton} onClick={startEdit}>
-                코멘트 수정
+                리포트 수정
               </button>
               <button type="button" className={styles.editButton} onClick={handleRegenerate} disabled={regenerating}>
-                {regenerating ? "재생성 중..." : "AI 코멘트 재생성"}
+                {regenerating ? "재생성 중..." : "리포트 다시 만들기"}
               </button>
               <button type="button" className={styles.patientViewButton} onClick={handleOpenPatientView}>
                 환자와 함께보기

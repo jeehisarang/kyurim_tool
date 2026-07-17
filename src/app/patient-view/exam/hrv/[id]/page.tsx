@@ -7,7 +7,8 @@ import PatientViewLayout from "@/components/PatientViewLayout";
 import layoutStyles from "@/components/PatientViewLayout.module.css";
 import ImageZoomPan from "@/components/ImageZoomPan";
 import HrvCommentaryCards from "@/components/HrvCommentaryCards";
-import { toPatientSafeHrvView, type PatientSafeHrvView, type PatientSafeHrvSections } from "@/lib/patient-view";
+import HrvHealthReportCards from "@/components/HrvHealthReportCards";
+import { toPatientSafeHrvView, type PatientSafeHrvView } from "@/lib/patient-view";
 import { HRV_SAFETY_NOTICE } from "@/lib/hrv-constants";
 import type { HrvSeverity } from "@/lib/hrv-thresholds";
 
@@ -45,22 +46,29 @@ export default function PatientViewHrvPage() {
     let cancelled = false;
     setLoadError(false);
 
-    fetch(`/api/hrv-records/${id}`)
-      .then((res) => (res.ok ? res.json() : Promise.reject(res)))
-      .then((data) => {
-        if (cancelled) return;
-        const safeView = toPatientSafeHrvView(data);
-        setView(safeView);
+    function load() {
+      return fetch(`/api/hrv-records/${id}`)
+        .then((res) => (res.ok ? res.json() : Promise.reject(res)))
+        .then((data) => {
+          if (cancelled) return;
+          const safeView = toPatientSafeHrvView(data);
+          setView(safeView);
+          return safeView;
+        });
+    }
 
-        // 과거 레코드(섹션/레거시 코멘트 둘 다 없음)는 열람 시점에 즉석 생성 후 캐싱한다
-        // (examinations와 동일 원칙) — 실패해도 화면은 그대로(해설 카드만 안 보임).
-        if (safeView.sections === null && safeView.legacyCommentary === null) {
+    load()
+      .then((safeView) => {
+        if (cancelled || !safeView) return;
+        // 과거 레코드(섹션/건강리포트/레거시 코멘트 전부 없음)는 열람 시점에 즉석 생성 후
+        // 캐싱한다(examinations와 동일 원칙) — 실패해도 화면은 그대로(해설 카드만 안 보임).
+        // 생성 결과 shape이 버전(레거시/건강 리포트)에 따라 달라서 부분 병합 대신 전체를
+        // 다시 불러온다(안전한 방식).
+        if (safeView.sections === null && safeView.healthReport === null && safeView.legacyCommentary === null) {
           fetch(`/api/hrv-records/${id}/generate-commentary`, { method: "POST" })
             .then((r) => (r.ok ? r.json() : null))
-            .then((result: { sections: PatientSafeHrvSections | null } | null) => {
-              if (!cancelled && result?.sections) {
-                setView((prev) => (prev ? { ...prev, sections: result.sections } : prev));
-              }
+            .then((result: { sections: unknown } | null) => {
+              if (!cancelled && result?.sections) load();
             })
             .catch(() => {});
         }
@@ -130,12 +138,16 @@ export default function PatientViewHrvPage() {
         </div>
       </div>
 
-      <HrvCommentaryCards
-        sections={view.sections ?? { deviceReading: null, clinicalMeaning: null, lifestyleGuide: null, tcmInterpretation: null }}
-        legacyText={view.legacyCommentary}
-        variant="patient"
-        commentaryVersion={view.commentaryVersion}
-      />
+      {view.healthReport ? (
+        <HrvHealthReportCards cards={view.healthReport} variant="patient" />
+      ) : (
+        <HrvCommentaryCards
+          sections={view.sections ?? { deviceReading: null, clinicalMeaning: null, lifestyleGuide: null, tcmInterpretation: null }}
+          legacyText={view.legacyCommentary}
+          variant="patient"
+          commentaryVersion={view.commentaryVersion}
+        />
+      )}
 
       {/* 5단계 "안전 안내"(task.md) — AI가 생성한 텍스트가 아니라 고정 문구를 항상 별도
           블록으로 붙인다. aiCommentary와 시각적으로 명확히 구분되게 스타일을 다르게 둔다.

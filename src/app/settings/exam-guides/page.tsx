@@ -31,6 +31,7 @@ type TcmCategoryAdmin = {
   categoryCode: string;
   patientLabel: string;
   treatmentPrinciple: string | null;
+  redFlagNotice: string | null;
   questions: { id: number; questionCode: string; patientQuestion: string }[];
 };
 
@@ -54,6 +55,7 @@ export default function ExamGuidesSettingsPage() {
 
   const [categories, setCategories] = useState<TcmCategoryAdmin[] | null>(null);
   const [treatmentPrinciples, setTreatmentPrinciples] = useState<Record<number, string>>({});
+  const [redFlagNotices, setRedFlagNotices] = useState<Record<number, string>>({});
   const [categorySaving, setCategorySaving] = useState(false);
   const [categorySaveError, setCategorySaveError] = useState<string | null>(null);
   const [categorySaved, setCategorySaved] = useState(false);
@@ -74,6 +76,7 @@ export default function ExamGuidesSettingsPage() {
         setTreatmentPrinciples(
           Object.fromEntries(data.map((c) => [c.id, c.treatmentPrinciple ?? ""])),
         );
+        setRedFlagNotices(Object.fromEntries(data.map((c) => [c.id, c.redFlagNotice ?? ""])));
       });
   }, []);
 
@@ -88,9 +91,10 @@ export default function ExamGuidesSettingsPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           staffUserId: currentUser.id,
-          categories: Object.entries(treatmentPrinciples).map(([id, treatmentPrinciple]) => ({
+          categories: Object.keys(treatmentPrinciples).map((id) => ({
             id: Number(id),
-            treatmentPrinciple: treatmentPrinciple.trim() ? treatmentPrinciple : null,
+            treatmentPrinciple: treatmentPrinciples[Number(id)]?.trim() ? treatmentPrinciples[Number(id)] : null,
+            redFlagNotice: redFlagNotices[Number(id)]?.trim() ? redFlagNotices[Number(id)] : null,
           })),
         }),
       });
@@ -237,14 +241,16 @@ export default function ExamGuidesSettingsPage() {
       </div>
 
       <div className={styles.section}>
-        <div className={styles.sectionTitle}>증상 패턴 프로필 — 카테고리별 치료원칙</div>
+        <div className={styles.sectionTitle}>증상 패턴 프로필 — 카테고리별 치료원칙 · 위험신호</div>
         <p className={styles.muted}>
-          "상담설문"에서 환자가 체크한 카테고리별 응답을 바탕으로 AI가 HRV 코멘트에 구체적 치료
-          방향을 언급할 때 참고하는 문구입니다. 카테고리명과 문항 문구는 이 화면에서 수정할 수
-          없습니다(확정된 문항) — 치료원칙만 입력/수정하세요. 비워두면 AI는 해당 카테고리의
-          신호만 언급하고 구체적 치료법은 언급하지 않습니다.
+          "상담설문"에서 환자가 체크한 카테고리별 응답을 바탕으로 건강 리포트가 구체적 치료
+          방향(카드7)과 위험신호 안내(카드6)를 표시할 때 참고하는 문구입니다. 카테고리명과 문항
+          문구는 이 화면에서 수정할 수 없습니다(확정된 문항) — 치료원칙/위험신호 문구만
+          입력/수정하세요. 치료원칙을 비워두면 리포트는 해당 카테고리의 신호만 언급하고
+          구체적 치료법은 언급하지 않습니다. 위험신호 문구를 비워두면 그 카테고리가 후보로
+          나와도 위험신호 카드 자체가 뜨지 않습니다.
         </p>
-        {!isDirector && <p className={styles.errorText}>원장만 치료원칙을 수정할 수 있습니다.</p>}
+        {!isDirector && <p className={styles.errorText}>원장만 치료원칙/위험신호 문구를 수정할 수 있습니다.</p>}
 
         {!categories ? (
           <p className={styles.muted}>불러오는 중...</p>
@@ -266,10 +272,20 @@ export default function ExamGuidesSettingsPage() {
                 <textarea
                   className={styles.contentTextarea}
                   rows={2}
-                  placeholder="치료원칙 (예: 소간이기) — 비워두면 AI가 구체적 치료법을 언급하지 않습니다"
+                  placeholder="치료원칙 (예: 소간이기) — 비워두면 구체적 치료법을 언급하지 않습니다"
                   value={treatmentPrinciples[c.id] ?? ""}
                   onChange={(e) =>
                     setTreatmentPrinciples((prev) => ({ ...prev, [c.id]: e.target.value }))
+                  }
+                  disabled={!isDirector}
+                />
+                <textarea
+                  className={styles.contentTextarea}
+                  rows={2}
+                  placeholder="위험신호 안내 문구 — 비워두면 위험신호 카드가 뜨지 않습니다"
+                  value={redFlagNotices[c.id] ?? ""}
+                  onChange={(e) =>
+                    setRedFlagNotices((prev) => ({ ...prev, [c.id]: e.target.value }))
                   }
                   disabled={!isDirector}
                 />

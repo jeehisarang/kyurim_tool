@@ -116,6 +116,71 @@ export type PatientSafeHrvSections = {
   tcmInterpretation: string;
 };
 
+export type NotableChangeView = { label: string; direction: "IMPROVED" | "ATTENTION"; sentence: string };
+
+// 건강 리포트(task.md 7카드 리뉴얼) 화이트리스트 뷰 — commentaryVersion이
+// "HEALTH_REPORT_V1"일 때만 채워진다. 카드2(checkedSymptoms)/카드3(notableChanges)/
+// 카드6(redFlagNotice)은 AI가 아니라 코드가 계산한 데이터를 그대로 옮긴 것이다.
+export type HealthReportCards = {
+  headline: string;
+  checkedSymptoms: string[];
+  notableChanges: NotableChangeView[];
+  tcmInterpretation: string;
+  progression: string;
+  redFlagNotice: string | null;
+  treatmentAndLifestyle: string;
+};
+
+function parseCheckedSymptomsJson(json: string | null | undefined): string[] {
+  if (!json) return [];
+  try {
+    const parsed = JSON.parse(json);
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .map((p) => (p && typeof p === "object" && "patientQuestion" in p ? String((p as { patientQuestion: unknown }).patientQuestion) : null))
+      .filter((s): s is string => s !== null);
+  } catch {
+    return [];
+  }
+}
+
+function parseNotableChangesJson(json: string | null | undefined): NotableChangeView[] {
+  if (!json) return [];
+  try {
+    const parsed = JSON.parse(json);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter(
+      (c): c is NotableChangeView =>
+        c && typeof c === "object" && typeof c.label === "string" && typeof c.sentence === "string" &&
+        (c.direction === "IMPROVED" || c.direction === "ATTENTION"),
+    );
+  } catch {
+    return [];
+  }
+}
+
+/** HEALTH_REPORT_V1 레코드의 raw DB 필드를 7카드 구조로 변환한다(staff 상세화면/환자화면 공용). */
+export function toHealthReportCards(detail: {
+  aiDeviceReading?: string | null;
+  aiTcmInterpretation?: string | null;
+  aiProgressionCard?: string | null;
+  aiLifestyleGuide?: string | null;
+  aiCheckedSymptomsJson?: string | null;
+  aiClinicalMeaning?: string | null;
+  aiRedFlagNotice?: string | null;
+}): HealthReportCards | null {
+  if (!detail.aiDeviceReading) return null;
+  return {
+    headline: detail.aiDeviceReading,
+    checkedSymptoms: parseCheckedSymptomsJson(detail.aiCheckedSymptomsJson),
+    notableChanges: parseNotableChangesJson(detail.aiClinicalMeaning),
+    tcmInterpretation: detail.aiTcmInterpretation ?? "",
+    progression: detail.aiProgressionCard ?? "",
+    redFlagNotice: detail.aiRedFlagNotice ?? null,
+    treatmentAndLifestyle: detail.aiLifestyleGuide ?? "",
+  };
+}
+
 export type PatientSafeHrvView = {
   testDate: string;
   vascularHealthIndex: number;
@@ -134,9 +199,12 @@ export type PatientSafeHrvView = {
   // 2페이지(상세결과) — 없을 수 있다(과거 1장짜리 레코드, task.md).
   sourceImagePath2: string | null;
   sections: PatientSafeHrvSections | null;
+  // 건강 리포트(task.md 7카드) — commentaryVersion이 "HEALTH_REPORT_V1"일 때만 채워진다.
+  healthReport: HealthReportCards | null;
   legacyCommentary: string | null;
-  // "미병" 프롬프트 버전(task.md) — null이면 구버전 섹션 의미(기기판독요약 등), "MIBYEONG_V1"
-  // 이면 신버전(미병도입 등)이라 화면이 라벨/순서를 이 값으로 구분해야 한다.
+  // 코멘트 프롬프트 버전 — null이면 구버전 섹션 의미(기기판독요약 등), "MIBYEONG_V1"이면
+  // "미병" 재설계, "HEALTH_REPORT_V1"이면 7카드 건강 리포트라 화면이 이 값으로 완전히 다른
+  // 컴포넌트를 렌더링해야 한다.
   commentaryVersion: string | null;
 };
 
@@ -153,18 +221,24 @@ type RawHrvDetail = {
   aiClinicalMeaning?: string | null;
   aiLifestyleGuide?: string | null;
   aiTcmInterpretation?: string | null;
+  aiProgressionCard?: string | null;
+  aiCheckedSymptomsJson?: string | null;
+  aiRedFlagNotice?: string | null;
   aiCommentaryVersion?: string | null;
 };
 
 export function toPatientSafeHrvView(detail: RawHrvDetail): PatientSafeHrvView {
-  const sections: PatientSafeHrvSections | null = detail.aiDeviceReading
-    ? {
-        deviceReading: detail.aiDeviceReading,
-        clinicalMeaning: detail.aiClinicalMeaning ?? "",
-        lifestyleGuide: detail.aiLifestyleGuide ?? "",
-        tcmInterpretation: detail.aiTcmInterpretation ?? "",
-      }
-    : null;
+  const isHealthReport = detail.aiCommentaryVersion === "HEALTH_REPORT_V1";
+  const sections: PatientSafeHrvSections | null =
+    !isHealthReport && detail.aiDeviceReading
+      ? {
+          deviceReading: detail.aiDeviceReading,
+          clinicalMeaning: detail.aiClinicalMeaning ?? "",
+          lifestyleGuide: detail.aiLifestyleGuide ?? "",
+          tcmInterpretation: detail.aiTcmInterpretation ?? "",
+        }
+      : null;
+  const healthReport = isHealthReport ? toHealthReportCards(detail) : null;
 
   return {
     testDate: detail.testDate,
@@ -179,7 +253,8 @@ export function toPatientSafeHrvView(detail: RawHrvDetail): PatientSafeHrvView {
     sourceImagePath: detail.sourceImagePath,
     sourceImagePath2: detail.sourceImagePath2 ?? null,
     sections,
-    legacyCommentary: sections ? null : detail.aiCommentary,
+    healthReport,
+    legacyCommentary: sections || healthReport ? null : detail.aiCommentary,
     commentaryVersion: detail.aiCommentaryVersion ?? null,
   };
 }

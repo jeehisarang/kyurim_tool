@@ -25,6 +25,8 @@ export type CategoryScoreView = {
   categoryCode: string;
   patientLabel: string;
   treatmentPrinciple: string | null;
+  // 위험신호 고정문구(task.md 건강 리포트 리뉴얼) — 원장이 입력 안 했으면 null(카드 숨김).
+  redFlagNotice: string | null;
   rawScore: number;
   maxScore: number;
   ratio: number;
@@ -78,11 +80,27 @@ export async function updateCategoryTreatmentPrinciple(categoryId: number, treat
   });
 }
 
+/** 위험신호(red flag) 고정문구 편집(task.md 건강 리포트 리뉴얼) — treatmentPrinciple과 동일한
+ * "원장 직접 입력, AI가 안 만듦" 원칙. 빈 문자열은 null(카드 숨김)로 정규화한다. */
+export async function updateCategoryRedFlagNotice(categoryId: number, redFlagNotice: string | null) {
+  return prisma.tcmCategory.update({
+    where: { id: categoryId },
+    data: { redFlagNotice: redFlagNotice?.trim() ? redFlagNotice.trim() : null },
+  });
+}
+
 // 카테고리별 rawScore/maxScore/ratio 계산 + 동점 병렬 후보 선정(task2.md 결정사항 4) —
 // 전체 카테고리 중 최고 ratio가 0이면 후보 없음, 0보다 크면 그 최고값과 동률인 카테고리 전부를
 // 후보로 삼는다(억지로 1개만 뽑지 않음). "그외"(OTHER)는 문항이 없어 계산 대상에서 자연히 제외된다.
 function computeCategoryScores(
-  categories: { id: number; categoryCode: string; patientLabel: string; treatmentPrinciple: string | null; questions: { id: number }[] }[],
+  categories: {
+    id: number;
+    categoryCode: string;
+    patientLabel: string;
+    treatmentPrinciple: string | null;
+    redFlagNotice: string | null;
+    questions: { id: number }[];
+  }[],
   answers: AnswerInput[],
 ): Omit<CategoryScoreView, "isCandidate">[] {
   const scoreByQuestionId = new Map(answers.map((a) => [a.questionId, a.score]));
@@ -98,6 +116,7 @@ function computeCategoryScores(
         categoryCode: category.categoryCode,
         patientLabel: category.patientLabel,
         treatmentPrinciple: category.treatmentPrinciple,
+        redFlagNotice: category.redFlagNotice,
         rawScore,
         maxScore,
         ratio,
@@ -200,6 +219,7 @@ export async function getLatestChecklistResponse(patientId: number): Promise<Che
     categoryCode: cs.category.categoryCode,
     patientLabel: cs.category.patientLabel,
     treatmentPrinciple: cs.category.treatmentPrinciple,
+    redFlagNotice: cs.category.redFlagNotice,
     rawScore: cs.rawScore,
     maxScore: cs.maxScore,
     ratio: cs.ratio,
@@ -256,4 +276,42 @@ export async function getTcmCategoryProfileForAi(
   const candidates = latest.categoryScores.filter((s) => s.isCandidate);
   if (candidates.length === 0) return null;
   return candidates.map((c) => ({ patientLabel: c.patientLabel, treatmentPrinciple: c.treatmentPrinciple }));
+}
+
+export type CheckedSymptomItem = { patientQuestion: string; score: 1 | 2 };
+
+/**
+ * 건강 리포트(task.md) 카드2 "내가 선택한 증상" 재료 — 최신 응답에서 후보 카테고리의
+ * "경미하다/심하다"(score 1|2) 문항을 원문 그대로 반환한다(AI가 만들지 않음, 지어내거나
+ * 왜곡할 위험 차단). 후보가 없으면 빈 배열.
+ */
+export async function getCandidateCheckedSymptoms(patientId: number): Promise<CheckedSymptomItem[]> {
+  const response = await prisma.tcmChecklistResponse.findFirst({
+    where: { patientId },
+    orderBy: { createdAt: "desc" },
+    include: {
+      answers: { include: { question: true }, orderBy: { question: { displayOrder: "asc" } } },
+      categoryScores: { where: { isCandidate: true } },
+    },
+  });
+  if (!response) return [];
+  const candidateCategoryIds = new Set(response.categoryScores.map((s) => s.categoryId));
+  if (candidateCategoryIds.size === 0) return [];
+
+  return response.answers
+    .filter((a) => candidateCategoryIds.has(a.question.categoryId) && a.score >= 1)
+    .map((a) => ({ patientQuestion: a.question.patientQuestion, score: a.score as 1 | 2 }));
+}
+
+/**
+ * 건강 리포트(task.md) 카드6 "위험신호 안내" 재료 — 후보 카테고리 중 redFlagNotice가 채워진
+ * 카테고리가 있으면 그 문구를 그대로 반환(AI가 안 만듦, ensureArrhythmiaNotice와 동일 원칙).
+ * 후보가 여러 개고 그중 여럿이 redFlagNotice를 갖고 있어도 이번 버전은 첫 번째 것만 쓴다
+ * (동시에 여러 위험신호를 한 카드에 합치는 UX는 이번 범위 밖).
+ */
+export async function getRedFlagNoticeForCandidates(patientId: number): Promise<string | null> {
+  const latest = await getLatestChecklistResponse(patientId);
+  if (!latest) return null;
+  const withNotice = latest.categoryScores.find((s) => s.isCandidate && s.redFlagNotice);
+  return withNotice?.redFlagNotice ?? null;
 }

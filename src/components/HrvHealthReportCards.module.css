@@ -1,0 +1,169 @@
+.cardList {
+  margin-top: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.card {
+  padding: 16px 20px;
+  background: rgba(110, 148, 140, 0.08);
+  border: 1px solid rgba(110, 148, 140, 0.2);
+  border-radius: 8px;
+  text-align: left;
+}
+
+.cardLabel {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--color-celadon-dark);
+  margin-bottom: 6px;
+}
+
+.cardBody {
+  font-size: 16px;
+  line-height: 1.6;
+  color: var(--color-ink);
+  white-space: pre-wrap;
+}
+
+/* 원장 확인화면 전용 — ** 마커를 굵게만 처리(HrvCommentaryCards.module.css와 동일 관례). */
+.emphasisStaff {
+  font-weight: 700;
+}
+
+/* 환자화면 전용 — 카드 간 여백/폰트/줄간격을 한 단계 키운다. */
+.cardListPatient {
+  margin-top: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.cardPatient {
+  padding: 22px 26px;
+  background: rgba(110, 148, 140, 0.08);
+  border: 1px solid rgba(110, 148, 140, 0.2);
+  border-radius: 10px;
+  text-align: left;
+}
+
+.cardLabelPatient {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--color-celadon-dark);
+  margin-bottom: 10px;
+}
+
+.cardBodyPatient {
+  font-size: 19px;
+  line-height: 1.85;
+  color: var(--color-ink);
+  white-space: pre-wrap;
+}
+
+.emphasisPatient {
+  font-weight: 700;
+  font-size: 1.15em;
+  color: var(--color-celadon-dark);
+}
+
+/* 카드1: 헤드라인 — 훅이 되는 히어로 영역(task.md "옅은 베이지/연녹색 배경"). */
+.heroCard {
+  padding: 20px 22px;
+  background: linear-gradient(135deg, rgba(110, 148, 140, 0.16), var(--color-hanji-bg));
+  border: 1px solid rgba(110, 148, 140, 0.3);
+  border-radius: 10px;
+  text-align: left;
+}
+
+.heroBody {
+  font-size: 17px;
+  line-height: 1.7;
+  color: var(--color-ink);
+  white-space: pre-wrap;
+}
+
+.heroCardPatient {
+  padding: 26px 28px;
+  background: linear-gradient(135deg, rgba(110, 148, 140, 0.18), var(--color-hanji-bg));
+  border: 1px solid rgba(110, 148, 140, 0.32);
+  border-radius: 14px;
+  text-align: left;
+}
+
+.heroBodyPatient {
+  font-size: 21px;
+  line-height: 1.8;
+  color: var(--color-ink);
+  white-space: pre-wrap;
+}
+
+/* 카드2: 내가 선택한 증상 — 진한 남색/갈색 강조(task.md 지시)로 "인정감"을 준다. */
+.symptomList,
+.symptomListPatient {
+  margin: 0;
+  padding-left: 20px;
+  list-style: disc;
+}
+
+.symptomList li,
+.symptomListPatient li {
+  font-weight: 700;
+  color: #3A3226; /* 진한 갈색 */
+  padding: 3px 0;
+}
+
+.symptomList li {
+  font-size: 15px;
+}
+
+.symptomListPatient li {
+  font-size: 18px;
+  padding: 5px 0;
+}
+
+/* 카드3: 이번 검사에서 주목할 변화 — 개선=녹색(celadon), 관찰필요=주황(warning). */
+.changeList {
+  margin: 0;
+  padding-left: 20px;
+  list-style: disc;
+}
+
+.changeList li {
+  padding: 3px 0;
+  font-size: 15px;
+  line-height: 1.6;
+}
+
+.changeImproved {
+  color: var(--color-celadon-dark);
+}
+
+.changeAttention {
+  color: var(--color-warning);
+}
+
+/* 카드6: 위험신호 안내 — 다른 카드와 시각적으로 명확히 구분되는 경고 톤(안전 안내 박스와
+   유사하되 색상만 구분, task.md "조건부 노출"). */
+.redFlagCard {
+  padding: 16px 20px;
+  background: rgba(179, 60, 46, 0.08);
+  border: 1px solid rgba(179, 60, 46, 0.35);
+  border-radius: 8px;
+  text-align: left;
+}
+
+.redFlagLabel {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--color-seal);
+  margin-bottom: 6px;
+}
+
+.redFlagBody {
+  font-size: 15px;
+  line-height: 1.6;
+  color: var(--color-ink);
+  white-space: pre-wrap;
+}
