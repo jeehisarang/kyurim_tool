@@ -170,21 +170,29 @@ export async function scanHrvCsvImports(): Promise<HrvCsvScanResult> {
   const result: HrvCsvScanResult = { created: 0, queued: 0, skipped: 0, awaitingImage: 0 };
   if (!folderPath) return result;
 
+  // 실 폴더 구조 실측 확인(task.md, 2026-07-17) — HRV_CSV_FOLDER_PATH(맥파기검사기록지)
+  // 바로 밑에 csv/, capture/가 형제 폴더로 존재한다(csv 파일이 folderPath 최상위에 바로
+  // 있는 게 아니다). capture/csv는 실측 결과 빈 파일(헤더만)이라 신뢰할 수 없어 스캔 대상에서
+  // 제외한다 — capture 하위가 아니라 folderPath/csv만 스캔해서 자연히 배제된다.
+  const csvDir = path.join(folderPath, "csv");
+  const captureDir = path.join(folderPath, "capture");
+
   let entries: string[];
   try {
-    entries = await fs.readdir(folderPath);
-  } catch {
+    entries = await fs.readdir(csvDir);
+  } catch (err) {
+    // 드라이브 문자 마운트 해제 등(task.md 5번) — 서버를 죽이지 않고 로그만 남긴 뒤
+    // 다음 폴링(다음 GET 호출)에서 자연히 재시도된다.
+    console.error(`[hrv-csv-import] 폴더 접근 실패, 다음 스캔에 재시도: ${csvDir}`, err);
     return result;
   }
 
-  // capture/csv는 실측 결과 빈 파일(헤더만)이라 신뢰할 수 없어 스캔 대상에서 제외한다
-  // (task.md 완료보고 — 최상위 csv/ 폴더만 진짜 데이터가 쌓인다). 폴더 내 모든 *.csv를
-  // 스캔하고 특정 파일명을 하드코딩하지 않는다(다음날 새 파일이 생기는지 미확인이므로).
+  // 폴더 내 모든 *.csv를 스캔하고 특정 파일명을 하드코딩하지 않는다(다음날 새 파일이
+  // 생기는지 미확인이므로).
   const csvFiles = entries.filter((f) => f.toLowerCase().endsWith(".csv"));
-  const captureDir = path.join(folderPath, "capture");
 
   for (const fileName of csvFiles) {
-    await scanOneFile(path.join(folderPath, fileName), fileName, captureDir, result);
+    await scanOneFile(path.join(csvDir, fileName), fileName, captureDir, result);
   }
 
   return result;
