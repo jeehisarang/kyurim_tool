@@ -278,12 +278,14 @@ export async function getTcmCategoryProfileForAi(
   return candidates.map((c) => ({ patientLabel: c.patientLabel, treatmentPrinciple: c.treatmentPrinciple }));
 }
 
-export type CheckedSymptomItem = { patientQuestion: string; score: 1 | 2 };
+export type CheckedSymptomItem = { categoryId: number; patientQuestion: string; score: 1 | 2 };
 
 /**
  * 건강 리포트(task.md) 카드2 "내가 선택한 증상" 재료 — 최신 응답에서 후보 카테고리의
  * "경미하다/심하다"(score 1|2) 문항을 원문 그대로 반환한다(AI가 만들지 않음, 지어내거나
- * 왜곡할 위험 차단). 후보가 없으면 빈 배열.
+ * 왜곡할 위험 차단). 후보가 없으면 빈 배열. 카드2는 후보 카테고리 전부의 체크 문항을
+ * 그대로 다 보여준다(카드1 헤드라인의 "카테고리당 1개" 캡과는 별개 — hrv-health-report.ts
+ * pickHeadlineSymptoms가 이 목록에서 카테고리별로 골라 뽑는다).
  */
 export async function getCandidateCheckedSymptoms(patientId: number): Promise<CheckedSymptomItem[]> {
   const response = await prisma.tcmChecklistResponse.findFirst({
@@ -300,18 +302,38 @@ export async function getCandidateCheckedSymptoms(patientId: number): Promise<Ch
 
   return response.answers
     .filter((a) => candidateCategoryIds.has(a.question.categoryId) && a.score >= 1)
-    .map((a) => ({ patientQuestion: a.question.patientQuestion, score: a.score as 1 | 2 }));
+    .map((a) => ({ categoryId: a.question.categoryId, patientQuestion: a.question.patientQuestion, score: a.score as 1 | 2 }));
+}
+
+export type CandidateCategoryRank = { categoryId: number; ratio: number; rawScore: number };
+
+/**
+ * 후보 카테고리의 점수 순위 재료(task.md 정책 변경 2번, 2026-07-18) — 헤드라인이 "카테고리당
+ * 1개 문항, 4개 이상이면 점수 상위 3개 카테고리만" 규칙을 적용하려면 순위가 필요하다.
+ * 후보는 정의상 전부 동일한 최고 ratio를 공유하므로(markCandidates), ratio가 실질적으로는
+ * 전부 동률이다 — rawScore(카테고리 문항 수가 다르면 다를 수 있음)를 2차 기준으로 쓰고,
+ * 그래도 동률이면 배열 순서(=displayOrder 순, 삽입 순서 그대로 안정 정렬 유지)가 최종 기준.
+ */
+export async function getCandidateCategoryRanks(patientId: number): Promise<CandidateCategoryRank[]> {
+  const latest = await getLatestChecklistResponse(patientId);
+  if (!latest) return [];
+  return latest.categoryScores
+    .filter((s) => s.isCandidate)
+    .map((s) => ({ categoryId: s.categoryId, ratio: s.ratio, rawScore: s.rawScore }));
 }
 
 /**
- * 건강 리포트(task.md) 카드6 "위험신호 안내" 재료 — 후보 카테고리 중 redFlagNotice가 채워진
- * 카테고리가 있으면 그 문구를 그대로 반환(AI가 안 만듦, ensureArrhythmiaNotice와 동일 원칙).
- * 후보가 여러 개고 그중 여럿이 redFlagNotice를 갖고 있어도 이번 버전은 첫 번째 것만 쓴다
- * (동시에 여러 위험신호를 한 카드에 합치는 UX는 이번 범위 밖).
+ * 건강 리포트(task.md) 카드6 "위험신호 안내" 재료 — 후보 카테고리 중 점수(ratio→rawScore)가
+ * 가장 높은 순서로 확인해서 redFlagNotice가 채워진 첫 카테고리의 문구를 반환한다(정책 변경
+ * 1번, 2026-07-18 — 이전엔 displayOrder 순이었음). AI가 안 만듦(ensureArrhythmiaNotice와
+ * 동일 원칙). 후보가 여러 개고 그중 여럿이 redFlagNotice를 갖고 있어도 이번 버전은 점수
+ * 최상위부터 찾은 첫 번째 것만 쓴다(동시에 여러 위험신호를 한 카드에 합치는 UX는 범위 밖).
  */
 export async function getRedFlagNoticeForCandidates(patientId: number): Promise<string | null> {
   const latest = await getLatestChecklistResponse(patientId);
   if (!latest) return null;
-  const withNotice = latest.categoryScores.find((s) => s.isCandidate && s.redFlagNotice);
+  const candidates = latest.categoryScores.filter((s) => s.isCandidate);
+  const ranked = [...candidates].sort((a, b) => b.ratio - a.ratio || b.rawScore - a.rawScore);
+  const withNotice = ranked.find((s) => s.redFlagNotice);
   return withNotice?.redFlagNotice ?? null;
 }

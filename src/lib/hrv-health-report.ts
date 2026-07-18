@@ -1,4 +1,4 @@
-import type { CheckedSymptomItem } from "@/lib/tcm-checklist";
+import type { CheckedSymptomItem, CandidateCategoryRank } from "@/lib/tcm-checklist";
 
 // 건강 리포트(task.md) 카드3 "이번 검사에서 주목할 변화" — 지어내면 안 되는 정확한 수치
 // 비교라 AI가 아니라 코드가 결정론적으로 계산한다(카드2/6과 동일 원칙). 직전 대비 변화폭이
@@ -100,11 +100,27 @@ export function ensureTreatmentConsultDisclaimer(text: string): string {
 }
 
 /**
- * 카드1(헤드라인) 재료 선정 — 후보 카테고리 문항 중 "심하다"(score=2) 우선, 없으면
- * "경미하다"(score=1) 중 상위 최대 2개(task.md "프롬프트 조립 순서" 2번).
+ * 카드1(헤드라인) 재료 선정(정책 변경, 2026-07-18) — 이전에는 후보 카테고리를 구분하지
+ * 않고 체크 문항을 전부 모아 상위 2개만 뽑았는데(카테고리 3개 이상 동점이면 일부 카테고리가
+ * 헤드라인에서 아예 누락되는 문제가 있었음), 이제는 "카테고리당 1개씩" 뽑는다:
+ * 1) 후보 카테고리가 4개 이상이면 점수(ratio→rawScore) 상위 3개 카테고리만 남기고,
+ *    3개 이하면 전부 사용한다.
+ * 2) 남은 각 카테고리에서 "심하다"(score=2) 문항을 우선 고르고, 없으면 "경미하다"(score=1)
+ *    문항을 고른다(카테고리당 정확히 1개 — 후보는 정의상 rawScore>0이라 항상 1개는 있다).
+ * 결과 배열 길이는 항상 min(후보 카테고리 수, 3)이다.
  */
-export function pickHeadlineSymptoms(items: CheckedSymptomItem[], max = 2): string[] {
-  const severe = items.filter((i) => i.score === 2).map((i) => i.patientQuestion);
-  const mild = items.filter((i) => i.score === 1).map((i) => i.patientQuestion);
-  return [...severe, ...mild].slice(0, max);
+export function pickHeadlineSymptoms(candidateCategories: CandidateCategoryRank[], items: CheckedSymptomItem[]): string[] {
+  const topCategoryIds = [...candidateCategories]
+    .sort((a, b) => b.ratio - a.ratio || b.rawScore - a.rawScore)
+    .slice(0, 3)
+    .map((c) => c.categoryId);
+
+  return topCategoryIds
+    .map((categoryId) => {
+      const categoryItems = items.filter((i) => i.categoryId === categoryId);
+      const severe = categoryItems.find((i) => i.score === 2);
+      if (severe) return severe.patientQuestion;
+      return categoryItems.find((i) => i.score === 1)?.patientQuestion ?? null;
+    })
+    .filter((s): s is string => s !== null);
 }

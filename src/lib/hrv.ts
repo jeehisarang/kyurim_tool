@@ -11,6 +11,7 @@ import { listConsultationNotesForPatient } from "@/lib/consultation-notes";
 import {
   getTcmCategoryProfileForAi,
   getCandidateCheckedSymptoms,
+  getCandidateCategoryRanks,
   getRedFlagNoticeForCandidates,
   type CheckedSymptomItem,
 } from "@/lib/tcm-checklist";
@@ -139,6 +140,7 @@ async function tryGenerateHrvCommentary(
       imageBase64,
       tcmCategoryProfile,
       checkedSymptoms,
+      candidateRanks,
       redFlagNotice,
     ] = await Promise.all([
       getPreviousHrvRecord(record.patientId),
@@ -150,6 +152,8 @@ async function tryGenerateHrvCommentary(
       getTcmCategoryProfileForAi(record.patientId),
       // 카드1(헤드라인)/카드2(내가 선택한 증상) 재료 — 후보 카테고리의 체크 문항 원문.
       getCandidateCheckedSymptoms(record.patientId),
+      // 카드1(헤드라인) "카테고리당 1개, 4개 이상이면 점수 상위 3개만" 규칙에 필요한 순위 재료.
+      getCandidateCategoryRanks(record.patientId),
       // 카드6(위험신호) 재료 — 후보 카테고리에 원장이 입력한 고정문구가 있으면 그대로.
       getRedFlagNoticeForCandidates(record.patientId),
     ]);
@@ -165,7 +169,7 @@ async function tryGenerateHrvCommentary(
       imageBase64,
       previousImageBase64,
       tcmCategoryProfile,
-      checkedSymptomsForHeadline: pickHeadlineSymptoms(checkedSymptoms),
+      checkedSymptomsForHeadline: pickHeadlineSymptoms(candidateRanks, checkedSymptoms),
     });
 
     const notableChanges = previousMetrics ? computeNotableChanges(previousMetrics, toMetricsSnapshot(record)) : [];
