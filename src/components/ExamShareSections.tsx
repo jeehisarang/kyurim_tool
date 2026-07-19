@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import styles from "./ExamShareSections.module.css";
 import ImageZoomPan from "@/components/ImageZoomPan";
 import HrvCommentaryCards from "@/components/HrvCommentaryCards";
@@ -20,6 +21,30 @@ function formatDate(iso: string): string {
   return `${d.getFullYear()}년 ${d.getMonth() + 1}월 ${d.getDate()}일`;
 }
 
+// 검사종류마다 날짜 필드명이 달라(examDate vs testDate) 정렬/아코디언 키 계산에 공통으로 쓴다.
+function entryDate(entry: ShareLinkExamEntry): string {
+  return entry.examType === "HRV" ? entry.testDate : entry.examDate;
+}
+
+function entryKey(entry: ShareLinkExamEntry): string {
+  return `${entry.examType}-${entry.id}`;
+}
+
+// 접힌 항목 헤더용 핵심 수치 요약(task.md PART A) — hrvSummaryLabel(examination-format.ts)과
+// 동일한 문구 형식을 이 컴포넌트가 받는 화이트리스트 뷰(ShareLinkExamEntry) 타입에 맞춰
+// 그대로 재구성한다(원본 헬퍼는 스태프 전용 ExaminationRow 타입을 받아 여기서 직접 재사용은
+// 불가능 — 형식만 동일하게 맞춤).
+function entrySummary(entry: ShareLinkExamEntry): string {
+  if (entry.examType === "BODY_COMPOSITION") {
+    return `체중 ${entry.weightKg}kg · 체지방율 ${entry.bodyFatPercent}%`;
+  }
+  if (entry.examType === "STRENGTH_TEST") {
+    return `악력평균 ${entry.gripAvgKg.toFixed(1)}kg (${entry.gripJudgementLabel})`;
+  }
+  const stress = entry.stressIndex === null ? "-" : entry.stressIndex;
+  return `혈관건강지수 ${entry.vascularHealthIndex}(${entry.vascularHealthType}) · 맥박 ${entry.avgPulse} · 스트레스 ${stress}`;
+}
+
 function severityClass(severity: HrvSeverity | null): string {
   if (severity === "NORMAL") return styles.metricValueNormal;
   if (severity === "CAUTION") return styles.metricValueCaution;
@@ -36,17 +61,41 @@ function severityClass(severity: HrvSeverity | null): string {
  *
  * 검사 종류(examType)별로 섹션을 묶고, 종류가 2개 이상이면 상단 앵커 네비게이션을 보여준다
  * (1개면 생략 — task.md 4번). 같은 종류를 여러 건 포함한 경우 그 섹션 안에 최신순으로 나열한다.
+ *
+ * 이전 검사기록 접기/펼치기(task.md PART A, 스크롤 단축) — 검사종류별로 독립적으로 최신
+ * 1건만 기본 펼침, 나머지는 접힌 상태(날짜 + 핵심 수치 요약만)로 시작한다. 섹션 앵커
+ * (#exam-${examType})는 그 종류의 최신 항목(=항상 펼쳐진 상태)으로 연결되므로 별도 처리
+ * 없이도 "앵커 클릭 시 펼쳐진 내용으로 스크롤"이 자연히 만족된다.
  */
 export default function ExamShareSections({ exams }: { exams: ShareLinkExamEntry[] }) {
-  if (exams.length === 0) return null;
-
   const byType = new Map<string, ShareLinkExamEntry[]>();
   for (const entry of exams) {
     const list = byType.get(entry.examType) ?? [];
     list.push(entry);
     byType.set(entry.examType, list);
   }
-  const groups = [...byType.entries()];
+  // 검사종류별로 최신순 정렬 — examLinks 저장 순서가 날짜순이라는 보장이 없어(PatientShareLinkExam
+  // 생성 순서일 뿐) 여기서 직접 정렬해야 "최신 1건 펼침" 기준이 정확해진다.
+  const groups = [...byType.entries()].map(
+    ([examType, entries]) =>
+      [examType, [...entries].sort((a, b) => (entryDate(a) < entryDate(b) ? 1 : -1))] as const,
+  );
+
+  const [expanded, setExpanded] = useState<Record<string, boolean>>(() => {
+    const initial: Record<string, boolean> = {};
+    for (const [, entries] of groups) {
+      entries.forEach((entry, i) => {
+        initial[entryKey(entry)] = i === 0; // 그룹 내 최신(정렬 후 첫 항목)만 기본 펼침
+      });
+    }
+    return initial;
+  });
+
+  function toggle(key: string) {
+    setExpanded((prev) => ({ ...prev, [key]: !prev[key] }));
+  }
+
+  if (exams.length === 0) return null;
 
   return (
     <div className={styles.wrap}>
@@ -63,13 +112,32 @@ export default function ExamShareSections({ exams }: { exams: ShareLinkExamEntry
       {groups.map(([examType, entries]) => (
         <section key={examType} id={`exam-${examType}`} className={styles.examSection}>
           <h2 className={styles.examSectionTitle}>{EXAM_TYPE_TITLE[examType] ?? examType}</h2>
-          {entries.map((entry) => (
-            <div key={entry.id} className={styles.examEntry}>
-              {entry.examType === "BODY_COMPOSITION" && <BodyCompositionEntry entry={entry} />}
-              {entry.examType === "STRENGTH_TEST" && <StrengthTestEntry entry={entry} />}
-              {entry.examType === "HRV" && <HrvEntry entry={entry} />}
-            </div>
-          ))}
+          {entries.map((entry) => {
+            const key = entryKey(entry);
+            const isOpen = expanded[key];
+            return (
+              <div key={key} className={styles.examEntry}>
+                <button
+                  type="button"
+                  className={styles.accordionHeader}
+                  onClick={() => toggle(key)}
+                  aria-expanded={isOpen}
+                >
+                  <span className={styles.accordionHeaderText}>
+                    {formatDate(entryDate(entry))} · {entrySummary(entry)}
+                  </span>
+                  <span className={styles.accordionChevron}>{isOpen ? "▲" : "▼"}</span>
+                </button>
+                {isOpen && (
+                  <>
+                    {entry.examType === "BODY_COMPOSITION" && <BodyCompositionEntry entry={entry} />}
+                    {entry.examType === "STRENGTH_TEST" && <StrengthTestEntry entry={entry} />}
+                    {entry.examType === "HRV" && <HrvEntry entry={entry} />}
+                  </>
+                )}
+              </div>
+            );
+          })}
         </section>
       ))}
     </div>

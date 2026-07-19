@@ -141,6 +141,41 @@
   background: rgba(110, 148, 140, 0.1);
 }
 
+/* 건강 리포트 PDF/이미지 다운로드(task.md PART D) — 버튼 아래 드롭다운 메뉴. */
+.downloadWrap {
+  position: relative;
+}
+
+.downloadMenu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  min-width: 160px;
+  border: 1px solid rgba(110, 148, 140, 0.35);
+  border-radius: 6px;
+  background: var(--color-hanji-card);
+  box-shadow: 0 4px 12px rgba(43, 39, 35, 0.12);
+  overflow: hidden;
+}
+
+.downloadMenu button {
+  border: none;
+  background: transparent;
+  color: var(--color-ink);
+  padding: 10px 14px;
+  font-size: 13px;
+  font-family: var(--font-body);
+  text-align: left;
+  cursor: pointer;
+}
+
+.downloadMenu button:hover {
+  background: rgba(110, 148, 140, 0.1);
+}
+
 .deleteButton {
   border: 1px solid var(--color-seal);
   border-radius: 4px;

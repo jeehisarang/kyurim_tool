@@ -1,7 +1,9 @@
 import { prisma } from "@/lib/db";
-import { getTeachingPageContentById, type TeachingPageContentForShare } from "@/lib/teaching-pages";
+import { getTeachingPageContentById, type TeachingPageContentForShare, startOfDay, getSystemStaffUserId } from "@/lib/teaching-pages";
 import { getEventImage } from "@/lib/event-images";
 import { createWithShortToken } from "@/lib/short-token";
+import { createWorkTask } from "@/lib/work-tasks";
+import { WORK_TASK_TYPE } from "@/lib/task-types";
 import {
   getBodyCompositionRecord,
   getStrengthTestRecord,
@@ -235,4 +237,41 @@ export async function getShareLinkByToken(token: string): Promise<PublicShareLin
     exams: examEntries.filter((e): e is ShareLinkExamEntry => e !== null),
     viewCount: updated.viewCount,
   };
+}
+
+/**
+ * "상담예약하기"(task.md PART C) — 검사기록이 포함된 공유링크 전용 상담 요청. 이벤트문의하기의
+ * requestEventInquiryCallback(event-images.ts)/프로그램문의하기의 requestConsultCallback
+ * (teaching-pages.ts)과 동일한 패턴(당일+동일환자 중복방지, 담당자 지정 없는 공용 업무) —
+ * 검사기록이 없는 링크는 이 버튼 자체가 노출되지 않으므로 examLinks 없으면 null 반환.
+ */
+export async function requestExamConsultCallback(shareToken: string): Promise<{ patientName: string } | null> {
+  const link = await prisma.patientShareLink.findUnique({
+    where: { token: shareToken },
+    include: { patient: true, examLinks: true },
+  });
+  if (!link || link.examLinks.length === 0) return null;
+
+  const existingOpen = await prisma.todoTask.findFirst({
+    where: {
+      taskType: WORK_TASK_TYPE,
+      patientId: link.patientId,
+      isDone: false,
+      createdAt: { gte: startOfDay(new Date()) },
+      workTask: { title: { contains: "검사상담 요청" } },
+    },
+  });
+
+  if (!existingOpen) {
+    const systemStaffId = await getSystemStaffUserId();
+    await createWorkTask({
+      title: `${link.patient.name}님 검사상담 요청 — 연락 필요`,
+      creatorId: systemStaffId,
+      isSharedTask: true,
+      dueDate: null,
+      patientId: link.patientId,
+    });
+  }
+
+  return { patientName: link.patient.name };
 }

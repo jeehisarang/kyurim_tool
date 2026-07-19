@@ -55,6 +55,34 @@
   margin-bottom: 0;
 }
 
+/* 이전 검사기록 접기/펼치기(task.md PART A) — 접힌 항목 헤더. */
+.accordionHeader {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  border: 1px solid rgba(110, 148, 140, 0.3);
+  border-radius: 8px;
+  background: var(--color-hanji-card);
+  padding: 12px 16px;
+  margin-bottom: 8px;
+  cursor: pointer;
+  text-align: left;
+  font-family: var(--font-body);
+}
+
+.accordionHeaderText {
+  font-size: 14px;
+  color: var(--color-ink);
+}
+
+.accordionChevron {
+  color: var(--color-celadon-dark);
+  font-size: 12px;
+  flex-shrink: 0;
+}
+
 .card {
   padding: 18px;
   background: var(--color-hanji-bg);

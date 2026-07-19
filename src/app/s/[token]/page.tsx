@@ -42,6 +42,11 @@ export default function ShareLinkPublicPage() {
   const [eventCtaClicked, setEventCtaClicked] = useState(false);
   const [eventCtaSubmitting, setEventCtaSubmitting] = useState(false);
 
+  // "상담예약하기" 버튼 상태(task.md PART C) — 이벤트문의하기와 동일한 패턴이지만 별도 상태로
+  // 관리한다(통합 링크에서 두 버튼이 병렬로 노출될 수 있어 서로 독립적으로 동작해야 함).
+  const [examConsultClicked, setExamConsultClicked] = useState(false);
+  const [examConsultSubmitting, setExamConsultSubmitting] = useState(false);
+
   useEffect(() => {
     setLoadError(false);
     fetch(`/api/share-links/${token}`)
@@ -66,6 +71,19 @@ export default function ShareLinkPublicPage() {
     }
   }
 
+  async function handleExamConsultClick() {
+    window.open(KAKAO_CHANNEL_CHAT_URL, "_blank", "noopener,noreferrer");
+    setExamConsultSubmitting(true);
+    try {
+      await fetch(`/api/share-links/${token}/exam-consult-request`, { method: "POST" });
+      setExamConsultClicked(true);
+    } catch {
+      // 환자용 공개 페이지라 실패해도 별도 에러 문구 없이 조용히 무시 — 버튼은 다시 누를 수 있다.
+    } finally {
+      setExamConsultSubmitting(false);
+    }
+  }
+
   if (loadError) {
     return (
       <div className={styles.page}>
@@ -87,7 +105,10 @@ export default function ShareLinkPublicPage() {
   }
 
   const hasExams = view.exams.length > 0;
-  const hasSurvey = view.consultationSurvey !== null;
+  // 검사기록이 하나라도 포함된 링크는 티칭/이벤트와 묶여 있어도 상담설문 섹션을 항상
+  // 숨긴다(task.md PART B) — 검사결과 카드 자체에 이미 상담 근거가 충분히 담겨 있어
+  // 중복 노출을 피하기 위함.
+  const hasSurvey = view.consultationSurvey !== null && !hasExams;
   const hasTeaching = view.teaching !== null;
   const hasEvent = view.event !== null;
 
@@ -97,7 +118,7 @@ export default function ShareLinkPublicPage() {
         {hasExams && <ExamShareSections exams={view.exams} />}
         {hasExams && (hasSurvey || hasTeaching || hasEvent) && <hr className={styles.sectionDivider} />}
 
-        {view.consultationSurvey && (
+        {hasSurvey && view.consultationSurvey && (
           <ConsultationSurveyShareSection token={token} summary={view.consultationSurvey} />
         )}
         {hasSurvey && (hasTeaching || hasEvent) && <hr className={styles.sectionDivider} />}
@@ -125,6 +146,29 @@ export default function ShareLinkPublicPage() {
               </button>
             )}
           </div>
+        )}
+
+        {/* "상담예약하기"(task.md PART C) — 검사기록이 포함된 링크 전용, 페이지 맨 하단.
+            기존 프로그램문의/이벤트문의 버튼과 배타적이지 않고 나란히 노출된다. */}
+        {hasExams && (
+          <>
+            <hr className={styles.sectionDivider} />
+            <div>
+              <p className={styles.examConsultIntro}>내원하셔서 보다 자세한 상담 도와드리겠습니다</p>
+              {examConsultClicked ? (
+                <p className={styles.ctaConfirmText}>카카오톡으로 상담 가능하십니다</p>
+              ) : (
+                <button
+                  type="button"
+                  className={styles.ctaButton}
+                  onClick={handleExamConsultClick}
+                  disabled={examConsultSubmitting}
+                >
+                  상담예약하기
+                </button>
+              )}
+            </div>
+          </>
         )}
       </div>
     </div>

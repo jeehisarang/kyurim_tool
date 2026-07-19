@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import styles from "./page.module.css";
@@ -10,6 +10,7 @@ import HrvCommentaryCards from "@/components/HrvCommentaryCards";
 import HrvHealthReportCards from "@/components/HrvHealthReportCards";
 import { toHealthReportCards } from "@/lib/patient-view";
 import { openPatientViewPopup, HRV_PATIENT_VIEW_POPUP_SIZE } from "@/lib/patient-view-popup";
+import { downloadElementAsPdf, downloadElementAsPng, buildHealthReportFileName } from "@/lib/export-health-report";
 
 type HrvDetail = {
   id: number;
@@ -33,6 +34,8 @@ type HrvDetail = {
   aiCommentaryVersion: string | null;
   // 유비오맥파 CSV 자동연동(task.md) 레코드는 담당 직원 정보가 없어 null.
   measuredByStaff: { name: string } | null;
+  // 소프트 삭제 여부(task.md PART D) — 비활성 레코드는 다운로드 버튼을 숨긴다.
+  isActive: boolean;
 };
 
 function formatDate(iso: string): string {
@@ -66,6 +69,12 @@ export default function HrvExaminationDetailPage() {
   const [regenerateError, setRegenerateError] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  // 건강 리포트 PDF/이미지 다운로드(task.md PART D) — 카드 영역 DOM을 그대로 캡처한다.
+  const reportRef = useRef<HTMLDivElement>(null);
+  const [downloadMenuOpen, setDownloadMenuOpen] = useState(false);
+  const [downloading, setDownloading] = useState(false);
+  const [downloadError, setDownloadError] = useState<string | null>(null);
 
   function loadDetail() {
     fetch(`/api/hrv-records/${id}`)
@@ -159,6 +168,29 @@ export default function HrvExaminationDetailPage() {
     setPopupBlocked(false);
     const blocked = openPatientViewPopup(`/patient-view/exam/hrv/${detail.id}`, HRV_PATIENT_VIEW_POPUP_SIZE);
     if (blocked) setPopupBlocked(true);
+  }
+
+  // 건강 리포트 PDF/이미지 다운로드(task.md PART D) — "환자와함께보기"에 보이는 카드 콘텐츠와
+  // 동일한 데이터(신버전 7카드 또는 레거시 4섹션)를 이 화면에 이미 렌더링된 DOM 그대로
+  // 캡처한다. 레거시/신버전 구조 차이는 신경 쓰지 않는다 — 어느 쪽이든 reportRef가 가리키는
+  // 영역을 그대로 이미지화한다.
+  async function handleDownload(format: "pdf" | "png") {
+    if (!detail || !reportRef.current) return;
+    setDownloading(true);
+    setDownloadError(null);
+    setDownloadMenuOpen(false);
+    try {
+      const fileName = buildHealthReportFileName(detail.patient.name, detail.testDate, format);
+      if (format === "pdf") {
+        await downloadElementAsPdf(reportRef.current, fileName);
+      } else {
+        await downloadElementAsPng(reportRef.current, fileName);
+      }
+    } catch {
+      setDownloadError("다운로드에 실패했습니다. 다시 시도해주세요.");
+    } finally {
+      setDownloading(false);
+    }
   }
 
   // 학술근거/매핑표를 새로 저장한 뒤 이미 생성된 기존 검사기록에도 반영하려면 이 버튼이
@@ -307,20 +339,22 @@ export default function HrvExaminationDetailPage() {
                 아래 &quot;리포트 다시 만들기&quot; 버튼으로 다시 시도해주세요.
               </p>
             )}
-            {healthReportCards ? (
-              <HrvHealthReportCards cards={healthReportCards} />
-            ) : (
-              <HrvCommentaryCards
-                sections={{
-                  deviceReading: detail.aiDeviceReading,
-                  clinicalMeaning: detail.aiClinicalMeaning,
-                  lifestyleGuide: detail.aiLifestyleGuide,
-                  tcmInterpretation: detail.aiTcmInterpretation,
-                }}
-                legacyText={detail.aiCommentary}
-                commentaryVersion={detail.aiCommentaryVersion}
-              />
-            )}
+            <div ref={reportRef}>
+              {healthReportCards ? (
+                <HrvHealthReportCards cards={healthReportCards} />
+              ) : (
+                <HrvCommentaryCards
+                  sections={{
+                    deviceReading: detail.aiDeviceReading,
+                    clinicalMeaning: detail.aiClinicalMeaning,
+                    lifestyleGuide: detail.aiLifestyleGuide,
+                    tcmInterpretation: detail.aiTcmInterpretation,
+                  }}
+                  legacyText={detail.aiCommentary}
+                  commentaryVersion={detail.aiCommentaryVersion}
+                />
+              )}
+            </div>
             <div className={styles.actionRow}>
               <button type="button" className={styles.editButton} onClick={startEdit}>
                 리포트 수정
@@ -331,11 +365,34 @@ export default function HrvExaminationDetailPage() {
               <button type="button" className={styles.patientViewButton} onClick={handleOpenPatientView}>
                 환자와 함께보기
               </button>
+              {detail.isActive && (
+                <div className={styles.downloadWrap}>
+                  <button
+                    type="button"
+                    className={styles.editButton}
+                    onClick={() => setDownloadMenuOpen((v) => !v)}
+                    disabled={downloading}
+                  >
+                    {downloading ? "다운로드 중..." : "다운로드"}
+                  </button>
+                  {downloadMenuOpen && (
+                    <div className={styles.downloadMenu}>
+                      <button type="button" onClick={() => handleDownload("pdf")}>
+                        PDF로 저장
+                      </button>
+                      <button type="button" onClick={() => handleDownload("png")}>
+                        이미지(PNG)로 저장
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
               <button type="button" className={styles.deleteButton} onClick={handleDelete} disabled={deleting}>
                 {deleting ? "삭제 중..." : "삭제"}
               </button>
             </div>
             {regenerateError && <p className={styles.errorText}>{regenerateError}</p>}
+            {downloadError && <p className={styles.errorText}>{downloadError}</p>}
             {deleteError && <p className={styles.errorText}>{deleteError}</p>}
             {popupBlocked && (
               <p className={styles.errorText}>
