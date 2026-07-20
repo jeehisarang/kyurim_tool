@@ -3,11 +3,28 @@
 // 이 파일이 신경 쓸 필요가 없다 — 호출측이 캡처 대상 DOM 노드(ref)만 넘기면 된다.
 "use client";
 
+// data: URI 대신 blob: URL을 쓴다(task.md — 다운로드 버튼이 팝업 차단에 걸리는 문제 수정).
+// canvas.toDataURL()로 만든 큰 base64 data: URI를 <a download>에 직접 물리면 일부 브라우저
+// 조합에서 다운로드가 "새 창을 여는 동작"처럼 취급돼 팝업 차단에 걸릴 수 있다 — blob: URL은
+// 실제 파일 다운로드로 더 안정적으로 인식된다(jsPDF도 내부적으로 이 방식을 쓴다).
+function canvasToBlob(canvas: HTMLCanvasElement): Promise<Blob> {
+  return new Promise((resolve, reject) => {
+    canvas.toBlob((blob) => {
+      if (blob) resolve(blob);
+      else reject(new Error("캔버스를 이미지로 변환하지 못했습니다."));
+    }, "image/png");
+  });
+}
+
 export async function downloadElementAsPng(element: HTMLElement, fileName: string): Promise<void> {
   const html2canvas = (await import("html2canvas")).default;
   const canvas = await html2canvas(element, { backgroundColor: "#ffffff", scale: 2 });
-  const dataUrl = canvas.toDataURL("image/png");
-  triggerDownload(dataUrl, fileName);
+  const blob = await canvasToBlob(canvas);
+  const url = URL.createObjectURL(blob);
+  triggerDownload(url, fileName);
+  // 즉시 revoke하면 일부 브라우저에서 다운로드 시작 전에 URL이 무효화될 수 있어(jsPDF의
+  // saveAs 내부 구현도 동일하게 지연 revoke를 쓴다), 다운로드가 시작될 시간을 두고 해제한다.
+  setTimeout(() => URL.revokeObjectURL(url), 40000);
 }
 
 export async function downloadElementAsPdf(element: HTMLElement, fileName: string): Promise<void> {

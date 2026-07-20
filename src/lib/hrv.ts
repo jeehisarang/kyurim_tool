@@ -2,9 +2,11 @@ import { prisma } from "@/lib/db";
 import { saveHrvResultImage, readUploadedImageAsBase64 } from "@/lib/image-upload";
 import {
   generateHrvExplanation,
+  generateCategoryTreatmentCards,
   HRV_COMMENTARY_VERSION,
   type TcmPatternMapEntry,
   type HrvExplanationSections,
+  type CategoryTreatmentCard,
 } from "@/lib/hrv-explanation";
 import { getExamAcademicGuide } from "@/lib/exam-academic-guide";
 import { listConsultationNotesForPatient } from "@/lib/consultation-notes";
@@ -120,6 +122,9 @@ export type HrvCommentaryBundle = {
   checkedSymptoms: CheckedSymptomItem[];
   notableChanges: NotableChange[];
   redFlagNotice: string | null;
+  // 카드7 카드형 재구성(task.md) — 카테고리별 독립 생성 치료방향 카드. 후보 카테고리가
+  // 없거나 전부 치료원칙 미입력이면 빈 배열(카드7 공통 생활관리 문단만 노출).
+  categoryTreatmentCards: CategoryTreatmentCard[];
 };
 
 // AI 해설 생성 실패해도 검사 저장 자체는 반드시 성공해야 한다(examinations.ts와 동일 원칙) —
@@ -174,7 +179,12 @@ async function tryGenerateHrvCommentary(
 
     const notableChanges = previousMetrics ? computeNotableChanges(previousMetrics, toMetricsSnapshot(record)) : [];
 
-    return { ai, checkedSymptoms, notableChanges, redFlagNotice };
+    // 카테고리별 치료방향 카드(task.md 카드형 재구성) — tcmCategoryProfile은 위에서 이미
+    // 조회해둔 것을 그대로 재사용한다(추가 쿼리 없음). generateHrvExplanation과 별개의 독립
+    // AI 호출들이라 실패하면(네트워크 등) 이 함수 전체가 catch로 떨어져 안전하게 null 처리된다.
+    const categoryTreatmentCards = await generateCategoryTreatmentCards(tcmCategoryProfile);
+
+    return { ai, checkedSymptoms, notableChanges, redFlagNotice, categoryTreatmentCards };
   } catch (err) {
     console.error("[hrv] 건강 리포트 생성 실패:", err);
     return null;
@@ -262,6 +272,8 @@ function saveHrvCommentarySections(id: number, commentary: HrvCommentaryBundle) 
       aiCheckedSymptomsJson: JSON.stringify(commentary.checkedSymptoms),
       aiClinicalMeaning: commentary.notableChanges.length > 0 ? JSON.stringify(commentary.notableChanges) : null,
       aiRedFlagNotice: commentary.redFlagNotice,
+      aiTreatmentCardsJson:
+        commentary.categoryTreatmentCards.length > 0 ? JSON.stringify(commentary.categoryTreatmentCards) : null,
       aiCommentaryVersion: HRV_COMMENTARY_VERSION,
     },
   });

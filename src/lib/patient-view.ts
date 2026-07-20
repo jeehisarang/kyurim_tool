@@ -121,6 +121,8 @@ export type NotableChangeView = { label: string; direction: "IMPROVED" | "ATTENT
 // 건강 리포트(task.md 7카드 리뉴얼) 화이트리스트 뷰 — commentaryVersion이
 // "HEALTH_REPORT_V1"일 때만 채워진다. 카드2(checkedSymptoms)/카드3(notableChanges)/
 // 카드6(redFlagNotice)은 AI가 아니라 코드가 계산한 데이터를 그대로 옮긴 것이다.
+export type CategoryTreatmentCardView = { categoryLabel: string; body: string };
+
 export type HealthReportCards = {
   headline: string;
   checkedSymptoms: string[];
@@ -128,6 +130,9 @@ export type HealthReportCards = {
   tcmInterpretation: string;
   progression: string;
   redFlagNotice: string | null;
+  // 카드7 카드형 재구성(task.md) — 카테고리별 독립 카드. 옛 레코드(재생성 전)는 항상 빈 배열.
+  treatmentCards: CategoryTreatmentCardView[];
+  // 카드7의 공통 생활관리 문단(카드형 재구성 이후로는 카테고리 치료원칙을 다루지 않음).
   treatmentAndLifestyle: string;
 };
 
@@ -139,6 +144,20 @@ function parseCheckedSymptomsJson(json: string | null | undefined): string[] {
     return parsed
       .map((p) => (p && typeof p === "object" && "patientQuestion" in p ? String((p as { patientQuestion: unknown }).patientQuestion) : null))
       .filter((s): s is string => s !== null);
+  } catch {
+    return [];
+  }
+}
+
+function parseTreatmentCardsJson(json: string | null | undefined): CategoryTreatmentCardView[] {
+  if (!json) return [];
+  try {
+    const parsed = JSON.parse(json);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter(
+      (c): c is CategoryTreatmentCardView =>
+        c && typeof c === "object" && typeof c.categoryLabel === "string" && typeof c.body === "string",
+    );
   } catch {
     return [];
   }
@@ -168,6 +187,7 @@ export function toHealthReportCards(detail: {
   aiCheckedSymptomsJson?: string | null;
   aiClinicalMeaning?: string | null;
   aiRedFlagNotice?: string | null;
+  aiTreatmentCardsJson?: string | null;
 }): HealthReportCards | null {
   if (!detail.aiDeviceReading) return null;
   return {
@@ -177,6 +197,7 @@ export function toHealthReportCards(detail: {
     tcmInterpretation: detail.aiTcmInterpretation ?? "",
     progression: detail.aiProgressionCard ?? "",
     redFlagNotice: detail.aiRedFlagNotice ?? null,
+    treatmentCards: parseTreatmentCardsJson(detail.aiTreatmentCardsJson),
     treatmentAndLifestyle: detail.aiLifestyleGuide ?? "",
   };
 }
@@ -224,6 +245,7 @@ type RawHrvDetail = {
   aiProgressionCard?: string | null;
   aiCheckedSymptomsJson?: string | null;
   aiRedFlagNotice?: string | null;
+  aiTreatmentCardsJson?: string | null;
   aiCommentaryVersion?: string | null;
 };
 

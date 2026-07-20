@@ -31,6 +31,7 @@ type HrvDetail = {
   aiProgressionCard: string | null;
   aiCheckedSymptomsJson: string | null;
   aiRedFlagNotice: string | null;
+  aiTreatmentCardsJson: string | null;
   aiCommentaryVersion: string | null;
   // 유비오맥파 CSV 자동연동(task.md) 레코드는 담당 직원 정보가 없어 null.
   measuredByStaff: { name: string } | null;
@@ -179,6 +180,10 @@ export default function HrvExaminationDetailPage() {
     setDownloading(true);
     setDownloadError(null);
     setDownloadMenuOpen(false);
+    // "환자와 함께보기" 클릭에서 남은 팝업 차단 안내가 다운로드 버튼 근처에 계속 떠 있으면
+    // 마치 다운로드가 팝업 차단에 걸린 것처럼 보인다(task.md 버그 리포트) — 다운로드 시도
+    // 시점에 이전 상태를 지운다.
+    setPopupBlocked(false);
     try {
       const fileName = buildHealthReportFileName(detail.patient.name, detail.testDate, format);
       if (format === "pdf") {

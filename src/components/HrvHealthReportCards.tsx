@@ -97,9 +97,19 @@ export default function HrvHealthReportCards({
         </div>
       )}
 
-      {/* 카드7: 치료 방향 + 생활관리 */}
+      {/* 카드7 카드형 재구성(task.md) — 카테고리별 치료방향 카드(전부 펼쳐진 상태로 노출,
+          아코디언 아님) + 마지막 공통 생활관리 카드 1개. 카테고리별 카드는 서로 완전히 독립된
+          AI 호출 결과라 다른 카테고리 내용이 섞이지 않는다(hrv-explanation.ts
+          generateCategoryTreatmentCards 참고). */}
+      {cards.treatmentCards.map((card, i) => (
+        <div key={i} className={cardClass}>
+          <div className={labelClass}>{card.categoryLabel}</div>
+          <p className={bodyClass}>{renderWithEmphasis(card.body, emphasisClass)}</p>
+        </div>
+      ))}
+
       <div className={cardClass}>
-        <div className={labelClass}>치료 방향 &amp; 생활관리</div>
+        <div className={labelClass}>생활관리</div>
         <p className={bodyClass}>{renderWithEmphasis(cards.treatmentAndLifestyle, emphasisClass)}</p>
       </div>
     </div>

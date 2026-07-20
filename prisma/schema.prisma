@@ -335,6 +335,16 @@ model HrvTestRecord {
   // 스냅샷한다(ensureArrhythmiaNotice와 동일 원칙: AI가 안 만들고 시스템이 결정적으로 삽입).
   // null이면 카드 자체를 숨긴다.
   aiRedFlagNotice       String?
+  // 카드7 재구성(task.md "치료 방향 & 생활관리" 카드형 재구성) — 활성 카테고리별로 독립
+  // 생성된 치료방향 카드 목록을 JSON 배열({categoryLabel, body}[])로 저장한다. 카테고리
+  // 하나당 별도 AI 호출로 만들어(다른 카테고리 언급 없이), 여러 카테고리가 한 문단에 섞이던
+  // 기존 문제를 구조적으로 없앤다. treatmentPrinciple이 없는(미입력) 카테고리는 카드 자체를
+  // 생성하지 않는다(창작 금지 원칙, ensureTreatmentConsultDisclaimer와 동일 철학). 후보
+  // 카테고리가 아예 없으면(증상 패턴 프로필 없음) null — 이 경우 aiLifestyleGuide(공통
+  // 생활관리 문단)만 카드로 노출된다. 이 필드가 null인 기존 HEALTH_REPORT_V1 레코드는
+  // aiLifestyleGuide에 예전 방식(카테고리 치료원칙이 한 문단에 섞인 텍스트)이 그대로 남아있어
+  // 재생성 전까지는 옛 UI 그대로 보인다(원장 승인 후 재생성 대상).
+  aiTreatmentCardsJson  String?
   // 유비오맥파 CSV 자동연동(task.md)으로 생성된 레코드는 담당 직원 정보가 CSV에 없어 null —
   // 화면은 "자동연동"으로 표시한다. 수동 등록 경로(POST /api/hrv-records)는 그대로 항상 채운다.
   measuredByStaffId     Int?
