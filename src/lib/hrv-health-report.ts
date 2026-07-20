@@ -181,23 +181,25 @@ export function buildCategoryTreatmentCards(
   return cards;
 }
 
-// 카드4(한의건강해석) 상단 카테고리 비중 시각화 — 도넛+막대 조합으로 재설계(task.md,
-// 원장 확정안). 계산 방식은 "전체 응답 문항 만점 대비 원점수 비율"(TcmCategoryScore.ratio,
-// 정규화 없음)을 그대로 쓴다 — 직전 라운드의 심하다/경미하다 내부 구성 방식에서 다시
-// 되돌아온 것. 도넛은 후보 카테고리들 + "기타"(후보 아닌 나머지 비중) 한 조각, 막대는
-// 후보 카테고리만 라벨+퍼센트로 보여준다. "정규화 없음"이 명시 지시라 후보 카테고리 비율의
-// 합이 100%를 넘어도 재분배(rescale)하지 않고, "기타"만 0으로 clamp한다(후보가 전부 동점
-// 최대 비율 병렬 선정이라 여러 개면 ratio가 서로 같을 수 있음 — 설계상 정상).
+// 카드4(한의건강해석) 상단 카테고리 비중 시각화 — 도넛+막대 조합(task.md, 원장 확정안).
+// 계산 방식은 "전체 응답 문항 만점 대비 원점수 비율"(정규화 없음) — 여기서 "전체"는 체크
+// 리스트 전체(7개 카테고리 모든 문항)의 만점 합계다. 각 후보의 rawScore를 그 공통 분모로
+// 나눈 값이라 후보끼리 원점수가 다르면 비중도 서로 다르게 나온다(예: 2문항 카테고리 18%
+// vs 1문항 카테고리 9%) — "정규화 없음"은 카테고리별로 재정규화(자기 자신의 만점 기준으로
+// 다시 0~100%를 채우는 것)하지 않는다는 뜻이지, 모든 후보가 항상 같은 값이 된다는 뜻이
+// 아니다(회귀 조사 결론, task.md). 도넛은 후보 카테고리들 + "기타"(후보 아닌 나머지 비중)
+// 한 조각, 막대는 후보 카테고리만 라벨+퍼센트로 보여준다. 후보 비율의 합이 100%를 넘어도
+// 재분배(rescale)하지 않고 "기타"만 0으로 clamp한다.
 export type CategoryShareSlice = { categoryCode: string; categoryLabel: string; ratioPercent: number };
 export type CategoryVisualization = { slices: CategoryShareSlice[]; otherPercent: number };
 
 export function buildCategoryVisualization(
-  candidates: { categoryCode: string; patientLabel: string; ratio: number }[],
+  candidates: { categoryCode: string; patientLabel: string; rawScore: number; totalMaxScore: number }[],
 ): CategoryVisualization {
   const slices = candidates.map((c) => ({
     categoryCode: c.categoryCode,
     categoryLabel: c.patientLabel,
-    ratioPercent: Math.round(c.ratio * 100),
+    ratioPercent: c.totalMaxScore > 0 ? Math.round((c.rawScore / c.totalMaxScore) * 100) : 0,
   }));
   const sumPercent = slices.reduce((sum, s) => sum + s.ratioPercent, 0);
   const otherPercent = Math.max(0, 100 - sumPercent);

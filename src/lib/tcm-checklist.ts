@@ -284,18 +284,22 @@ export async function getTcmCategoryProfileForAi(
   }));
 }
 
-// 카드4 상단 카테고리 비중 시각화 재료(task.md — 도넛+막대 조합으로 재설계). 계산 방식은
-// "전체 응답 문항 만점 대비 원점수 비율"(정규화 없음) — CategoryScoreView.ratio를 그대로
-// 옮긴다. 이전 라운드의 심하다/경미하다 내부 구성 방식(getCandidateSeverityBreakdown)은
-// 이번 재설계로 대체돼 더 이상 쓰이지 않는다.
+// 카드4 상단 카테고리 비중 시각화 재료(task.md — 도넛+막대 조합). 계산 방식은 "전체 응답
+// 문항 만점 대비 원점수 비율"(정규화 없음) — 여기서 "전체"는 그 카테고리 자신의 만점이
+// 아니라 체크리스트 전체(7개 카테고리 모든 문항)의 만점 합계다. 회귀 조사(task.md) 결과,
+// 직전 구현이 실수로 CategoryScoreView.ratio(카테고리 자신의 만점 대비 — 후보 선정에 쓰는
+// 그 값, 동점 후보는 전부 100%가 되는 값)를 그대로 썼던 게 "4개 카테고리 전부 100%로
+// 보이는" 버그의 원인이었다. rawScore/전체만점으로 다시 계산해야 후보끼리도 실제 원점수
+// 차이만큼 서로 다른 비중이 나온다(예: 2문항 카테고리 18% vs 1문항 카테고리 9%).
 export async function getCandidateCategoryShares(
   patientId: number,
-): Promise<{ categoryCode: string; patientLabel: string; ratio: number }[]> {
+): Promise<{ categoryCode: string; patientLabel: string; rawScore: number; totalMaxScore: number }[]> {
   const latest = await getLatestChecklistResponse(patientId);
   if (!latest) return [];
+  const totalMaxScore = latest.categoryScores.reduce((sum, s) => sum + s.maxScore, 0);
   return latest.categoryScores
     .filter((s) => s.isCandidate)
-    .map((s) => ({ categoryCode: s.categoryCode, patientLabel: s.patientLabel, ratio: s.ratio }));
+    .map((s) => ({ categoryCode: s.categoryCode, patientLabel: s.patientLabel, rawScore: s.rawScore, totalMaxScore }));
 }
 
 export type CheckedSymptomItem = { categoryId: number; patientQuestion: string; score: 1 | 2 };
