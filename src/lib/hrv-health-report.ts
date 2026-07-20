@@ -249,6 +249,19 @@ export function extractTreatmentKeywords(treatmentPrinciple: string | null): str
     .filter(Boolean);
 }
 
+// 같은 treatmentPrinciple 텍스트의 두 번째 문장("증상에 따라 시호소간산·가미소요산·... 계열
+// 등이 참고될 수 있습니다")에서 대표처방명만 추출한다(task.md 환자용/원장용 분리 — 환자용
+// 텍스트에 방제명이 남아있는지 코드로 검증할 때 이 목록을 쓴다).
+export function extractPrescriptionNames(treatmentPrinciple: string | null): string[] {
+  if (!treatmentPrinciple) return [];
+  const match = /증상에\s*따라\s*(.+?)\s*계열/.exec(treatmentPrinciple);
+  if (!match) return [];
+  return match[1]
+    .split(/[·、,]\s*/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
 // 키워드가 이미 AI 출력 자체에서 **로 감싸져 있으면 건드리지 않는다(카드7 프롬프트가 이
 // 키워드를 볼드하라고 지시하지 않아 실제로는 거의 발생하지 않지만, 이중/깨진 마크업을
 // 구조적으로 막기 위한 안전장치 — hrv-explanation.ts의 isAlreadyBolded와 동일 원칙).

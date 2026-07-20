@@ -33,6 +33,7 @@ type HrvDetail = {
   aiRedFlagNotice: string | null;
   aiTreatmentCardsJson: string | null;
   aiCategoryScoreBarsJson: string | null;
+  aiClosingHeadline: string | null;
   aiCommentaryVersion: string | null;
   // 유비오맥파 CSV 자동연동(task.md) 레코드는 담당 직원 정보가 없어 null.
   measuredByStaff: { name: string } | null;

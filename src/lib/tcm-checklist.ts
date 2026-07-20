@@ -304,7 +304,10 @@ export async function getCandidateCategoryShares(
   }));
 }
 
-export type CheckedSymptomItem = { categoryId: number; patientQuestion: string; score: 1 | 2 };
+// categoryCode는 카드7 환자용 치료방향 카드(task.md)가 카테고리별 체크 증상을 문장에
+// 자연스럽게 녹이기 위한 조회 키로 쓰인다 — categoryId만으로는 hrv.ts 쪽에서 tcmCategoryProfile
+// (categoryCode 기준)과 매칭할 수 없어 추가했다.
+export type CheckedSymptomItem = { categoryId: number; categoryCode: string; patientQuestion: string; score: 1 | 2 };
 
 /**
  * 건강 리포트(task.md) 카드2 "내가 선택한 증상" 재료 — 최신 응답에서 후보 카테고리의
@@ -319,16 +322,21 @@ export async function getCandidateCheckedSymptoms(patientId: number): Promise<Ch
     orderBy: { createdAt: "desc" },
     include: {
       answers: { include: { question: true }, orderBy: { question: { displayOrder: "asc" } } },
-      categoryScores: { where: { isCandidate: true } },
+      categoryScores: { where: { isCandidate: true }, include: { category: true } },
     },
   });
   if (!response) return [];
-  const candidateCategoryIds = new Set(response.categoryScores.map((s) => s.categoryId));
-  if (candidateCategoryIds.size === 0) return [];
+  const candidateCategoryCodeById = new Map(response.categoryScores.map((s) => [s.categoryId, s.category.categoryCode]));
+  if (candidateCategoryCodeById.size === 0) return [];
 
   return response.answers
-    .filter((a) => candidateCategoryIds.has(a.question.categoryId) && a.score >= 1)
-    .map((a) => ({ categoryId: a.question.categoryId, patientQuestion: a.question.patientQuestion, score: a.score as 1 | 2 }));
+    .filter((a) => candidateCategoryCodeById.has(a.question.categoryId) && a.score >= 1)
+    .map((a) => ({
+      categoryId: a.question.categoryId,
+      categoryCode: candidateCategoryCodeById.get(a.question.categoryId)!,
+      patientQuestion: a.question.patientQuestion,
+      score: a.score as 1 | 2,
+    }));
 }
 
 export type CandidateCategoryRank = { categoryId: number; ratio: number; rawScore: number };

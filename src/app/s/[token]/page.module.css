@@ -15,6 +15,7 @@
   box-shadow: 0 4px 16px rgba(43, 39, 35, 0.08);
   padding: 28px 20px;
   align-self: flex-start;
+  overflow-wrap: break-word;
 }
 
 /* 티칭지 + 이벤트가 둘 다 있을 때(통합) 둘을 시각적으로 분리하는 구분선. */
@@ -51,6 +52,7 @@
   border-radius: 4px;
   padding: 12px 14px;
   margin-top: 16px;
+  overflow-wrap: break-word;
 }
 
 /* "상담예약하기"(task.md PART C) 버튼 위 안내문구 — ctaButton과 동일한 카드 폭에 맞춘다. */

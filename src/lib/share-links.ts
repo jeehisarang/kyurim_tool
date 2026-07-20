@@ -190,6 +190,7 @@ async function buildExamEntry(link: { examType: string; examRecordId: number }):
       aiRedFlagNotice: record.aiRedFlagNotice,
       aiTreatmentCardsJson: record.aiTreatmentCardsJson,
       aiCategoryScoreBarsJson: record.aiCategoryScoreBarsJson,
+      aiClosingHeadline: record.aiClosingHeadline,
       aiCommentaryVersion: record.aiCommentaryVersion,
     });
     return { id: record.id, examType: "HRV" as const, ...safe };

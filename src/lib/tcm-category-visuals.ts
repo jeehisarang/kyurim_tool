@@ -18,6 +18,23 @@ export function tcmCategoryColor(categoryCode: string): string {
   return TCM_CATEGORY_COLOR_MAP[categoryCode] ?? TCM_CATEGORY_NEUTRAL_COLOR;
 }
 
+// 환자용 카드7(task.md "환자용/원장용 분리") 볼드 강조 전용 — 카테고리 원색 그대로는
+// 흰 배경에서 대비가 약해 진한 톤("800 단계")으로 별도 관리한다. 위 TCM_CATEGORY_COLOR_MAP과
+// 1:1 대응하되 채도는 유지하고 명도만 낮춘 값(Tailwind 800 계열 참고).
+const TCM_CATEGORY_COLOR_DARK_MAP: Record<string, string> = {
+  EMOTION_STAGNATION: "#1e4e8c",
+  QI_YANG_DEFICIENCY: "#9a3412",
+  YIN_DRYNESS: "#0f6b4c",
+  DIGESTIVE: "#92400e",
+  PHLEGM_DAMPNESS: "#9d174d",
+  BLOOD_DEFICIENCY: "#166534",
+  BLOOD_STASIS: "#4c1d95",
+};
+
+export function tcmCategoryColorDark(categoryCode: string): string {
+  return TCM_CATEGORY_COLOR_DARK_MAP[categoryCode] ?? "#333333";
+}
+
 // 아이콘(task.md 요청: mood-sad/temperature-minus/flame/stomach/droplet/heartbeat/
 // activity/heart) — 이 프로젝트엔 아이콘 라이브러리가 설치돼 있지 않다(package.json 확인
 // 완료). 기존 관례(program-categories.ts의 PROGRAM_CATEGORY_ICON)를 그대로 따라 이모지로

@@ -3,6 +3,7 @@ import { saveHrvResultImage, readUploadedImageAsBase64 } from "@/lib/image-uploa
 import {
   generateHrvExplanation,
   generateCategoryTreatmentCards,
+  generateClosingHeadline,
   HRV_COMMENTARY_VERSION,
   type TcmPatternMapEntry,
   type HrvExplanationSections,
@@ -127,13 +128,15 @@ export type HrvCommentaryBundle = {
   checkedSymptoms: CheckedSymptomItem[];
   notableChanges: NotableChange[];
   redFlagNotice: string | null;
-  // 카드7 카드형 재구성(task.md) — 카테고리별 독립 생성 치료방향 카드(AI 개인화 버전으로
-  // 롤백, 커밋 d5fd073 고정사전에서 되돌림). 후보 카테고리가 없거나 전부 치료원칙 미입력이면
+  // 카드7 카드형 재구성(task.md) — 카테고리별 독립 생성 치료방향 카드(doctorText/patientText
+  // 동시 생성, task.md "환자용/원장용 분리"). 후보 카테고리가 없거나 전부 치료원칙 미입력이면
   // 빈 배열(카드7 공통 생활관리 문단만 노출).
   categoryTreatmentCards: CategoryTreatmentCard[];
   // 카드4 상단 카테고리 비중 시각화(task.md 도넛+막대 재설계) — 후보 카테고리가 없으면
   // slices 빈 배열(시각화 자체를 숨김).
   categoryVisualization: CategoryVisualization;
+  // 클로징 헤드라인(task.md "미병 프레임 복원") — 후보 카테고리가 없으면 null(카드 숨김).
+  closingHeadline: string | null;
 };
 
 // AI 해설 생성 실패해도 검사 저장 자체는 반드시 성공해야 한다(examinations.ts와 동일 원칙) —
@@ -175,41 +178,52 @@ async function tryGenerateHrvCommentary(
       getCandidateCategoryShares(record.patientId),
     ]);
 
-    const ai = await generateHrvExplanation({
-      vascularHealthIndex: record.vascularHealthIndex,
-      vascularHealthType: record.vascularHealthType,
-      avgPulse: record.avgPulse,
-      stressIndex: record.stressIndex,
-      academicGuide: guide?.content ?? null,
-      tcmPatternMap: parseTcmPatternMap(guide?.tcmPatternMapJson),
-      patientSymptomMaterial,
-      imageBase64,
-      previousImageBase64,
-      tcmCategoryProfile,
-      checkedSymptomsForHeadline: pickHeadlineSymptoms(candidateRanks, checkedSymptoms),
-    });
+    // 카드7 환자용 텍스트가 카테고리별 체크 증상을 자연스럽게 녹일 수 있도록 categoryCode
+    // 기준으로 묶어둔다(task.md — checkedSymptoms는 위에서 이미 조회해둔 것 재사용).
+    const checkedSymptomsByCategoryCode: Record<string, string[]> = {};
+    for (const s of checkedSymptoms) {
+      (checkedSymptomsByCategoryCode[s.categoryCode] ??= []).push(s.patientQuestion);
+    }
+    const candidateLabels = (tcmCategoryProfile ?? []).map((c) => c.patientLabel);
+
+    // 메인 4카드 생성 + 카테고리별 치료방향 카드(doctorText/patientText) + 클로징 헤드라인을
+    // 병렬로 호출한다(task.md — 토큰/비용 고려, 서로 입력이 겹치지 않는 독립 호출들이라
+    // 굳이 순차 실행할 이유가 없음). 셋 중 하나라도 실패하면 Promise.all이 reject해 이
+    // 함수 전체가 catch로 떨어져 안전하게 null 처리된다(기존 원칙 그대로).
+    const [ai, rawTreatmentCards, closingHeadline] = await Promise.all([
+      generateHrvExplanation({
+        vascularHealthIndex: record.vascularHealthIndex,
+        vascularHealthType: record.vascularHealthType,
+        avgPulse: record.avgPulse,
+        stressIndex: record.stressIndex,
+        academicGuide: guide?.content ?? null,
+        tcmPatternMap: parseTcmPatternMap(guide?.tcmPatternMapJson),
+        patientSymptomMaterial,
+        imageBase64,
+        previousImageBase64,
+        tcmCategoryProfile,
+        checkedSymptomsForHeadline: pickHeadlineSymptoms(candidateRanks, checkedSymptoms),
+      }),
+      generateCategoryTreatmentCards(tcmCategoryProfile, checkedSymptomsByCategoryCode),
+      generateClosingHeadline(candidateLabels),
+    ]);
 
     const notableChanges = previousMetrics ? computeNotableChanges(previousMetrics, toMetricsSnapshot(record)) : [];
 
-    // 카테고리별 치료방향 카드(task.md — AI 개인화 버전으로 롤백) — tcmCategoryProfile은
-    // 위에서 이미 조회해둔 것을 그대로 재사용한다(추가 쿼리 없음). generateHrvExplanation과
-    // 별개의 독립 AI 호출들이라 실패하면 이 함수 전체가 catch로 떨어져 안전하게 null 처리된다.
-    const rawTreatmentCards = await generateCategoryTreatmentCards(tcmCategoryProfile);
-
-    // 변증명 볼드+한자 병기 후처리(task.md) — AI가 만들지 않고 코드가 결정적으로 삽입한다.
-    // 카테고리별로 원본 treatmentPrinciple 텍스트에서 그 카테고리의 키워드 목록만 뽑아 적용
-    // (다른 카테고리 키워드가 잘못 섞여 들어갈 일이 없다).
+    // 변증명 볼드+한자 병기 후처리(task.md) — doctorText에만 적용한다(patientText는 애초에
+    // 전문용어가 없어야 하므로 한자 병기 대상이 아니다). 카테고리별로 원본 treatmentPrinciple
+    // 텍스트에서 그 카테고리의 키워드 목록만 뽑아 적용(다른 카테고리 키워드가 섞이지 않음).
     const categoryTreatmentCards = rawTreatmentCards.map((card) => {
       const profile = (tcmCategoryProfile ?? []).find((c) => c.categoryCode === card.categoryCode);
       const keywords = extractTreatmentKeywords(profile?.treatmentPrinciple ?? null);
-      return { ...card, body: annotateTreatmentKeywords(card.body, keywords) };
+      return { ...card, doctorText: annotateTreatmentKeywords(card.doctorText, keywords) };
     });
 
     // 카드4 상단 카테고리 비중 시각화(task.md 도넛+막대 재설계) — AI 호출 없이 코드로
     // 결정적으로 계산한다(카드2/3/6과 동일 원칙). categoryShares는 위에서 이미 조회해둔 것.
     const categoryVisualization = buildCategoryVisualization(categoryShares);
 
-    return { ai, checkedSymptoms, notableChanges, redFlagNotice, categoryTreatmentCards, categoryVisualization };
+    return { ai, checkedSymptoms, notableChanges, redFlagNotice, categoryTreatmentCards, categoryVisualization, closingHeadline };
   } catch (err) {
     console.error("[hrv] 건강 리포트 생성 실패:", err);
     return null;
@@ -301,6 +315,7 @@ function saveHrvCommentarySections(id: number, commentary: HrvCommentaryBundle) 
         commentary.categoryTreatmentCards.length > 0 ? JSON.stringify(commentary.categoryTreatmentCards) : null,
       aiCategoryScoreBarsJson:
         commentary.categoryVisualization.slices.length > 0 ? JSON.stringify(commentary.categoryVisualization) : null,
+      aiClosingHeadline: commentary.closingHeadline,
       aiCommentaryVersion: HRV_COMMENTARY_VERSION,
     },
   });

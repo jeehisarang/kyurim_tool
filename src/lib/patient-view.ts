@@ -121,10 +121,12 @@ export type NotableChangeView = { label: string; direction: "IMPROVED" | "ATTENT
 // 건강 리포트(task.md 7카드 리뉴얼) 화이트리스트 뷰 — commentaryVersion이
 // "HEALTH_REPORT_V1"일 때만 채워진다. 카드2(checkedSymptoms)/카드3(notableChanges)/
 // 카드6(redFlagNotice)은 AI가 아니라 코드가 계산한 데이터를 그대로 옮긴 것이다.
-// 카드7 치료방향 카드(task.md — AI 개인화 버전으로 롤백, 커밋 d5fd073의 키워드 불릿 고정사전
-// {items} 모양에서 다시 담백한 1문장 {body} 모양으로 되돌림). categoryCode는 이번 라운드
-// (색상/아이콘 고정 매핑) 추가 — tcm-category-visuals.ts 조회 키.
-export type CategoryTreatmentCardView = { categoryCode: string; categoryLabel: string; body: string };
+// 카드7 치료방향 카드(task.md "환자용/원장용 분리") — doctorText(변증명+한자+방제 계열,
+// 원장 확인화면 전용)와 patientText(전문용어 없는 환자용) 둘 다 담는다. 이 타입 자체는
+// "전체" 뷰(원장 확인화면용)이고, 환자 노출 경로(toPatientSafeHrvView)는 아래
+// PatientTreatmentCardView로 doctorText를 걸러낸 별도 타입을 쓴다 — 데이터 조립 단계에서
+// 아예 안 만드는 화이트리스트 원칙(toPatientSafeExamView와 동일).
+export type CategoryTreatmentCardView = { categoryCode: string; categoryLabel: string; doctorText: string; patientText: string };
 
 // 카드4 상단 카테고리 비중 시각화 — 도넛+막대 조합(task.md). 후보 카테고리끼리만 원점수
 // 합으로 재정규화한 값("기타" 없음, task.md — 체크리스트 전체 만점 대비 방식은 후보 수
@@ -142,11 +144,43 @@ export type HealthReportCards = {
   redFlagNotice: string | null;
   // 카드4 상단 시각화(task.md 도넛+막대). 옛 레코드(재생성 전)는 slices 빈 배열.
   categoryVisualization: CategoryVisualizationView;
-  // 카드7 카드형 재구성 — 카테고리별 독립 카드. 옛 레코드(재생성 전)는 항상 빈 배열.
+  // 카드7 카드형 재구성 — 카테고리별 독립 카드(doctorText+patientText 둘 다 포함, 원장
+  // 확인화면 전용 "전체" 뷰). 옛 레코드(재생성 전)는 항상 빈 배열.
   treatmentCards: CategoryTreatmentCardView[];
   // 카드7의 공통 생활관리 문단(카드형 재구성 이후로는 카테고리 치료원칙을 다루지 않음).
   treatmentAndLifestyle: string;
+  // 클로징 헤드라인(task.md "미병 프레임 복원") — 원장용/환자용 공통 노출(변증명·한자 같은
+  // 전문용어가 없는 문구라 분리 불필요). 옛 레코드(재생성 전)는 null(카드 숨김).
+  closingHeadline: string | null;
 };
+
+// 환자 노출 경로 전용(task.md 화이트리스트) — doctorText 필드 자체가 없다(존재하지 않으니
+// 실수로도 노출될 수 없음). toPatientSafeHealthReportCards가 여기로만 변환한다.
+export type PatientTreatmentCardView = { categoryCode: string; categoryLabel: string; patientText: string };
+
+export type PatientSafeHealthReportCards = Omit<HealthReportCards, "treatmentCards"> & {
+  treatmentCards: PatientTreatmentCardView[];
+};
+
+/**
+ * 원장 확인화면용 "전체" 카드7 데이터에서 doctorText를 제거해 환자 노출용으로 변환한다
+ * (task.md — "환자가 보는 화면은 항상 환자용 버전만 노출, 원장용은 원장 확인화면에서만").
+ * toPatientSafeHrvView가 이 함수를 거친 결과만 healthReport 필드에 담아 반환하므로,
+ * /s/[token], /p/[token], 환자와 함께보기 팝업 등 환자가 접근하는 모든 경로의 API 응답
+ * 자체에 doctorText가 아예 포함되지 않는다(단순히 화면에서 안 보여주는 게 아니라 네트워크
+ * 페이로드 단계에서부터 제외).
+ */
+function toPatientSafeHealthReportCards(cards: HealthReportCards | null): PatientSafeHealthReportCards | null {
+  if (!cards) return null;
+  return {
+    ...cards,
+    treatmentCards: cards.treatmentCards.map((c) => ({
+      categoryCode: c.categoryCode,
+      categoryLabel: c.categoryLabel,
+      patientText: c.patientText,
+    })),
+  };
+}
 
 function parseCheckedSymptomsJson(json: string | null | undefined): string[] {
   if (!json) return [];
@@ -161,8 +195,8 @@ function parseCheckedSymptomsJson(json: string | null | undefined): string[] {
   }
 }
 
-// categoryCode까지 포함된 {categoryCode, categoryLabel, body}만 유효로 본다 — 이전 라운드
-// 이하 모양(categoryCode 없음, 또는 고정사전 {items} 모양)은 categoryCode 필드가 없어
+// categoryCode/doctorText/patientText까지 전부 포함된 모양만 유효로 본다 — 이전 라운드
+// 이하 모양({categoryCode,categoryLabel,body} 등)은 doctorText/patientText 필드가 없어
 // 자연히 걸러진다(재생성 전까지 카드 미노출, 화면 안 깨짐).
 function parseTreatmentCardsJson(json: string | null | undefined): CategoryTreatmentCardView[] {
   if (!json) return [];
@@ -175,7 +209,8 @@ function parseTreatmentCardsJson(json: string | null | undefined): CategoryTreat
         typeof c === "object" &&
         typeof c.categoryCode === "string" &&
         typeof c.categoryLabel === "string" &&
-        typeof c.body === "string",
+        typeof c.doctorText === "string" &&
+        typeof c.patientText === "string",
     );
   } catch {
     return [];
@@ -236,6 +271,7 @@ export function toHealthReportCards(detail: {
   aiRedFlagNotice?: string | null;
   aiTreatmentCardsJson?: string | null;
   aiCategoryScoreBarsJson?: string | null;
+  aiClosingHeadline?: string | null;
 }): HealthReportCards | null {
   if (!detail.aiDeviceReading) return null;
   return {
@@ -248,6 +284,7 @@ export function toHealthReportCards(detail: {
     categoryVisualization: parseCategoryVisualizationJson(detail.aiCategoryScoreBarsJson),
     treatmentCards: parseTreatmentCardsJson(detail.aiTreatmentCardsJson),
     treatmentAndLifestyle: detail.aiLifestyleGuide ?? "",
+    closingHeadline: detail.aiClosingHeadline ?? null,
   };
 }
 
@@ -270,7 +307,8 @@ export type PatientSafeHrvView = {
   sourceImagePath2: string | null;
   sections: PatientSafeHrvSections | null;
   // 건강 리포트(task.md 7카드) — commentaryVersion이 "HEALTH_REPORT_V1"일 때만 채워진다.
-  healthReport: HealthReportCards | null;
+  // 카드7 treatmentCards는 환자용 화이트리스트(PatientTreatmentCardView, doctorText 없음).
+  healthReport: PatientSafeHealthReportCards | null;
   legacyCommentary: string | null;
   // 코멘트 프롬프트 버전 — null이면 구버전 섹션 의미(기기판독요약 등), "MIBYEONG_V1"이면
   // "미병" 재설계, "HEALTH_REPORT_V1"이면 7카드 건강 리포트라 화면이 이 값으로 완전히 다른
@@ -296,6 +334,7 @@ type RawHrvDetail = {
   aiRedFlagNotice?: string | null;
   aiTreatmentCardsJson?: string | null;
   aiCategoryScoreBarsJson?: string | null;
+  aiClosingHeadline?: string | null;
   aiCommentaryVersion?: string | null;
 };
 
@@ -310,7 +349,7 @@ export function toPatientSafeHrvView(detail: RawHrvDetail): PatientSafeHrvView {
           tcmInterpretation: detail.aiTcmInterpretation ?? "",
         }
       : null;
-  const healthReport = isHealthReport ? toHealthReportCards(detail) : null;
+  const healthReport = isHealthReport ? toPatientSafeHealthReportCards(toHealthReportCards(detail)) : null;
 
   return {
     testDate: detail.testDate,

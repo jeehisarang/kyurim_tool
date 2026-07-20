@@ -11,6 +11,7 @@
   border: 1px solid rgba(110, 148, 140, 0.2);
   border-radius: 8px;
   text-align: left;
+  overflow-wrap: break-word;
 }
 
 .cardLabel {
@@ -46,6 +47,7 @@
   border: 1px solid rgba(110, 148, 140, 0.2);
   border-radius: 10px;
   text-align: left;
+  overflow-wrap: break-word;
 }
 
 .cardLabelPatient {
@@ -75,6 +77,7 @@
   border: 1px solid rgba(110, 148, 140, 0.3);
   border-radius: 10px;
   text-align: left;
+  overflow-wrap: break-word;
 }
 
 .heroBody {
@@ -90,6 +93,7 @@
   border: 1px solid rgba(110, 148, 140, 0.32);
   border-radius: 14px;
   text-align: left;
+  overflow-wrap: break-word;
 }
 
 .heroBodyPatient {
@@ -238,6 +242,7 @@
   border: 1px solid rgba(179, 60, 46, 0.35);
   border-radius: 8px;
   text-align: left;
+  overflow-wrap: break-word;
 }
 
 .redFlagLabel {
@@ -252,4 +257,39 @@
   line-height: 1.6;
   color: var(--color-ink);
   white-space: pre-wrap;
+}
+
+/* 클로징 헤드라인(task.md "미병 프레임 복원") — 흰 배경 + 얇은 테두리로 다른 카드(옅은
+   celadon 톤)와 구분되는 담백한 마무리 카드. 기본 텍스트는 검정/text-primary(--color-ink),
+   "미병(未病)"/"치미병(治未病)"/"따로가 아니라 함께" 등 핵심 구절만 부분 강조한다
+   (전체 볼드/전체 색상 금지 — closingEmphasis는 AI가 ** 로 감싼 구간에만 적용됨). */
+.closingCard {
+  padding: 18px 20px;
+  background: #ffffff;
+  border: 1px solid rgba(43, 39, 35, 0.14);
+  border-radius: 8px;
+  text-align: left;
+  overflow-wrap: break-word;
+}
+
+.closingBody {
+  font-size: 17px;
+  line-height: 1.75;
+  color: var(--color-ink);
+  white-space: pre-wrap;
+}
+
+.closingEmphasis {
+  font-weight: 700;
+  color: var(--color-celadon-dark);
+}
+
+/* 카드7 공통 캡션(task.md, 컴포넌트 고정 문구) — 카테고리 카드/클로징 헤드라인보다 한 단계
+   낮은 톤으로, 리포트 본문이 아니라 안내 문구임을 시각적으로 구분한다. */
+.treatmentCaption {
+  font-size: 13px;
+  color: var(--color-ink);
+  opacity: 0.6;
+  text-align: center;
+  margin: 2px 0 0;
 }

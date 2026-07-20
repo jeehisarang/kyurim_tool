@@ -352,6 +352,12 @@ model HrvTestRecord {
   // JSON 배열, AI가 안 만들고 시스템이 결정하는 카드2/3/6과 동일 원칙). 후보 카테고리가
   // 없으면(증상 패턴 프로필 없음) null — 이 경우 시각화 자체를 숨긴다.
   aiCategoryScoreBarsJson String?
+  // 클로징 헤드라인(task.md "환자용/원장용 분리 + 미병 프레임 복원") — 카드7 맨 아래,
+  // 그날 체크된 후보 카테고리 전체를 "따로가 아니라 함께" 흐름으로 엮고 미병(未病)/
+  // 치미병(治未病) 정의로 마무리하는 1~2문장. aiTreatmentCardsJson과 같은 생성 시점에
+  // 함께 만들어진다. 후보 카테고리가 없으면 null(카드 자체를 숨김, 에러 아님). 레거시
+  // 레코드는 항상 null — "리포트 다시 만들기" 실행 전까지 이 섹션만 조건부로 안 보인다.
+  aiClosingHeadline     String?
   // 유비오맥파 CSV 자동연동(task.md)으로 생성된 레코드는 담당 직원 정보가 CSV에 없어 null —
   // 화면은 "자동연동"으로 표시한다. 수동 등록 경로(POST /api/hrv-records)는 그대로 항상 채운다.
   measuredByStaffId     Int?

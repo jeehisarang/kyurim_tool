@@ -3,8 +3,12 @@
 import type { ReactNode } from "react";
 import { PieChart, Pie, Cell } from "recharts";
 import styles from "./HrvHealthReportCards.module.css";
-import type { HealthReportCards, CategoryVisualizationView } from "@/lib/patient-view";
-import { tcmCategoryColor, tcmCategoryIcon, TCM_CATEGORY_NEUTRAL_COLOR, TCM_LIFESTYLE_ICON } from "@/lib/tcm-category-visuals";
+import type { HealthReportCards, PatientSafeHealthReportCards, CategoryVisualizationView } from "@/lib/patient-view";
+import { tcmCategoryColor, tcmCategoryColorDark, tcmCategoryIcon, TCM_CATEGORY_NEUTRAL_COLOR, TCM_LIFESTYLE_ICON } from "@/lib/tcm-category-visuals";
+
+// 카드7 공통 캡션(task.md) — AI가 만드는 게 아니라 컴포넌트 고정 문구. 카테고리별 카드마다
+// 반복하지 않고 카드7 맨 아래(클로징 헤드라인 바로 아래) 한 번만 노출한다.
+const TREATMENT_COMMON_CAPTION = "현재 증상에 맞는 구체적인 치료는 상담을 통해 결정됩니다";
 
 // 카드4 도넛 데이터 — 후보 카테고리 슬라이스만(task.md — "기타" 조각 완전 제거, 후보
 // 카테고리끼리만 재정규화해 도넛이 후보만으로 꽉 찬다).
@@ -60,6 +64,24 @@ function renderTreatmentBody(text: string, emphasisClassName: string, hanjaClass
   return nodes;
 }
 
+// 카드7 환자용 치료방향 카드 전용(task.md "환자용/원장용 분리") — doctorText와 달리 한자
+// 병기가 없고(patientText 자체에 전문용어가 없으므로), ** 로 감싼 구간을 카테고리별
+// 진한 톤(800 단계, tcmCategoryColorDark)으로 볼드 처리한다. 고정 CSS 클래스가 아니라
+// 카테고리마다 다른 색이라 인라인 style로 적용한다.
+function renderPatientTreatmentText(text: string, categoryCode: string): ReactNode[] {
+  const color = tcmCategoryColorDark(categoryCode);
+  const parts = text.split(/\*\*(.+?)\*\*/g);
+  return parts.map((part, i) =>
+    i % 2 === 1 ? (
+      <strong key={i} style={{ color }}>
+        {part}
+      </strong>
+    ) : (
+      part
+    ),
+  );
+}
+
 /**
  * "건강 리포트" 7카드 매거진 스타일(task.md 리뉴얼) — HrvCommentaryCards(구 4섹션 나열식)를
  * commentaryVersion="HEALTH_REPORT_V1" 레코드에서 대체한다. 과거 레코드는 계속 기존
@@ -71,7 +93,10 @@ export default function HrvHealthReportCards({
   cards,
   variant = "staff",
 }: {
-  cards: HealthReportCards;
+  // staff는 doctorText가 포함된 "전체" 뷰(HealthReportCards), patient는 doctorText가 아예
+  // 없는 화이트리스트 뷰(PatientSafeHealthReportCards) — variant prop이 실제 어느 타입이
+  // 왔는지 결정하며, 호출측(staff 페이지 vs 환자화면)이 항상 서로 맞는 조합으로만 호출한다.
+  cards: HealthReportCards | PatientSafeHealthReportCards;
   variant?: "staff" | "patient";
 }) {
   const isPatient = variant === "patient";
@@ -190,7 +215,11 @@ export default function HrvHealthReportCards({
           <div className={labelClass}>
             {tcmCategoryIcon(card.categoryCode)} {card.categoryLabel}
           </div>
-          <p className={bodyClass}>{renderTreatmentBody(card.body, emphasisClass, styles.hanja)}</p>
+          <p className={bodyClass}>
+            {isPatient
+              ? renderPatientTreatmentText((card as { patientText: string }).patientText, card.categoryCode)
+              : renderTreatmentBody((card as { doctorText: string }).doctorText, emphasisClass, styles.hanja)}
+          </p>
         </div>
       ))}
 
@@ -198,6 +227,23 @@ export default function HrvHealthReportCards({
         <div className={labelClass}>{TCM_LIFESTYLE_ICON} 생활관리</div>
         <p className={bodyClass}>{renderWithEmphasis(cards.treatmentAndLifestyle, emphasisClass)}</p>
       </div>
+
+      {/* 클로징 헤드라인(task.md "미병 프레임 복원") — 카드7 맨 아래, 그날 후보 카테고리
+          전체를 "따로가 아니라 함께" 흐름으로 엮고 미병(未病)/치미병(治未病)으로 마무리.
+          원장용/환자용 공통 노출(전문용어 없는 문구라 분리 불필요) — 옛 레코드는 null이라
+          카드 자체를 숨긴다(에러 아님, 재생성 전까지 조건부 미노출). 부분 강조만 허용되므로
+          카드4/7과 달리 emphasisClass가 아니라 전용 accent 클래스를 쓴다. */}
+      {cards.closingHeadline && (
+        <div className={styles.closingCard}>
+          <p className={styles.closingBody}>{renderWithEmphasis(cards.closingHeadline, styles.closingEmphasis)}</p>
+        </div>
+      )}
+
+      {/* 카드7 공통 캡션(task.md, 컴포넌트 고정 문구) — 환자화면 전용(원장 확인화면은 이미
+          변증명·방제까지 다 보고 있어 "상담을 통해 결정됩니다" 안내가 불필요). 카테고리
+          카드가 실제로 있을 때만 노출한다(옛 레코드처럼 카드7 자체가 비어 있으면 캡션도
+          함께 숨김). */}
+      {isPatient && cards.treatmentCards.length > 0 && <p className={styles.treatmentCaption}>{TREATMENT_COMMON_CAPTION}</p>}
     </div>
   );
 }
