@@ -6,18 +6,14 @@ import styles from "./HrvHealthReportCards.module.css";
 import type { HealthReportCards, CategoryVisualizationView } from "@/lib/patient-view";
 import { tcmCategoryColor, tcmCategoryIcon, TCM_CATEGORY_NEUTRAL_COLOR, TCM_LIFESTYLE_ICON } from "@/lib/tcm-category-visuals";
 
-// 카드4 도넛 데이터 — 후보 카테고리 슬라이스 + "기타"(0%면 조각 자체를 생략, 도넛에 의미
-// 없는 0-length 조각이 남지 않도록).
+// 카드4 도넛 데이터 — 후보 카테고리 슬라이스만(task.md — "기타" 조각 완전 제거, 후보
+// 카테고리끼리만 재정규화해 도넛이 후보만으로 꽉 찬다).
 function donutData(visualization: CategoryVisualizationView): { name: string; value: number; color: string }[] {
-  const slices = visualization.slices.map((s) => ({
+  return visualization.slices.map((s) => ({
     name: s.categoryLabel,
     value: s.ratioPercent,
     color: tcmCategoryColor(s.categoryCode),
   }));
-  if (visualization.otherPercent > 0) {
-    slices.push({ name: "기타", value: visualization.otherPercent, color: TCM_CATEGORY_NEUTRAL_COLOR });
-  }
-  return slices;
 }
 
 // AI가 **로 감싸 표시한 핵심 문장/패턴명을 <strong>으로 변환한다(HrvCommentaryCards.tsx와
@@ -121,10 +117,10 @@ export default function HrvHealthReportCards({
       )}
 
       {/* 카드4: 한의 건강해석 — 상단에 카테고리 비중 시각화, 도넛(좌)+막대(우) 조합
-          (task.md 재설계). 계산은 "전체 응답 문항 만점 대비 원점수 비율"(정규화 없음) —
-          도넛은 후보 카테고리 + "기타" 한 조각, 막대는 후보 카테고리만 라벨+퍼센트로 보여준다.
-          두 시각화 모두 tcm-category-visuals.ts의 고정 색상(카드7과 동일)을 쓴다. 후보
-          카테고리가 없으면(slices 빈 배열) 시각화 자체를 숨긴다. */}
+          (task.md). 후보 카테고리끼리만 원점수 합으로 재정규화해 100%를 채운다("기타"
+          조각/범례 없음 — 체크리스트 전체 만점 대비 방식은 후보 수 적을 때 "기타"가
+          과도해져 폐기). 두 시각화 모두 tcm-category-visuals.ts의 고정 색상(카드7과 동일)을
+          쓴다. 후보 카테고리가 없으면(slices 빈 배열) 시각화 자체를 숨긴다. */}
       <div className={cardClass}>
         <div className={labelClass}>한의 건강해석</div>
         {cards.categoryVisualization.slices.length > 0 && (

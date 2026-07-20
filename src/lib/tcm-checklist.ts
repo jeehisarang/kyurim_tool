@@ -284,22 +284,24 @@ export async function getTcmCategoryProfileForAi(
   }));
 }
 
-// 카드4 상단 카테고리 비중 시각화 재료(task.md — 도넛+막대 조합). 계산 방식은 "전체 응답
-// 문항 만점 대비 원점수 비율"(정규화 없음) — 여기서 "전체"는 그 카테고리 자신의 만점이
-// 아니라 체크리스트 전체(7개 카테고리 모든 문항)의 만점 합계다. 회귀 조사(task.md) 결과,
-// 직전 구현이 실수로 CategoryScoreView.ratio(카테고리 자신의 만점 대비 — 후보 선정에 쓰는
-// 그 값, 동점 후보는 전부 100%가 되는 값)를 그대로 썼던 게 "4개 카테고리 전부 100%로
-// 보이는" 버그의 원인이었다. rawScore/전체만점으로 다시 계산해야 후보끼리도 실제 원점수
-// 차이만큼 서로 다른 비중이 나온다(예: 2문항 카테고리 18% vs 1문항 카테고리 9%).
+// 카드4 상단 카테고리 비중 시각화 재료(task.md — 도넛+막대 조합). 계산 방식은 후보
+// 카테고리끼리만 합쳐서 100%로 재정규화한다(체크리스트 전체 만점 대비 방식은 "기타"가
+// 후보 수 적을 때 과도하게 커져 1등/2등 비교 의미가 퇴색된다는 판단으로 폐기, task.md).
+// 분모는 후보 카테고리들의 원점수 합(sumOfCandidateRawScores) — 체크리스트 전체 만점이
+// 아니다. 후보가 1개뿐이면 자동으로 100%가 된다(rawScore/자기자신=1).
 export async function getCandidateCategoryShares(
   patientId: number,
-): Promise<{ categoryCode: string; patientLabel: string; rawScore: number; totalMaxScore: number }[]> {
+): Promise<{ categoryCode: string; patientLabel: string; rawScore: number; sumOfCandidateRawScores: number }[]> {
   const latest = await getLatestChecklistResponse(patientId);
   if (!latest) return [];
-  const totalMaxScore = latest.categoryScores.reduce((sum, s) => sum + s.maxScore, 0);
-  return latest.categoryScores
-    .filter((s) => s.isCandidate)
-    .map((s) => ({ categoryCode: s.categoryCode, patientLabel: s.patientLabel, rawScore: s.rawScore, totalMaxScore }));
+  const candidates = latest.categoryScores.filter((s) => s.isCandidate);
+  const sumOfCandidateRawScores = candidates.reduce((sum, s) => sum + s.rawScore, 0);
+  return candidates.map((s) => ({
+    categoryCode: s.categoryCode,
+    patientLabel: s.patientLabel,
+    rawScore: s.rawScore,
+    sumOfCandidateRawScores,
+  }));
 }
 
 export type CheckedSymptomItem = { categoryId: number; patientQuestion: string; score: 1 | 2 };

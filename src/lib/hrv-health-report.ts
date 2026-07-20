@@ -181,29 +181,24 @@ export function buildCategoryTreatmentCards(
   return cards;
 }
 
-// 카드4(한의건강해석) 상단 카테고리 비중 시각화 — 도넛+막대 조합(task.md, 원장 확정안).
-// 계산 방식은 "전체 응답 문항 만점 대비 원점수 비율"(정규화 없음) — 여기서 "전체"는 체크
-// 리스트 전체(7개 카테고리 모든 문항)의 만점 합계다. 각 후보의 rawScore를 그 공통 분모로
-// 나눈 값이라 후보끼리 원점수가 다르면 비중도 서로 다르게 나온다(예: 2문항 카테고리 18%
-// vs 1문항 카테고리 9%) — "정규화 없음"은 카테고리별로 재정규화(자기 자신의 만점 기준으로
-// 다시 0~100%를 채우는 것)하지 않는다는 뜻이지, 모든 후보가 항상 같은 값이 된다는 뜻이
-// 아니다(회귀 조사 결론, task.md). 도넛은 후보 카테고리들 + "기타"(후보 아닌 나머지 비중)
-// 한 조각, 막대는 후보 카테고리만 라벨+퍼센트로 보여준다. 후보 비율의 합이 100%를 넘어도
-// 재분배(rescale)하지 않고 "기타"만 0으로 clamp한다.
+// 카드4(한의건강해석) 상단 카테고리 비중 시각화 — 도넛+막대 조합(task.md). 체크리스트
+// 전체 만점 대비 방식은 후보 수가 적을 때 "기타"가 과도하게 커져(예: 46%) 1등/2등 비교
+// 의미가 퇴색된다는 판단으로 폐기했다 — 대신 후보 카테고리끼리만 원점수 합을 분모로 삼아
+// 100%로 재정규화한다("기타" 조각/범례 없음, 도넛이 후보만으로 꽉 참). 후보가 1개뿐이면
+// rawScore/자기자신=1이라 자동으로 100%가 된다. 반올림 오차(예: 33.3%×2+16.7%×2 반올림 시
+// 100%에 정확히 안 맞음)는 강제 보정하지 않는다(task.md 지시 — 근사치로 충분).
 export type CategoryShareSlice = { categoryCode: string; categoryLabel: string; ratioPercent: number };
-export type CategoryVisualization = { slices: CategoryShareSlice[]; otherPercent: number };
+export type CategoryVisualization = { slices: CategoryShareSlice[] };
 
 export function buildCategoryVisualization(
-  candidates: { categoryCode: string; patientLabel: string; rawScore: number; totalMaxScore: number }[],
+  candidates: { categoryCode: string; patientLabel: string; rawScore: number; sumOfCandidateRawScores: number }[],
 ): CategoryVisualization {
   const slices = candidates.map((c) => ({
     categoryCode: c.categoryCode,
     categoryLabel: c.patientLabel,
-    ratioPercent: c.totalMaxScore > 0 ? Math.round((c.rawScore / c.totalMaxScore) * 100) : 0,
+    ratioPercent: c.sumOfCandidateRawScores > 0 ? Math.round((c.rawScore / c.sumOfCandidateRawScores) * 100) : 0,
   }));
-  const sumPercent = slices.reduce((sum, s) => sum + s.ratioPercent, 0);
-  const otherPercent = Math.max(0, 100 - sumPercent);
-  return { slices, otherPercent };
+  return { slices };
 }
 
 // 변증명(치료원칙 키워드) 한자 병기 고정 사전(task.md) — AI가 만들지 않고 코드가 후처리로

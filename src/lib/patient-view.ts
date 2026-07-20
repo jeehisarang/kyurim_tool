@@ -126,11 +126,12 @@ export type NotableChangeView = { label: string; direction: "IMPROVED" | "ATTENT
 // (색상/아이콘 고정 매핑) 추가 — tcm-category-visuals.ts 조회 키.
 export type CategoryTreatmentCardView = { categoryCode: string; categoryLabel: string; body: string };
 
-// 카드4 상단 카테고리 비중 시각화 — 도넛+막대 조합으로 재설계(task.md). 계산 방식은
-// "전체 응답 문항 만점 대비 원점수 비율"(정규화 없음), AI가 안 만들고 TcmCategoryScore.ratio를
-// 코드가 그대로 옮긴 값. 후보 카테고리가 없으면 slices 빈 배열(시각화 자체를 숨김).
+// 카드4 상단 카테고리 비중 시각화 — 도넛+막대 조합(task.md). 후보 카테고리끼리만 원점수
+// 합으로 재정규화한 값("기타" 없음, task.md — 체크리스트 전체 만점 대비 방식은 후보 수
+// 적을 때 "기타"가 과도해져 비교 의미가 퇴색된다는 판단으로 폐기). AI가 안 만들고 코드가
+// 계산한 값. 후보 카테고리가 없으면 slices 빈 배열(시각화 자체를 숨김).
 export type CategoryShareSliceView = { categoryCode: string; categoryLabel: string; ratioPercent: number };
-export type CategoryVisualizationView = { slices: CategoryShareSliceView[]; otherPercent: number };
+export type CategoryVisualizationView = { slices: CategoryShareSliceView[] };
 
 export type HealthReportCards = {
   headline: string;
@@ -191,17 +192,19 @@ function isValidShareSlice(v: unknown): v is CategoryShareSliceView {
   );
 }
 
-// 옛 모양(severeRatioPercent/mildRatioPercent 배열, 또는 단일 ratioPercent 배열)은
-// slices/otherPercent 필드가 없어 파싱 실패 → 빈 시각화로 안전하게 폴백한다.
+// 옛 모양(severeRatioPercent/mildRatioPercent 배열 등)은 slices 필드가 없어 파싱 실패 →
+// 빈 시각화로 안전하게 폴백한다. 체크리스트 전체 만점 대비 방식(otherPercent 있던 직전
+// 라운드) 레코드는 slices 구조 자체는 같아 그대로 파싱되지만 — 그 시절 계산된 퍼센트
+// 값이라 재정규화 전 숫자가 남아있다(재생성 전까지, 기존 관례와 동일).
 function parseCategoryVisualizationJson(json: string | null | undefined): CategoryVisualizationView {
-  const empty: CategoryVisualizationView = { slices: [], otherPercent: 0 };
+  const empty: CategoryVisualizationView = { slices: [] };
   if (!json) return empty;
   try {
     const parsed = JSON.parse(json);
-    if (!parsed || typeof parsed !== "object" || !Array.isArray(parsed.slices) || typeof parsed.otherPercent !== "number") {
+    if (!parsed || typeof parsed !== "object" || !Array.isArray(parsed.slices)) {
       return empty;
     }
-    return { slices: parsed.slices.filter(isValidShareSlice), otherPercent: parsed.otherPercent };
+    return { slices: parsed.slices.filter(isValidShareSlice) };
   } catch {
     return empty;
   }
