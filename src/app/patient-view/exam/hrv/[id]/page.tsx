@@ -139,7 +139,24 @@ export default function PatientViewHrvPage() {
       </div>
 
       {view.healthReport ? (
-        <HrvHealthReportCards cards={view.healthReport} variant="patient" />
+        <HrvHealthReportCards
+          cards={view.healthReport}
+          detailSummary={{
+            stressIndex: view.stressIndex,
+            vascularHealthIndex: view.vascularHealthIndex,
+            vascularHealthType: view.vascularHealthType,
+          }}
+          detailValues={{
+            tp: view.tp,
+            vlf: view.vlf,
+            lf: view.lf,
+            hf: view.hf,
+            lfHfRatio: view.lfHfRatio,
+            sdnn: view.sdnn,
+            rmssd: view.rmssd,
+          }}
+          variant="patient"
+        />
       ) : (
         <HrvCommentaryCards
           sections={view.sections ?? { deviceReading: null, clinicalMeaning: null, lifestyleGuide: null, tcmInterpretation: null }}

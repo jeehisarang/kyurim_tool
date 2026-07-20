@@ -296,6 +296,17 @@ export type PatientSafeHrvView = {
   // 유비오맥파 CSV 자동연동(task.md) — "스트레스 지수 측정"까지 안 한 행은 null. 화면은
   // "측정 안 함"으로 표시하고 색칠/AI 코멘트 언급을 건너뛴다.
   stressIndex: number | null;
+  // 상세 HRV 지표(task.md "상세지표 시각화 + 이상치만 코멘트") — 순수 수치라 전문용어가
+  // 없으므로 doctorText/patientText 분리 없이 원장/환자 화면에 그대로 노출한다(task.md 3번
+  // 명시). 수동 등록 레코드는 항상 전부 null — HrvDetailIndicatorChart가 null이면 컴포넌트
+  // 자체를 숨긴다.
+  tp: number | null;
+  vlf: number | null;
+  lf: number | null;
+  hf: number | null;
+  lfHfRatio: number | null;
+  sdnn: number | null;
+  rmssd: number | null;
   // 정상/경계/위험 색상강조용 판정(task2.md 기준, hrv-thresholds.ts) — 등급 문자를 못 알아보는
   // 과거 오기입 등은 vascularHealthTypeSeverity가 null이라 화면에서 색칠하지 않는다.
   vascularHealthIndexSeverity: HrvSeverity;
@@ -322,6 +333,13 @@ type RawHrvDetail = {
   vascularHealthType: string;
   avgPulse: number;
   stressIndex: number | null;
+  tp?: number | null;
+  vlf?: number | null;
+  lf?: number | null;
+  hf?: number | null;
+  lfHfRatio?: number | null;
+  sdnn?: number | null;
+  rmssd?: number | null;
   sourceImagePath: string;
   sourceImagePath2?: string | null;
   aiCommentary: string | null;
@@ -357,6 +375,13 @@ export function toPatientSafeHrvView(detail: RawHrvDetail): PatientSafeHrvView {
     vascularHealthType: detail.vascularHealthType,
     avgPulse: detail.avgPulse,
     stressIndex: detail.stressIndex,
+    tp: detail.tp ?? null,
+    vlf: detail.vlf ?? null,
+    lf: detail.lf ?? null,
+    hf: detail.hf ?? null,
+    lfHfRatio: detail.lfHfRatio ?? null,
+    sdnn: detail.sdnn ?? null,
+    rmssd: detail.rmssd ?? null,
     vascularHealthIndexSeverity: judgeVascularHealthIndex(detail.vascularHealthIndex),
     avgPulseSeverity: judgeAvgPulse(detail.avgPulse),
     stressIndexSeverity: judgeStressIndex(detail.stressIndex),

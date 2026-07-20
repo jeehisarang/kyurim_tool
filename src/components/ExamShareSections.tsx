@@ -248,7 +248,24 @@ function HrvEntry({ entry }: { entry: Extract<ShareLinkExamEntry, { examType: "H
       </div>
 
       {entry.healthReport ? (
-        <HrvHealthReportCards cards={entry.healthReport} variant="patient" />
+        <HrvHealthReportCards
+          cards={entry.healthReport}
+          detailSummary={{
+            stressIndex: entry.stressIndex,
+            vascularHealthIndex: entry.vascularHealthIndex,
+            vascularHealthType: entry.vascularHealthType,
+          }}
+          detailValues={{
+            tp: entry.tp,
+            vlf: entry.vlf,
+            lf: entry.lf,
+            hf: entry.hf,
+            lfHfRatio: entry.lfHfRatio,
+            sdnn: entry.sdnn,
+            rmssd: entry.rmssd,
+          }}
+          variant="patient"
+        />
       ) : (
         <HrvCommentaryCards
           sections={entry.sections ?? { deviceReading: null, clinicalMeaning: null, lifestyleGuide: null, tcmInterpretation: null }}

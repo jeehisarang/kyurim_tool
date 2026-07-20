@@ -5,6 +5,10 @@ import { PieChart, Pie, Cell } from "recharts";
 import styles from "./HrvHealthReportCards.module.css";
 import type { HealthReportCards, PatientSafeHealthReportCards, CategoryVisualizationView } from "@/lib/patient-view";
 import { tcmCategoryColor, tcmCategoryColorDark, tcmCategoryIcon, TCM_CATEGORY_NEUTRAL_COLOR, TCM_LIFESTYLE_ICON } from "@/lib/tcm-category-visuals";
+import HrvDetailIndicatorChart, {
+  type HrvDetailIndicatorSummary,
+  type HrvDetailIndicatorValues,
+} from "@/components/HrvDetailIndicatorChart";
 
 // 카드7 공통 캡션(task.md) — AI가 만드는 게 아니라 컴포넌트 고정 문구. 카테고리별 카드마다
 // 반복하지 않고 카드7 맨 아래(클로징 헤드라인 바로 아래) 한 번만 노출한다.
@@ -97,12 +101,18 @@ function renderPatientTreatmentText(text: string, categoryCode: string): ReactNo
  */
 export default function HrvHealthReportCards({
   cards,
+  detailSummary,
+  detailValues,
   variant = "staff",
 }: {
   // staff는 doctorText가 포함된 "전체" 뷰(HealthReportCards), patient는 doctorText가 아예
   // 없는 화이트리스트 뷰(PatientSafeHealthReportCards) — variant prop이 실제 어느 타입이
   // 왔는지 결정하며, 호출측(staff 페이지 vs 환자화면)이 항상 서로 맞는 조합으로만 호출한다.
   cards: HealthReportCards | PatientSafeHealthReportCards;
+  // HRV 상세지표 참고범위 시각화(task.md) 재료 — 순수 수치라 doctorText/patientText
+  // 분리 없이 원장/환자 화면 공통으로 그대로 전달한다.
+  detailSummary: HrvDetailIndicatorSummary;
+  detailValues: HrvDetailIndicatorValues;
   variant?: "staff" | "patient";
 }) {
   const isPatient = variant === "patient";
@@ -187,6 +197,12 @@ export default function HrvHealthReportCards({
             </div>
           </div>
         )}
+        {/* HRV 상세지표(TP/VLF/LF/HF/LF·HF비율/SDNN/RMSSD) 참고범위 시각화(task.md) — 기존
+            카테고리 비중 도넛/막대 "아래에" 추가 배치, 자율신경균형도 판독 등 기존 텍스트
+            서술은 그대로 유지(순서 변경 없음). 원장용/환자용 공통(doctorText/patientText
+            분리 대상 아님, 순수 수치). 상세지표 전부 null이면(구버전 레코드) 컴포넌트
+            자체가 알아서 숨는다. */}
+        <HrvDetailIndicatorChart summary={detailSummary} details={detailValues} />
         <p className={bodyClass}>{renderWithEmphasis(cards.tcmInterpretation, emphasisClass)}</p>
       </div>
 

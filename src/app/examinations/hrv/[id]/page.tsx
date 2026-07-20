@@ -20,6 +20,14 @@ type HrvDetail = {
   vascularHealthType: string;
   avgPulse: number;
   stressIndex: number | null;
+  // 상세 HRV 지표(task.md "상세지표 시각화 + 이상치만 코멘트") — 수동 등록 레코드는 항상 null.
+  tp: number | null;
+  vlf: number | null;
+  lf: number | null;
+  hf: number | null;
+  lfHfRatio: number | null;
+  sdnn: number | null;
+  rmssd: number | null;
   sourceImagePath: string;
   sourceImagePath2: string | null;
   aiCommentary: string | null;
@@ -348,7 +356,23 @@ export default function HrvExaminationDetailPage() {
             )}
             <div ref={reportRef}>
               {healthReportCards ? (
-                <HrvHealthReportCards cards={healthReportCards} />
+                <HrvHealthReportCards
+                  cards={healthReportCards}
+                  detailSummary={{
+                    stressIndex: detail.stressIndex,
+                    vascularHealthIndex: detail.vascularHealthIndex,
+                    vascularHealthType: detail.vascularHealthType,
+                  }}
+                  detailValues={{
+                    tp: detail.tp,
+                    vlf: detail.vlf,
+                    lf: detail.lf,
+                    hf: detail.hf,
+                    lfHfRatio: detail.lfHfRatio,
+                    sdnn: detail.sdnn,
+                    rmssd: detail.rmssd,
+                  }}
+                />
               ) : (
                 <HrvCommentaryCards
                   sections={{
