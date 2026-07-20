@@ -512,6 +512,31 @@ function ensureArrhythmiaNotice(tcmInterpretation: string, currentZone: string |
   return `${tcmInterpretation} ${ARRHYTHMIA_NOTICE}`;
 }
 
+// 볼드 강조 결정론적 후처리(task.md — 프롬프트 지시만으로는 5회 중 4회 미적용 확인됨, 다른
+// 프롬프트-only 안전장치들과 같은 이유로 코드가 최종 보장한다). 대상 문자열(후보 카테고리명/
+// 구역명)이 이미 AI가 볼드로 감싼 구간 안에 있으면 건드리지 않고(중복/이중 볼드 방지), 그
+// 외에는 텍스트에서 처음 등장하는 위치 1곳만 **로 감싼다(같은 단어가 여러 번 나와도 전부
+// 감싸면 산만해지므로 1회만).
+function isAlreadyBolded(text: string, target: string): boolean {
+  const boldSpans = [...text.matchAll(/\*\*(.+?)\*\*/g)];
+  return boldSpans.some(([, inner]) => inner.includes(target));
+}
+
+function boldFirstOccurrence(text: string, target: string): string {
+  if (!target || isAlreadyBolded(text, target)) return text;
+  const idx = text.indexOf(target);
+  if (idx === -1) return text;
+  return `${text.slice(0, idx)}**${target}**${text.slice(idx + target.length)}`;
+}
+
+// 긴 문자열부터 처리해야 짧은 타겟이 긴 타겟의 부분 문자열인 경우(예: 향후 카테고리명이
+// 서로를 포함하는 경우가 생기더라도) 긴 쪽이 먼저 감싸져서 짧은 쪽은 isAlreadyBolded로
+// 자연히 건너뛰게 된다.
+function applyDeterministicBold(text: string, targets: string[]): string {
+  const sorted = [...new Set(targets)].filter(Boolean).sort((a, b) => b.length - a.length);
+  return sorted.reduce((acc, target) => boldFirstOccurrence(acc, target), text);
+}
+
 function formatReadingLine(reading: AutonomicReading | null, hasImage: boolean): string {
   if (!hasImage) return "이미지 없음";
   const zone = reading?.zone ?? "판독 불가(불명확)";
@@ -575,6 +600,19 @@ export async function generateHrvExplanation(input: HrvExplanationInput): Promis
   const currentZone = currentReading?.zone ?? null;
   const tcmCategoryProfileGiven = input.tcmCategoryProfile !== null && input.tcmCategoryProfile.length > 0;
 
+  // 볼드 강조 결정론적 후처리 대상(task.md) — 후보 카테고리명 전체 + 이번 검사 구역명(있으면).
+  // 카드4/카드5 둘 다 같은 대상 목록을 쓴다.
+  const boldTargets = [...(input.tcmCategoryProfile ?? []).map((c) => c.patientLabel), ...(currentZone ? [currentZone] : [])];
+
+  function finalizeSections(sections: HrvExplanationSections): HrvExplanationSections {
+    const tcmWithNotice = ensureArrhythmiaNotice(sections.tcmInterpretation, currentZone);
+    return {
+      ...sections,
+      tcmInterpretation: applyDeterministicBold(tcmWithNotice, boldTargets),
+      progression: applyDeterministicBold(sections.progression, boldTargets),
+    };
+  }
+
   const evaluate = (s: HrvExplanationSections) => {
     return {
       patternViolation: violatesPatternNameRule(s.tcmInterpretation, input.tcmPatternMap, input.patientSymptomMaterial, tcmCategoryProfileGiven),
@@ -590,7 +628,7 @@ export async function generateHrvExplanation(input: HrvExplanationInput): Promis
   const firstViolations = evaluate(first);
   const firstHasViolation = Object.values(firstViolations).some(Boolean);
   if (!firstHasViolation) {
-    return { ...first, tcmInterpretation: ensureArrhythmiaNotice(first.tcmInterpretation, currentZone) };
+    return finalizeSections(first);
   }
 
   const correctionInstructions: string[] = [];
@@ -664,7 +702,7 @@ export async function generateHrvExplanation(input: HrvExplanationInput): Promis
   // 그대로 반환한다 — 이미지 판독 자체는 이미 readAutonomicBalance 단계에서 VISION_MODEL +
   // 자체 재시도로 한 번 더 검증됐으므로, 이 단계는 텍스트 생성 모델이 그 검증된 값을 옮기는
   // 과정에서 다시 틀릴 드문 경우에 대비한 2중 안전망이다.
-  return { ...retried, tcmInterpretation: ensureArrhythmiaNotice(retried.tcmInterpretation, currentZone) };
+  return finalizeSections(retried);
 }
 
 // 카드7 카테고리별 치료방향 카드(task.md — 고정사전(커밋 d5fd073)이 "교과서적이고 도움 안

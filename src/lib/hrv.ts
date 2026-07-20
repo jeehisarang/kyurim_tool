@@ -15,6 +15,7 @@ import {
   getCandidateCheckedSymptoms,
   getCandidateCategoryRanks,
   getRedFlagNoticeForCandidates,
+  getCandidateSeverityBreakdown,
   type CheckedSymptomItem,
 } from "@/lib/tcm-checklist";
 import {
@@ -153,6 +154,7 @@ async function tryGenerateHrvCommentary(
       checkedSymptoms,
       candidateRanks,
       redFlagNotice,
+      severityBreakdown,
     ] = await Promise.all([
       getPreviousHrvRecord(record.patientId),
       getExamAcademicGuide("HRV"),
@@ -167,6 +169,8 @@ async function tryGenerateHrvCommentary(
       getCandidateCategoryRanks(record.patientId),
       // 카드6(위험신호) 재료 — 후보 카테고리에 원장이 입력한 고정문구가 있으면 그대로.
       getRedFlagNoticeForCandidates(record.patientId),
+      // 카드4 상단 점수 시각화 재료(task.md 재설계) — 카테고리별 심하다/경미하다 응답 비율.
+      getCandidateSeverityBreakdown(record.patientId),
     ]);
 
     const ai = await generateHrvExplanation({
@@ -190,10 +194,10 @@ async function tryGenerateHrvCommentary(
     // 별개의 독립 AI 호출들이라 실패하면 이 함수 전체가 catch로 떨어져 안전하게 null 처리된다.
     const categoryTreatmentCards = await generateCategoryTreatmentCards(tcmCategoryProfile);
 
-    // 카드4 상단 카테고리 점수 시각화(task.md) — AI 호출 없이 코드로 결정적으로 계산한다
-    // (카드2/3/6과 동일 원칙). tcmCategoryProfile은 후보(동점 최대 비율) 카테고리만 담고
-    // 있어 ratio가 서로 같을 수 있다(설계상 정상 — 동점 병렬 후보이므로).
-    const categoryScoreBars = buildCategoryScoreBars(tcmCategoryProfile ?? []);
+    // 카드4 상단 카테고리 점수 시각화(task.md 재설계) — AI 호출 없이 코드로 결정적으로
+    // 계산한다(카드2/3/6과 동일 원칙). 카테고리 "간" 막대 길이 비교가 아니라 카테고리 "안"의
+    // 심하다/경미하다 비율 구성을 보여준다(severityBreakdown은 위에서 이미 조회해둔 것).
+    const categoryScoreBars = buildCategoryScoreBars(severityBreakdown);
 
     return { ai, checkedSymptoms, notableChanges, redFlagNotice, categoryTreatmentCards, categoryScoreBars };
   } catch (err) {

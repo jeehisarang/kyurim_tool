@@ -181,16 +181,23 @@ export function buildCategoryTreatmentCards(
   return cards;
 }
 
-// 카드4(한의건강해석) 상단 카테고리 점수 시각화(task.md 가독성 개선, 배경: 여러 카테고리가
-// 겹칠 때 문장만 나열되면 핵심이 한눈에 안 들어온다는 최승희 팀장 피드백) — AI가 아니라
-// TcmCategoryScore.ratio를 코드가 그대로 옮겨 담는다(카드2/3/6과 동일 "AI가 안 만들고
-// 시스템이 결정" 원칙, 지어내거나 왜곡할 위험 자체가 없음). 후보 카테고리는 전부 동점(최대
-// 비율) 병렬 선정이라(tcm-checklist.ts markCandidates) 여러 개면 ratio 값이 서로 같을 수
-// 있다 — 이는 버그가 아니라 "체크 문항 대비 비율" 채점 방식의 정상적인 결과다.
-export type CategoryScoreBar = { categoryLabel: string; ratioPercent: number };
+// 카드4(한의건강해석) 상단 카테고리 점수 시각화 — 재설계(task.md, 배경: 초판(막대 길이로
+// 카테고리 간 비교)은 후보 카테고리가 전부 동점(최대 비율) 병렬 선정 방식이라 실제로는
+// 막대 길이가 항상 같아서 무의미했음). 이제는 막대 "길이"로 카테고리끼리 비교하지 않고,
+// 막대 하나의 폭을 모든 카테고리 동일하게 고정한 뒤, 그 "안"을 심하다(2)/경미하다(1) 응답
+// 비율로 두 구간(진한색/옅은색) 나눠 그 카테고리 내부 심각도 구성만 보여준다. AI가 아니라
+// TcmChecklistAnswer 원본 점수를 코드가 그대로 집계한다(카드2/3/6과 동일 "AI가 안 만들고
+// 시스템이 결정" 원칙).
+export type CategoryScoreBar = { categoryLabel: string; severeRatioPercent: number; mildRatioPercent: number };
 
-export function buildCategoryScoreBars(candidates: { patientLabel: string; ratio: number }[]): CategoryScoreBar[] {
-  return candidates.map((c) => ({ categoryLabel: c.patientLabel, ratioPercent: Math.round(c.ratio * 100) }));
+export function buildCategoryScoreBars(
+  breakdown: { categoryLabel: string; severeRatio: number; mildRatio: number }[],
+): CategoryScoreBar[] {
+  return breakdown.map((c) => ({
+    categoryLabel: c.categoryLabel,
+    severeRatioPercent: Math.round(c.severeRatio * 100),
+    mildRatioPercent: Math.round(c.mildRatio * 100),
+  }));
 }
 
 /**

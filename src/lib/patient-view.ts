@@ -125,9 +125,10 @@ export type NotableChangeView = { label: string; direction: "IMPROVED" | "ATTENT
 // {items} 모양에서 다시 담백한 1문장 {body} 모양으로 되돌림).
 export type CategoryTreatmentCardView = { categoryLabel: string; body: string };
 
-// 카드4 상단 카테고리 점수 시각화(task.md 가독성 개선) — TcmCategoryScore.ratio를 그대로
-// 옮긴 값(AI가 안 만듦). 후보 카테고리가 없으면 빈 배열(시각화 자체를 숨김).
-export type CategoryScoreBarView = { categoryLabel: string; ratioPercent: number };
+// 카드4 상단 카테고리 점수 시각화 — 재설계(task.md, 막대 길이로 카테고리 "간" 비교하던
+// 초판을 폐기하고 막대 하나 "안"의 심하다/경미하다 응답 비율 구성으로 전환). AI가 안 만들고
+// TcmChecklistAnswer 원본 점수를 코드가 그대로 집계한 값. 후보 카테고리가 없으면 빈 배열.
+export type CategoryScoreBarView = { categoryLabel: string; severeRatioPercent: number; mildRatioPercent: number };
 
 export type HealthReportCards = {
   headline: string;
@@ -180,7 +181,11 @@ function parseCategoryScoreBarsJson(json: string | null | undefined): CategorySc
     if (!Array.isArray(parsed)) return [];
     return parsed.filter(
       (c): c is CategoryScoreBarView =>
-        c && typeof c === "object" && typeof c.categoryLabel === "string" && typeof c.ratioPercent === "number",
+        c &&
+        typeof c === "object" &&
+        typeof c.categoryLabel === "string" &&
+        typeof c.severeRatioPercent === "number" &&
+        typeof c.mildRatioPercent === "number",
     );
   } catch {
     return [];

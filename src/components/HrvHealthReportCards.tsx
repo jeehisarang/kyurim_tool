@@ -77,9 +77,11 @@ export default function HrvHealthReportCards({
         </div>
       )}
 
-      {/* 카드4: 한의 건강해석 — 상단에 카테고리 점수 시각화(task.md 가독성 개선, 여러
-          카테고리가 겹칠 때 핵심이 한눈에 안 들어온다는 피드백). 후보 카테고리가 없으면
-          (categoryScoreBars 빈 배열) 시각화 자체를 숨긴다. */}
+      {/* 카드4: 한의 건강해석 — 상단에 카테고리 점수 시각화(task.md 재설계). 막대 길이로
+          카테고리끼리 비교하지 않는다(후보는 전부 동점 병렬 선정이라 길이 비교가 무의미했음,
+          이전 라운드에서 확인됨) — 대신 막대 폭은 전부 동일하게 고정하고, 그 안을 심하다(진한
+          색)/경미하다(옅은 색) 응답 비율로 나눠 카테고리 "내부" 심각도 구성만 보여준다.
+          후보 카테고리가 없으면(categoryScoreBars 빈 배열) 시각화 자체를 숨긴다. */}
       <div className={cardClass}>
         <div className={labelClass}>한의 건강해석</div>
         {cards.categoryScoreBars.length > 0 && (
@@ -88,12 +90,15 @@ export default function HrvHealthReportCards({
               <div key={i} className={styles.scoreBarRow}>
                 <span className={styles.scoreBarLabel}>{bar.categoryLabel}</span>
                 <div className={styles.scoreBarTrack}>
-                  <div className={styles.scoreBarFill} style={{ width: `${bar.ratioPercent}%` }} />
+                  <div className={styles.scoreBarSevere} style={{ width: `${bar.severeRatioPercent}%` }} />
+                  <div className={styles.scoreBarMild} style={{ width: `${bar.mildRatioPercent}%` }} />
                 </div>
-                <span className={styles.scoreBarPercent}>{bar.ratioPercent}%</span>
+                <span className={styles.scoreBarPercent}>
+                  심함 {bar.severeRatioPercent}% · 경미 {bar.mildRatioPercent}%
+                </span>
               </div>
             ))}
-            <p className={styles.scoreBarFootnote}>* 임상 기준이 아닌 체크 문항 대비 응답 비율입니다</p>
+            <p className={styles.scoreBarFootnote}>* 카테고리 간 비교가 아닌, 해당 카테고리 내 증상 심각도 분포를 나타냅니다</p>
           </div>
         )}
         <p className={bodyClass}>{renderWithEmphasis(cards.tcmInterpretation, emphasisClass)}</p>

@@ -144,9 +144,9 @@
   color: var(--color-warning);
 }
 
-/* 카드4 상단 카테고리 점수 시각화(task.md 가독성 개선) — celadon/한지 팔레트 내에서만
-   처리하고 튀는 색은 쓰지 않는다(task.md 지시). 막대 색은 카드3의 changeImproved와 동일
-   톤(celadon-dark)을 재사용해 새 색상을 추가하지 않는다. */
+/* 카드4 상단 카테고리 점수 시각화 — 재설계(task.md, celadon/한지 팔레트 내에서만 처리).
+   막대 길이는 전부 동일(카테고리 간 비교 아님) — track을 flex row로 두고 그 안에 진한색
+   (심하다)/옅은색(경미하다) 두 구간을 폭만큼 나란히 채운다. */
 .scoreBars {
   margin-bottom: 12px;
   padding-bottom: 12px;
@@ -175,21 +175,28 @@
 
 .scoreBarTrack {
   flex: 1 1 auto;
+  display: flex;
   height: 8px;
   background: rgba(110, 148, 140, 0.15);
   border-radius: 4px;
   overflow: hidden;
 }
 
-.scoreBarFill {
+/* 심하다(2) 구간 — 진한 색. */
+.scoreBarSevere {
   height: 100%;
   background: var(--color-celadon-dark);
-  border-radius: 4px;
+}
+
+/* 경미하다(1) 구간 — 옅은 색(심하다보다는 진하지만 빈 트랙보다는 옅게). */
+.scoreBarMild {
+  height: 100%;
+  background: rgba(110, 148, 140, 0.45);
 }
 
 .scoreBarPercent {
   flex: 0 0 auto;
-  min-width: 34px;
+  min-width: 110px;
   text-align: right;
   font-size: 12px;
   color: var(--color-celadon-dark);

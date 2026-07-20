@@ -270,23 +270,49 @@ export async function getLatestAnswerMap(patientId: number): Promise<Map<number,
 // tcmPatternMap 방식으로 자연히 폴백하게 한다(병행 원칙).
 export async function getTcmCategoryProfileForAi(
   patientId: number,
-): Promise<
-  { categoryCode: string; patientLabel: string; treatmentPrinciple: string | null; ratio: number }[] | null
-> {
+): Promise<{ categoryCode: string; patientLabel: string; treatmentPrinciple: string | null }[] | null> {
   const latest = await getLatestChecklistResponse(patientId);
   if (!latest) return null;
   const candidates = latest.categoryScores.filter((s) => s.isCandidate);
   if (candidates.length === 0) return null;
   // categoryCode는 hrv-health-report.ts의 고정 키워드 사전(TREATMENT_PRINCIPLE_KEYWORD_
   // GLOSSARY, 현재는 카드 렌더링에 미사용이지만 코드는 남아있음) 조회 키로도 쓰였던 필드.
-  // ratio는 카드4 상단 카테고리 점수 시각화(task.md 가독성 개선)에 쓰인다 — 후보는 전부
-  // 동점(최대 비율) 병렬 선정이라 여러 개면 값이 서로 같을 수 있다(설계상 정상).
   return candidates.map((c) => ({
     categoryCode: c.categoryCode,
     patientLabel: c.patientLabel,
     treatmentPrinciple: c.treatmentPrinciple,
-    ratio: c.ratio,
   }));
+}
+
+// 카드4 상단 카테고리 점수 시각화 재설계(task.md — 동점 병렬 후보라 막대 길이 비교가
+// 무의미했던 문제 수정). 막대 길이로 카테고리 "간" 비교를 하는 대신, 막대 하나 "안"을
+// 심하다(2)/경미하다(1) 응답 비율로 두 구간 나눠 그 카테고리 "내부" 심각도 구성을 보여준다.
+// "없다(0)" 응답은 표시하지 않는다(후보로 뜬 이상 0 문항은 자연히 소수).
+export type CategorySeverityBreakdown = { categoryLabel: string; severeRatio: number; mildRatio: number };
+
+export async function getCandidateSeverityBreakdown(patientId: number): Promise<CategorySeverityBreakdown[]> {
+  const latest = await prisma.tcmChecklistResponse.findFirst({
+    where: { patientId },
+    orderBy: { createdAt: "desc" },
+    include: {
+      answers: { include: { question: true } },
+      categoryScores: { where: { isCandidate: true }, include: { category: true } },
+    },
+  });
+  if (!latest) return [];
+
+  return latest.categoryScores.map((cs) => {
+    const categoryAnswers = latest.answers.filter((a) => a.question.categoryId === cs.categoryId);
+    const total = categoryAnswers.length;
+    if (total === 0) return { categoryLabel: cs.category.patientLabel, severeRatio: 0, mildRatio: 0 };
+    const severeCount = categoryAnswers.filter((a) => a.score === 2).length;
+    const mildCount = categoryAnswers.filter((a) => a.score === 1).length;
+    return {
+      categoryLabel: cs.category.patientLabel,
+      severeRatio: severeCount / total,
+      mildRatio: mildCount / total,
+    };
+  });
 }
 
 export type CheckedSymptomItem = { categoryId: number; patientQuestion: string; score: 1 | 2 };
