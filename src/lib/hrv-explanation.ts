@@ -25,9 +25,9 @@ export type TcmPatternMapEntry = { symptoms: string; pattern: string; phrase: st
 // 만든다(hrv-health-report.ts) — 지어내거나 놓치면 안 되는 정확한 데이터라 LLM에 맡기지 않음.
 // deviceReading→headline(카드1), clinicalMeaning 슬롯은 이번 버전에서 안 쓰고(카드3은 코드가
 // 별도 필드에 저장), lifestyleGuide→treatmentAndLifestyle(카드7, 카드형 재구성 이후로는
-// "공통 생활관리" 문단만 담당 — 카테고리별 치료 방향은 별도 카드로 분리됨, 아래
-// generateCategoryTreatmentCards 참고), tcmInterpretation은 그대로 카드4로 재사용(DB
-// 필드명 유지, 마이그레이션 회피 — MIBYEONG_V1과 동일 관례).
+// "공통 생활관리" 문단만 담당 — 카테고리별 치료 방향은 hrv-health-report.ts의 고정 키워드
+// 사전(buildCategoryTreatmentCards, AI 호출 없음)이 별도 카드로 만든다), tcmInterpretation은
+// 그대로 카드4로 재사용(DB 필드명 유지, 마이그레이션 회피 — MIBYEONG_V1과 동일 관례).
 const SECTION_MARKERS = {
   headline: "[헤드라인]",
   tcmInterpretation: "[한의건강해석]",
@@ -330,8 +330,8 @@ function violatesPatternNameRule(
 // 치료법 어휘를 언급하면 창작으로 본다 — 입력 자체에 치료 관련 정보가 전혀 없어 코드로
 // 결정적으로 검증 가능하다(일부만 미입력인 경우는 텍스트만으로 소속 구분 불가해 대상 아님).
 // 카드7(생활관리)은 카드형 재구성(task.md) 이후 치료원칙을 아예 다루지 않으므로 이 검사
-// 대상에서 빠졌다 — 카테고리별 치료 방향의 창작 방지는 이제 generateCategoryTreatmentCards가
-// (treatmentPrinciple이 null인 카테고리는 카드 자체를 생성하지 않는 방식으로) 담당한다.
+// 대상에서 빠졌다 — 카테고리별 치료 방향은 이제 AI가 아니라 hrv-health-report.ts의 고정
+// 키워드 사전(buildCategoryTreatmentCards)이 담당해 애초에 창작 위험 자체가 없다.
 const TREATMENT_KEYWORDS = ["한약", "침 치료", "탕약", "처방", "뜸"];
 
 function violatesInventedTreatmentRule(
@@ -631,69 +631,6 @@ export async function generateHrvExplanation(input: HrvExplanationInput): Promis
   return { ...retried, tcmInterpretation: ensureArrhythmiaNotice(retried.tcmInterpretation, currentZone) };
 }
 
-// 카드7 카드형 재구성(task.md 배경: 최승희 팀장 셀프테스트 — 카테고리 4개가 한 문단에 섞여
-// 가독성이 떨어지는 문제). 기존에는 [증상 패턴 프로필] 전체를 카드7 프롬프트 하나에 넣고 AI가
-// 알아서 카테고리를 이어붙이게 했는데, 이번에는 카테고리 하나당 완전히 독립된 AI 호출로
-// 분리한다 — 프롬프트 자체에 다른 카테고리 정보를 아예 안 주므로 "다른 카테고리 언급 없이"가
-// 프롬프트 지시가 아니라 구조적으로 보장된다(섞일 재료 자체가 없음). treatmentPrinciple이
-// null인 카테고리는 호출 자체를 만들지 않는다(창작 방지 — 카드7의 옛 "(치료원칙 미입력)"
-// 분기와 동일 철학, 이번엔 카드 생략으로 처리).
-export type CategoryTreatmentCard = { categoryLabel: string; body: string };
-
-const CATEGORY_TREATMENT_CARD_SYSTEM_PROMPT = `당신은 한의원 "건강 리포트"에서 치료 방향 카드 하나를 작성하는 카피라이터입니다.
-이 카드는 매거진처럼 카테고리별로 나란히 노출되는 카드 중 하나이며, 오직 [카테고리명] 하나만
-다룹니다 — 다른 카테고리나 증상은 이 카드에서 전혀 알지 못한다고 가정하고, 언급하거나
-비교하지 마세요(비교할 재료 자체가 주어지지 않습니다).
-
-[치료원칙]으로 주어진 한의학적 치료 원칙 용어(예: 화담이수, 건비화습 등)를 환자가 이해하기
-쉬운 자연스러운 한국어 1~2문장으로 풀어 쓰세요. [치료원칙] 용어 자체는 그대로 한 번 인용하고,
-나머지 문장에서 그 원칙이 실제로 어떤 방향의 관리인지 쉬운 말로 설명하세요.
-
-[핵심 원칙]
-- [치료원칙]에 없는 다른 치료법이나 효능·통계를 창작하지 말 것
-- 질병명·확정 진단을 쓰지 말고 "~하는 방향으로 도움이 될 수 있습니다" 같은 유보적 어조 유지
-- 구체적인 처방/치료 기간을 확정하듯 쓰지 말 것(그건 원장 상담의 몫)
-- "AI"라는 단어를 쓰지 말 것
-- 카테고리 제목은 화면에서 이미 별도로 표시되므로, 본문에 카테고리명을 마크다운 강조(*나 **)로
-  감싸 반복할 필요 없음 — 감싸지 마세요
-- 다른 카테고리를 언급하거나 "여러 원인이 겹쳐" 같은 비교성 표현을 쓰지 말 것
-
-본문만 출력하세요(제목/마커/따옴표 없이 바로 문장으로 시작).`;
-
-async function generateCategoryTreatmentCard(categoryLabel: string, treatmentPrinciple: string): Promise<string> {
-  const client = new OpenAI();
-  const response = await client.chat.completions.create({
-    model: TEXT_MODEL,
-    messages: [
-      { role: "system", content: CATEGORY_TREATMENT_CARD_SYSTEM_PROMPT },
-      { role: "user", content: `[카테고리명] ${categoryLabel}\n[치료원칙] ${treatmentPrinciple}` },
-    ],
-    max_tokens: 220,
-  });
-  const text = response.choices[0]?.message?.content?.trim();
-  if (!text) throw new Error(`카테고리별 치료방향 카드 생성 실패(빈 응답): ${categoryLabel}`);
-  return text;
-}
-
-/**
- * 활성 카테고리별 치료방향 카드를 독립적으로 생성한다. treatmentPrinciple이 null인(원장
- * 미입력) 카테고리는 카드를 아예 만들지 않는다 — 지어낼 재료가 없으면 카드 자체를 생략하는
- * 것이 창작보다 안전하다(이 파일 전체의 "AI가 안 만들고 시스템이 결정" 원칙과 동일 선상,
- * 다만 이건 "생략"이라 데이터를 시스템이 만드는 것과는 다르다 — AI 호출 여부 자체를 코드가
- * 결정할 뿐 각 카드 본문은 여전히 AI가 씀). tcmCategoryProfile이 null(증상 패턴 프로필 없음)
- * 이면 빈 배열 — 이 경우 카드7(공통 생활관리)만 노출된다.
- */
-export async function generateCategoryTreatmentCards(
-  tcmCategoryProfile: { patientLabel: string; treatmentPrinciple: string | null }[] | null,
-): Promise<CategoryTreatmentCard[]> {
-  if (!tcmCategoryProfile || tcmCategoryProfile.length === 0) return [];
-  const withPrinciple = tcmCategoryProfile.filter(
-    (c): c is { patientLabel: string; treatmentPrinciple: string } => c.treatmentPrinciple !== null,
-  );
-  return Promise.all(
-    withPrinciple.map(async (c) => ({
-      categoryLabel: c.patientLabel,
-      body: await generateCategoryTreatmentCard(c.patientLabel, c.treatmentPrinciple),
-    })),
-  );
-}
+// 카드7 카테고리별 치료방향 카드는 더 이상 이 파일에서 생성하지 않는다(task.md — AI 호출
+// 제거, 원장이 최종 확정한 고정 키워드 사전으로 전환). hrv-health-report.ts의
+// buildCategoryTreatmentCards/TREATMENT_PRINCIPLE_KEYWORD_GLOSSARY 참고.

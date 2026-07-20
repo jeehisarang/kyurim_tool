@@ -2,11 +2,9 @@ import { prisma } from "@/lib/db";
 import { saveHrvResultImage, readUploadedImageAsBase64 } from "@/lib/image-upload";
 import {
   generateHrvExplanation,
-  generateCategoryTreatmentCards,
   HRV_COMMENTARY_VERSION,
   type TcmPatternMapEntry,
   type HrvExplanationSections,
-  type CategoryTreatmentCard,
 } from "@/lib/hrv-explanation";
 import { getExamAcademicGuide } from "@/lib/exam-academic-guide";
 import { listConsultationNotesForPatient } from "@/lib/consultation-notes";
@@ -21,8 +19,10 @@ import {
   computeNotableChanges,
   pickHeadlineSymptoms,
   ensureTreatmentConsultDisclaimer,
+  buildCategoryTreatmentCards,
   type NotableChange,
   type HrvMetricsSnapshot,
+  type CategoryTreatmentCard,
 } from "@/lib/hrv-health-report";
 import type { HrvTestRecord } from "@/generated/prisma/client";
 
@@ -179,10 +179,10 @@ async function tryGenerateHrvCommentary(
 
     const notableChanges = previousMetrics ? computeNotableChanges(previousMetrics, toMetricsSnapshot(record)) : [];
 
-    // 카테고리별 치료방향 카드(task.md 카드형 재구성) — tcmCategoryProfile은 위에서 이미
-    // 조회해둔 것을 그대로 재사용한다(추가 쿼리 없음). generateHrvExplanation과 별개의 독립
-    // AI 호출들이라 실패하면(네트워크 등) 이 함수 전체가 catch로 떨어져 안전하게 null 처리된다.
-    const categoryTreatmentCards = await generateCategoryTreatmentCards(tcmCategoryProfile);
+    // 카테고리별 치료방향 카드(task.md — 키워드 불릿 고정사전 전환, AI 호출 제거) —
+    // tcmCategoryProfile은 위에서 이미 조회해둔 것을 그대로 재사용한다(추가 쿼리 없음).
+    // AI 호출이 없는 동기 함수라 실패할 일이 없다(사전 조회 실패 시나리오 자체가 없음).
+    const categoryTreatmentCards = buildCategoryTreatmentCards(tcmCategoryProfile ?? []);
 
     return { ai, checkedSymptoms, notableChanges, redFlagNotice, categoryTreatmentCards };
   } catch (err) {

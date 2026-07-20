@@ -270,12 +270,18 @@ export async function getLatestAnswerMap(patientId: number): Promise<Map<number,
 // tcmPatternMap 방식으로 자연히 폴백하게 한다(병행 원칙).
 export async function getTcmCategoryProfileForAi(
   patientId: number,
-): Promise<{ patientLabel: string; treatmentPrinciple: string | null }[] | null> {
+): Promise<{ categoryCode: string; patientLabel: string; treatmentPrinciple: string | null }[] | null> {
   const latest = await getLatestChecklistResponse(patientId);
   if (!latest) return null;
   const candidates = latest.categoryScores.filter((s) => s.isCandidate);
   if (candidates.length === 0) return null;
-  return candidates.map((c) => ({ patientLabel: c.patientLabel, treatmentPrinciple: c.treatmentPrinciple }));
+  // categoryCode는 카드7 치료방향 카드의 고정 키워드 사전(hrv-health-report.ts
+  // TREATMENT_PRINCIPLE_KEYWORD_GLOSSARY) 조회 키로도 재사용된다(task.md, AI 호출 제거).
+  return candidates.map((c) => ({
+    categoryCode: c.categoryCode,
+    patientLabel: c.patientLabel,
+    treatmentPrinciple: c.treatmentPrinciple,
+  }));
 }
 
 export type CheckedSymptomItem = { categoryId: number; patientQuestion: string; score: 1 | 2 };

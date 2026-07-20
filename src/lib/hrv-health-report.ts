@@ -99,6 +99,90 @@ export function ensureTreatmentConsultDisclaimer(text: string): string {
   return `${text} ${TREATMENT_CONSULT_DISCLAIMER}`;
 }
 
+// 치료방향 카드 키워드 불릿 고정 사전(task.md — "AI가 매번 다듬지 않고 원장이 최종 확정한
+// 고정 설명 사전을 그대로 노출"). 카드형 재구성 직후 라운드(커밋 48dbc6e)에서는 카테고리당
+// 독립 AI 호출로 만들었지만, 상담 중 가독성 피드백을 받아 이 라운드에서 AI 호출 자체를
+// 없애고 고정 텍스트로 전환했다 — 매번 다른 표현이 나올 필요가 없는 정적 지식이라 AI보다
+// 사전 조회가 더 빠르고 일관적이다. 대표처방(시호소간산 등)은 이 사전에 의도적으로 넣지
+// 않는다(task.md — 환자용 카드에는 노출 안 함, 원장 확인화면은 TcmCategory.treatmentPrinciple
+// 원문을 계속 그대로 쓰므로 대표처방 정보 자체가 사라지는 게 아니라 "카드 표시에서만 제외").
+// 키는 TcmCategory.categoryCode와 정확히 일치해야 한다.
+const TREATMENT_PRINCIPLE_KEYWORD_GLOSSARY: Record<string, { keyword: string; description: string }[]> = {
+  EMOTION_STAGNATION: [
+    { keyword: "소간해울·이기해울", description: "몸 안에 막힌 기운을 풀어 답답함을 덜어줍니다" },
+    { keyword: "청간사화", description: "치밀어 오르는 열감과 짜증을 가라앉혀 줍니다" },
+    { keyword: "양심안신", description: "마음을 안정시켜 편안하게 해줍니다" },
+  ],
+  QI_YANG_DEFICIENCY: [
+    { keyword: "보기익기", description: "부족한 기운을 채워 활력을 되찾게 도와줍니다" },
+    { keyword: "건비익기", description: "소화 기능을 도와 에너지 생성을 돕습니다" },
+    { keyword: "온양산한", description: "몸을 따뜻하게 데워 냉증을 완화합니다" },
+    { keyword: "온보비신", description: "몸의 근본적인 체력을 보강해줍니다" },
+  ],
+  YIN_DRYNESS: [
+    { keyword: "자음생진", description: "부족한 진액을 채워 건조함을 촉촉하게 해줍니다" },
+    { keyword: "자음청열", description: "몸에 쌓인 열을 내려 건조·열감을 가라앉힙니다" },
+    { keyword: "자음강화", description: "몸의 수분과 열의 균형을 맞춰줍니다" },
+    { keyword: "보익간신", description: "간과 신장의 기능을 보강해 회복을 돕습니다" },
+  ],
+  DIGESTIVE: [
+    { keyword: "건비화위", description: "비위 기능을 튼튼히 해 소화를 돕습니다" },
+    { keyword: "이기화중", description: "막힌 기운을 풀어 속을 편하게 합니다" },
+    { keyword: "소도화적", description: "정체된 음식물을 내려 더부룩함을 덜어줍니다" },
+    { keyword: "화담강역", description: "위로 치받는 기운을 가라앉혀 줍니다" },
+  ],
+  PHLEGM_DAMPNESS: [
+    { keyword: "건비화습", description: "소화 기능을 강화해 습기가 쌓이지 않게 돕습니다" },
+    { keyword: "화담이수", description: "끈적한 습기를 몸 밖으로 배출시켜줍니다" },
+    { keyword: "이수소종", description: "고인 물기를 내보내 부기를 가라앉힙니다" },
+    { keyword: "온양화수", description: "몸을 데워 수분 대사를 원활하게 합니다" },
+  ],
+  BLOOD_DEFICIENCY: [
+    { keyword: "보혈양혈", description: "부족한 혈을 채워줍니다" },
+    { keyword: "익기생혈", description: "기운을 보강해 혈이 만들어지도록 돕습니다" },
+    { keyword: "양심안신", description: "마음을 안정시켜 편안하게 해줍니다" },
+    { keyword: "건비생혈", description: "소화 기능을 도와 혈이 잘 생성되게 합니다" },
+  ],
+  BLOOD_STASIS: [
+    { keyword: "활혈거어", description: "혈액순환을 원활하게 해 어혈을 풀어줍니다" },
+    { keyword: "행기활혈", description: "기와 혈의 흐름을 함께 개선해줍니다" },
+    { keyword: "통락지통", description: "막힌 순환으로 인한 통증을 덜어줍니다" },
+    { keyword: "온경산한", description: "몸속 냉기를 풀어 순환을 촉진합니다" },
+  ],
+};
+
+export type CategoryTreatmentCard = {
+  categoryLabel: string;
+  items: { keyword: string; description: string }[];
+};
+
+/**
+ * 후보 카테고리별 치료방향 카드를 고정 사전에서 조회해 만든다(AI 호출 없음, task.md).
+ * - 사전에 categoryCode 자체가 없으면(향후 카테고리 확장 등 대비): 콘솔 경고를 남기고
+ *   카테고리명만 노출하는 축소 카드를 만든다(조용히 빠지는 것보다 눈에 띄게 처리하라는
+ *   지시) — 설명 없이 카테고리명 하나만 담긴 항목 1개로 표시.
+ * - 사전에는 있는데 키워드 배열이 비어있으면: 카드 자체를 스킵한다(기존 "치료원칙
+ *   미입력 시 카드 생성 안 함" 안전장치와 동일 취급).
+ */
+export function buildCategoryTreatmentCards(
+  candidates: { categoryCode: string; patientLabel: string }[],
+): CategoryTreatmentCard[] {
+  const cards: CategoryTreatmentCard[] = [];
+  for (const c of candidates) {
+    const entries = TREATMENT_PRINCIPLE_KEYWORD_GLOSSARY[c.categoryCode];
+    if (entries === undefined) {
+      console.warn(
+        `[hrv-health-report] 치료방향 키워드 사전에 없는 카테고리코드: ${c.categoryCode}(${c.patientLabel}) — 축소 카드로 표시합니다.`,
+      );
+      cards.push({ categoryLabel: c.patientLabel, items: [{ keyword: c.patientLabel, description: "" }] });
+      continue;
+    }
+    if (entries.length === 0) continue;
+    cards.push({ categoryLabel: c.patientLabel, items: entries });
+  }
+  return cards;
+}
+
 /**
  * 카드1(헤드라인) 재료 선정(정책 변경, 2026-07-18) — 이전에는 후보 카테고리를 구분하지
  * 않고 체크 문항을 전부 모아 상위 2개만 뽑았는데(카테고리 3개 이상 동점이면 일부 카테고리가

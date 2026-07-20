@@ -144,6 +144,29 @@
   color: var(--color-warning);
 }
 
+/* 카드7 치료방향 카드(task.md 키워드 불릿 고정사전) — 카드2(내가 선택한 증상) 리스트와
+   동일한 톤으로 통일하되 색상 강조는 넣지 않는다(단순 구획 분리로 충분, task.md 지시). */
+.treatmentList,
+.treatmentListPatient {
+  margin: 0;
+  padding-left: 20px;
+  list-style: disc;
+}
+
+.treatmentList li {
+  font-size: 15px;
+  line-height: 1.6;
+  padding: 3px 0;
+  color: var(--color-ink);
+}
+
+.treatmentListPatient li {
+  font-size: 18px;
+  line-height: 1.75;
+  padding: 5px 0;
+  color: var(--color-ink);
+}
+
 /* 카드6: 위험신호 안내 — 다른 카드와 시각적으로 명확히 구분되는 경고 톤(안전 안내 박스와
    유사하되 색상만 구분, task.md "조건부 노출"). */
 .redFlagCard {

@@ -121,7 +121,12 @@ export type NotableChangeView = { label: string; direction: "IMPROVED" | "ATTENT
 // 건강 리포트(task.md 7카드 리뉴얼) 화이트리스트 뷰 — commentaryVersion이
 // "HEALTH_REPORT_V1"일 때만 채워진다. 카드2(checkedSymptoms)/카드3(notableChanges)/
 // 카드6(redFlagNotice)은 AI가 아니라 코드가 계산한 데이터를 그대로 옮긴 것이다.
-export type CategoryTreatmentCardView = { categoryLabel: string; body: string };
+// 카드7 치료방향 카드(task.md 키워드 불릿 고정사전 전환) — body 단일 문자열 대신 키워드별
+// 항목 배열로 저장한다(불릿 렌더링을 위해 구조 유지, AI 문단이 아니므로 굳이 이어붙이지 않음).
+export type CategoryTreatmentCardView = {
+  categoryLabel: string;
+  items: { keyword: string; description: string }[];
+};
 
 export type HealthReportCards = {
   headline: string;
@@ -149,6 +154,15 @@ function parseCheckedSymptomsJson(json: string | null | undefined): string[] {
   }
 }
 
+function isValidTreatmentCardItem(v: unknown): v is { keyword: string; description: string } {
+  return (
+    v !== null &&
+    typeof v === "object" &&
+    typeof (v as Record<string, unknown>).keyword === "string" &&
+    typeof (v as Record<string, unknown>).description === "string"
+  );
+}
+
 function parseTreatmentCardsJson(json: string | null | undefined): CategoryTreatmentCardView[] {
   if (!json) return [];
   try {
@@ -156,7 +170,11 @@ function parseTreatmentCardsJson(json: string | null | undefined): CategoryTreat
     if (!Array.isArray(parsed)) return [];
     return parsed.filter(
       (c): c is CategoryTreatmentCardView =>
-        c && typeof c === "object" && typeof c.categoryLabel === "string" && typeof c.body === "string",
+        c &&
+        typeof c === "object" &&
+        typeof c.categoryLabel === "string" &&
+        Array.isArray(c.items) &&
+        c.items.every(isValidTreatmentCardItem),
     );
   } catch {
     return [];
