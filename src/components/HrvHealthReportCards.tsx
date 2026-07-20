@@ -41,7 +41,12 @@ function renderWithEmphasis(text: string, emphasisClassName: string): ReactNode[
 // 하나로 인식해서 키워드는 볼드, 뒤따르는 괄호 한자는 작게+회색으로 스타일링한다. 한자
 // 병기가 없는 순수 **볼드**만 있는 구간(예: 한자 사전에 없는 키워드)은 기존과 동일하게
 // 볼드만 적용된다.
+// text가 문자열이 아니면(예: 프론트 번들과 저장된 데이터의 카드7 스키마 버전이 어긋나
+// doctorText/patientText가 undefined인 경우 — 실제로 link.kyurim.kr /s/[token] 크래시로
+// 발생 확인, task.md 버그 리포트) 빈 배열을 반환해 이 카드 하나만 조용히 비워지게 한다
+// (.split() 호출 전에 막아 전체 카드7 섹션이 죽는 것을 방지).
 function renderTreatmentBody(text: string, emphasisClassName: string, hanjaClassName: string): ReactNode[] {
+  if (typeof text !== "string") return [];
   const parts = text.split(/\*\*(.+?)\*\*(\([^)]*\))?/g);
   const nodes: ReactNode[] = [];
   for (let i = 0; i < parts.length; i += 3) {
@@ -69,6 +74,7 @@ function renderTreatmentBody(text: string, emphasisClassName: string, hanjaClass
 // 진한 톤(800 단계, tcmCategoryColorDark)으로 볼드 처리한다. 고정 CSS 클래스가 아니라
 // 카테고리마다 다른 색이라 인라인 style로 적용한다.
 function renderPatientTreatmentText(text: string, categoryCode: string): ReactNode[] {
+  if (typeof text !== "string") return [];
   const color = tcmCategoryColorDark(categoryCode);
   const parts = text.split(/\*\*(.+?)\*\*/g);
   return parts.map((part, i) =>
@@ -206,22 +212,26 @@ export default function HrvHealthReportCards({
           고정 색상(tcm-category-visuals.ts)을 써서 시각적으로 짝을 이룬다(task.md). 변증명
           볼드+한자 병기는 hrv.ts에서 이미 후처리로 삽입돼 있어(annotateTreatmentKeywords)
           renderTreatmentBody가 그 마크업을 그대로 해석만 한다. */}
-      {cards.treatmentCards.map((card, i) => (
-        <div
-          key={i}
-          className={cardClass}
-          style={{ borderLeft: `3px solid ${tcmCategoryColor(card.categoryCode)}` }}
-        >
-          <div className={labelClass}>
-            {tcmCategoryIcon(card.categoryCode)} {card.categoryLabel}
+      {cards.treatmentCards.map((card, i) => {
+        // 카드7 스키마 버전 불일치 방어(task.md 버그 리포트 — link.kyurim.kr /s/[token]
+        // 크래시 실사례: 브라우저에 남아있던 구버전 JS 번들이, 세션 중 재생성으로 신버전
+        // 스키마(doctorText/patientText)로 바뀐 데이터를 구버전 필드(body)로 읽으려다
+        // undefined.split()으로 죽었다. parseTreatmentCardsJson이 이미 타입 검증을 하지만,
+        // 여기서 한 번 더 방어해서 어떤 경로로든 필드가 비어있으면 카드 전체를 죽이지 않고
+        // 그 카테고리 카드 하나만 조용히 스킵한다(에러 아님).
+        const text = isPatient ? (card as { patientText?: unknown }).patientText : (card as { doctorText?: unknown }).doctorText;
+        if (typeof text !== "string" || !text) return null;
+        return (
+          <div key={i} className={cardClass} style={{ borderLeft: `3px solid ${tcmCategoryColor(card.categoryCode)}` }}>
+            <div className={labelClass}>
+              {tcmCategoryIcon(card.categoryCode)} {card.categoryLabel}
+            </div>
+            <p className={bodyClass}>
+              {isPatient ? renderPatientTreatmentText(text, card.categoryCode) : renderTreatmentBody(text, emphasisClass, styles.hanja)}
+            </p>
           </div>
-          <p className={bodyClass}>
-            {isPatient
-              ? renderPatientTreatmentText((card as { patientText: string }).patientText, card.categoryCode)
-              : renderTreatmentBody((card as { doctorText: string }).doctorText, emphasisClass, styles.hanja)}
-          </p>
-        </div>
-      ))}
+        );
+      })}
 
       <div className={cardClass} style={{ borderLeft: `3px solid ${TCM_CATEGORY_NEUTRAL_COLOR}` }}>
         <div className={labelClass}>{TCM_LIFESTYLE_ICON} 생활관리</div>
