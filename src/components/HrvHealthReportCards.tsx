@@ -1,8 +1,24 @@
 "use client";
 
 import type { ReactNode } from "react";
+import { PieChart, Pie, Cell } from "recharts";
 import styles from "./HrvHealthReportCards.module.css";
-import type { HealthReportCards } from "@/lib/patient-view";
+import type { HealthReportCards, CategoryVisualizationView } from "@/lib/patient-view";
+import { tcmCategoryColor, tcmCategoryIcon, TCM_CATEGORY_NEUTRAL_COLOR, TCM_LIFESTYLE_ICON } from "@/lib/tcm-category-visuals";
+
+// 카드4 도넛 데이터 — 후보 카테고리 슬라이스 + "기타"(0%면 조각 자체를 생략, 도넛에 의미
+// 없는 0-length 조각이 남지 않도록).
+function donutData(visualization: CategoryVisualizationView): { name: string; value: number; color: string }[] {
+  const slices = visualization.slices.map((s) => ({
+    name: s.categoryLabel,
+    value: s.ratioPercent,
+    color: tcmCategoryColor(s.categoryCode),
+  }));
+  if (visualization.otherPercent > 0) {
+    slices.push({ name: "기타", value: visualization.otherPercent, color: TCM_CATEGORY_NEUTRAL_COLOR });
+  }
+  return slices;
+}
 
 // AI가 **로 감싸 표시한 핵심 문장/패턴명을 <strong>으로 변환한다(HrvCommentaryCards.tsx와
 // 동일한 로직 — CSS 모듈이 페이지/컴포넌트별로 복제되는 기존 관례를 그대로 따라 여기도
@@ -19,6 +35,33 @@ function renderWithEmphasis(text: string, emphasisClassName: string): ReactNode[
       part
     ),
   );
+}
+
+// 카드7 치료방향 카드 전용(task.md) — renderWithEmphasis와 달리 "**키워드**(한자)" 조합을
+// 하나로 인식해서 키워드는 볼드, 뒤따르는 괄호 한자는 작게+회색으로 스타일링한다. 한자
+// 병기가 없는 순수 **볼드**만 있는 구간(예: 한자 사전에 없는 키워드)은 기존과 동일하게
+// 볼드만 적용된다.
+function renderTreatmentBody(text: string, emphasisClassName: string, hanjaClassName: string): ReactNode[] {
+  const parts = text.split(/\*\*(.+?)\*\*(\([^)]*\))?/g);
+  const nodes: ReactNode[] = [];
+  for (let i = 0; i < parts.length; i += 3) {
+    if (parts[i]) nodes.push(parts[i]);
+    if (parts[i + 1] !== undefined) {
+      nodes.push(
+        <strong key={`b${i}`} className={emphasisClassName}>
+          {parts[i + 1]}
+        </strong>,
+      );
+      if (parts[i + 2]) {
+        nodes.push(
+          <span key={`h${i}`} className={hanjaClassName}>
+            {parts[i + 2]}
+          </span>,
+        );
+      }
+    }
+  }
+  return nodes;
 }
 
 /**
@@ -77,28 +120,44 @@ export default function HrvHealthReportCards({
         </div>
       )}
 
-      {/* 카드4: 한의 건강해석 — 상단에 카테고리 점수 시각화(task.md 재설계). 막대 길이로
-          카테고리끼리 비교하지 않는다(후보는 전부 동점 병렬 선정이라 길이 비교가 무의미했음,
-          이전 라운드에서 확인됨) — 대신 막대 폭은 전부 동일하게 고정하고, 그 안을 심하다(진한
-          색)/경미하다(옅은 색) 응답 비율로 나눠 카테고리 "내부" 심각도 구성만 보여준다.
-          후보 카테고리가 없으면(categoryScoreBars 빈 배열) 시각화 자체를 숨긴다. */}
+      {/* 카드4: 한의 건강해석 — 상단에 카테고리 비중 시각화, 도넛(좌)+막대(우) 조합
+          (task.md 재설계). 계산은 "전체 응답 문항 만점 대비 원점수 비율"(정규화 없음) —
+          도넛은 후보 카테고리 + "기타" 한 조각, 막대는 후보 카테고리만 라벨+퍼센트로 보여준다.
+          두 시각화 모두 tcm-category-visuals.ts의 고정 색상(카드7과 동일)을 쓴다. 후보
+          카테고리가 없으면(slices 빈 배열) 시각화 자체를 숨긴다. */}
       <div className={cardClass}>
         <div className={labelClass}>한의 건강해석</div>
-        {cards.categoryScoreBars.length > 0 && (
-          <div className={isPatient ? styles.scoreBarsPatient : styles.scoreBars}>
-            {cards.categoryScoreBars.map((bar, i) => (
-              <div key={i} className={styles.scoreBarRow}>
-                <span className={styles.scoreBarLabel}>{bar.categoryLabel}</span>
-                <div className={styles.scoreBarTrack}>
-                  <div className={styles.scoreBarSevere} style={{ width: `${bar.severeRatioPercent}%` }} />
-                  <div className={styles.scoreBarMild} style={{ width: `${bar.mildRatioPercent}%` }} />
+        {cards.categoryVisualization.slices.length > 0 && (
+          <div className={isPatient ? styles.visualWrapPatient : styles.visualWrap}>
+            <div className={styles.donutWrap}>
+              <PieChart width={96} height={96}>
+                <Pie
+                  data={donutData(cards.categoryVisualization)}
+                  dataKey="value"
+                  innerRadius={26}
+                  outerRadius={46}
+                  startAngle={90}
+                  endAngle={-270}
+                  stroke="none"
+                >
+                  {donutData(cards.categoryVisualization).map((slice, i) => (
+                    <Cell key={i} fill={slice.color} />
+                  ))}
+                </Pie>
+              </PieChart>
+            </div>
+            <div className={styles.shareBarList}>
+              {cards.categoryVisualization.slices.map((s, i) => (
+                <div key={i} className={styles.shareBarRow}>
+                  <span className={styles.shareBarDot} style={{ background: tcmCategoryColor(s.categoryCode) }} />
+                  <span className={styles.shareBarLabel}>{s.categoryLabel}</span>
+                  <div className={styles.shareBarTrack}>
+                    <div className={styles.shareBarFill} style={{ width: `${s.ratioPercent}%`, background: tcmCategoryColor(s.categoryCode) }} />
+                  </div>
+                  <span className={styles.shareBarPercent}>{s.ratioPercent}%</span>
                 </div>
-                <span className={styles.scoreBarPercent}>
-                  심함 {bar.severeRatioPercent}% · 경미 {bar.mildRatioPercent}%
-                </span>
-              </div>
-            ))}
-            <p className={styles.scoreBarFootnote}>* 카테고리 간 비교가 아닌, 해당 카테고리 내 증상 심각도 분포를 나타냅니다</p>
+              ))}
+            </div>
           </div>
         )}
         <p className={bodyClass}>{renderWithEmphasis(cards.tcmInterpretation, emphasisClass)}</p>
@@ -122,16 +181,25 @@ export default function HrvHealthReportCards({
           아코디언 아님) + 마지막 공통 생활관리 카드 1개. 카테고리별 카드는 카테고리마다
           완전히 독립된 AI 호출 결과라 다른 카테고리 내용이 섞이지 않는다(AI 개인화 버전으로
           롤백, hrv-explanation.ts generateCategoryTreatmentCards 참고 — 대표처방 포함,
-          근거설명 없이 담백한 1문장 내외). */}
+          근거설명 없이 담백한 1문장 내외). 좌측 3px 컬러 바 + 아이콘은 카드4 시각화와 동일한
+          고정 색상(tcm-category-visuals.ts)을 써서 시각적으로 짝을 이룬다(task.md). 변증명
+          볼드+한자 병기는 hrv.ts에서 이미 후처리로 삽입돼 있어(annotateTreatmentKeywords)
+          renderTreatmentBody가 그 마크업을 그대로 해석만 한다. */}
       {cards.treatmentCards.map((card, i) => (
-        <div key={i} className={cardClass}>
-          <div className={labelClass}>{card.categoryLabel}</div>
-          <p className={bodyClass}>{renderWithEmphasis(card.body, emphasisClass)}</p>
+        <div
+          key={i}
+          className={cardClass}
+          style={{ borderLeft: `3px solid ${tcmCategoryColor(card.categoryCode)}` }}
+        >
+          <div className={labelClass}>
+            {tcmCategoryIcon(card.categoryCode)} {card.categoryLabel}
+          </div>
+          <p className={bodyClass}>{renderTreatmentBody(card.body, emphasisClass, styles.hanja)}</p>
         </div>
       ))}
 
-      <div className={cardClass}>
-        <div className={labelClass}>생활관리</div>
+      <div className={cardClass} style={{ borderLeft: `3px solid ${TCM_CATEGORY_NEUTRAL_COLOR}` }}>
+        <div className={labelClass}>{TCM_LIFESTYLE_ICON} 생활관리</div>
         <p className={bodyClass}>{renderWithEmphasis(cards.treatmentAndLifestyle, emphasisClass)}</p>
       </div>
     </div>

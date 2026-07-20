@@ -284,35 +284,18 @@ export async function getTcmCategoryProfileForAi(
   }));
 }
 
-// 카드4 상단 카테고리 점수 시각화 재설계(task.md — 동점 병렬 후보라 막대 길이 비교가
-// 무의미했던 문제 수정). 막대 길이로 카테고리 "간" 비교를 하는 대신, 막대 하나 "안"을
-// 심하다(2)/경미하다(1) 응답 비율로 두 구간 나눠 그 카테고리 "내부" 심각도 구성을 보여준다.
-// "없다(0)" 응답은 표시하지 않는다(후보로 뜬 이상 0 문항은 자연히 소수).
-export type CategorySeverityBreakdown = { categoryLabel: string; severeRatio: number; mildRatio: number };
-
-export async function getCandidateSeverityBreakdown(patientId: number): Promise<CategorySeverityBreakdown[]> {
-  const latest = await prisma.tcmChecklistResponse.findFirst({
-    where: { patientId },
-    orderBy: { createdAt: "desc" },
-    include: {
-      answers: { include: { question: true } },
-      categoryScores: { where: { isCandidate: true }, include: { category: true } },
-    },
-  });
+// 카드4 상단 카테고리 비중 시각화 재료(task.md — 도넛+막대 조합으로 재설계). 계산 방식은
+// "전체 응답 문항 만점 대비 원점수 비율"(정규화 없음) — CategoryScoreView.ratio를 그대로
+// 옮긴다. 이전 라운드의 심하다/경미하다 내부 구성 방식(getCandidateSeverityBreakdown)은
+// 이번 재설계로 대체돼 더 이상 쓰이지 않는다.
+export async function getCandidateCategoryShares(
+  patientId: number,
+): Promise<{ categoryCode: string; patientLabel: string; ratio: number }[]> {
+  const latest = await getLatestChecklistResponse(patientId);
   if (!latest) return [];
-
-  return latest.categoryScores.map((cs) => {
-    const categoryAnswers = latest.answers.filter((a) => a.question.categoryId === cs.categoryId);
-    const total = categoryAnswers.length;
-    if (total === 0) return { categoryLabel: cs.category.patientLabel, severeRatio: 0, mildRatio: 0 };
-    const severeCount = categoryAnswers.filter((a) => a.score === 2).length;
-    const mildCount = categoryAnswers.filter((a) => a.score === 1).length;
-    return {
-      categoryLabel: cs.category.patientLabel,
-      severeRatio: severeCount / total,
-      mildRatio: mildCount / total,
-    };
-  });
+  return latest.categoryScores
+    .filter((s) => s.isCandidate)
+    .map((s) => ({ categoryCode: s.categoryCode, patientLabel: s.patientLabel, ratio: s.ratio }));
 }
 
 export type CheckedSymptomItem = { categoryId: number; patientQuestion: string; score: 1 | 2 };

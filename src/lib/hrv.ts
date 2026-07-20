@@ -15,17 +15,19 @@ import {
   getCandidateCheckedSymptoms,
   getCandidateCategoryRanks,
   getRedFlagNoticeForCandidates,
-  getCandidateSeverityBreakdown,
+  getCandidateCategoryShares,
   type CheckedSymptomItem,
 } from "@/lib/tcm-checklist";
 import {
   computeNotableChanges,
   pickHeadlineSymptoms,
   ensureTreatmentConsultDisclaimer,
-  buildCategoryScoreBars,
+  buildCategoryVisualization,
+  extractTreatmentKeywords,
+  annotateTreatmentKeywords,
   type NotableChange,
   type HrvMetricsSnapshot,
-  type CategoryScoreBar,
+  type CategoryVisualization,
 } from "@/lib/hrv-health-report";
 import type { HrvTestRecord } from "@/generated/prisma/client";
 
@@ -129,9 +131,9 @@ export type HrvCommentaryBundle = {
   // 롤백, 커밋 d5fd073 고정사전에서 되돌림). 후보 카테고리가 없거나 전부 치료원칙 미입력이면
   // 빈 배열(카드7 공통 생활관리 문단만 노출).
   categoryTreatmentCards: CategoryTreatmentCard[];
-  // 카드4 상단 카테고리 점수 시각화(task.md 가독성 개선) — 후보 카테고리가 없으면 빈 배열
-  // (시각화 자체를 숨김).
-  categoryScoreBars: CategoryScoreBar[];
+  // 카드4 상단 카테고리 비중 시각화(task.md 도넛+막대 재설계) — 후보 카테고리가 없으면
+  // slices 빈 배열(시각화 자체를 숨김).
+  categoryVisualization: CategoryVisualization;
 };
 
 // AI 해설 생성 실패해도 검사 저장 자체는 반드시 성공해야 한다(examinations.ts와 동일 원칙) —
@@ -154,7 +156,7 @@ async function tryGenerateHrvCommentary(
       checkedSymptoms,
       candidateRanks,
       redFlagNotice,
-      severityBreakdown,
+      categoryShares,
     ] = await Promise.all([
       getPreviousHrvRecord(record.patientId),
       getExamAcademicGuide("HRV"),
@@ -169,8 +171,8 @@ async function tryGenerateHrvCommentary(
       getCandidateCategoryRanks(record.patientId),
       // 카드6(위험신호) 재료 — 후보 카테고리에 원장이 입력한 고정문구가 있으면 그대로.
       getRedFlagNoticeForCandidates(record.patientId),
-      // 카드4 상단 점수 시각화 재료(task.md 재설계) — 카테고리별 심하다/경미하다 응답 비율.
-      getCandidateSeverityBreakdown(record.patientId),
+      // 카드4 상단 도넛+막대 시각화 재료(task.md 재설계) — 카테고리별 원점수/만점 비율.
+      getCandidateCategoryShares(record.patientId),
     ]);
 
     const ai = await generateHrvExplanation({
@@ -192,14 +194,22 @@ async function tryGenerateHrvCommentary(
     // 카테고리별 치료방향 카드(task.md — AI 개인화 버전으로 롤백) — tcmCategoryProfile은
     // 위에서 이미 조회해둔 것을 그대로 재사용한다(추가 쿼리 없음). generateHrvExplanation과
     // 별개의 독립 AI 호출들이라 실패하면 이 함수 전체가 catch로 떨어져 안전하게 null 처리된다.
-    const categoryTreatmentCards = await generateCategoryTreatmentCards(tcmCategoryProfile);
+    const rawTreatmentCards = await generateCategoryTreatmentCards(tcmCategoryProfile);
 
-    // 카드4 상단 카테고리 점수 시각화(task.md 재설계) — AI 호출 없이 코드로 결정적으로
-    // 계산한다(카드2/3/6과 동일 원칙). 카테고리 "간" 막대 길이 비교가 아니라 카테고리 "안"의
-    // 심하다/경미하다 비율 구성을 보여준다(severityBreakdown은 위에서 이미 조회해둔 것).
-    const categoryScoreBars = buildCategoryScoreBars(severityBreakdown);
+    // 변증명 볼드+한자 병기 후처리(task.md) — AI가 만들지 않고 코드가 결정적으로 삽입한다.
+    // 카테고리별로 원본 treatmentPrinciple 텍스트에서 그 카테고리의 키워드 목록만 뽑아 적용
+    // (다른 카테고리 키워드가 잘못 섞여 들어갈 일이 없다).
+    const categoryTreatmentCards = rawTreatmentCards.map((card) => {
+      const profile = (tcmCategoryProfile ?? []).find((c) => c.categoryCode === card.categoryCode);
+      const keywords = extractTreatmentKeywords(profile?.treatmentPrinciple ?? null);
+      return { ...card, body: annotateTreatmentKeywords(card.body, keywords) };
+    });
 
-    return { ai, checkedSymptoms, notableChanges, redFlagNotice, categoryTreatmentCards, categoryScoreBars };
+    // 카드4 상단 카테고리 비중 시각화(task.md 도넛+막대 재설계) — AI 호출 없이 코드로
+    // 결정적으로 계산한다(카드2/3/6과 동일 원칙). categoryShares는 위에서 이미 조회해둔 것.
+    const categoryVisualization = buildCategoryVisualization(categoryShares);
+
+    return { ai, checkedSymptoms, notableChanges, redFlagNotice, categoryTreatmentCards, categoryVisualization };
   } catch (err) {
     console.error("[hrv] 건강 리포트 생성 실패:", err);
     return null;
@@ -290,7 +300,7 @@ function saveHrvCommentarySections(id: number, commentary: HrvCommentaryBundle) 
       aiTreatmentCardsJson:
         commentary.categoryTreatmentCards.length > 0 ? JSON.stringify(commentary.categoryTreatmentCards) : null,
       aiCategoryScoreBarsJson:
-        commentary.categoryScoreBars.length > 0 ? JSON.stringify(commentary.categoryScoreBars) : null,
+        commentary.categoryVisualization.slices.length > 0 ? JSON.stringify(commentary.categoryVisualization) : null,
       aiCommentaryVersion: HRV_COMMENTARY_VERSION,
     },
   });

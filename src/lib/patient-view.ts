@@ -122,13 +122,15 @@ export type NotableChangeView = { label: string; direction: "IMPROVED" | "ATTENT
 // "HEALTH_REPORT_V1"일 때만 채워진다. 카드2(checkedSymptoms)/카드3(notableChanges)/
 // 카드6(redFlagNotice)은 AI가 아니라 코드가 계산한 데이터를 그대로 옮긴 것이다.
 // 카드7 치료방향 카드(task.md — AI 개인화 버전으로 롤백, 커밋 d5fd073의 키워드 불릿 고정사전
-// {items} 모양에서 다시 담백한 1문장 {body} 모양으로 되돌림).
-export type CategoryTreatmentCardView = { categoryLabel: string; body: string };
+// {items} 모양에서 다시 담백한 1문장 {body} 모양으로 되돌림). categoryCode는 이번 라운드
+// (색상/아이콘 고정 매핑) 추가 — tcm-category-visuals.ts 조회 키.
+export type CategoryTreatmentCardView = { categoryCode: string; categoryLabel: string; body: string };
 
-// 카드4 상단 카테고리 점수 시각화 — 재설계(task.md, 막대 길이로 카테고리 "간" 비교하던
-// 초판을 폐기하고 막대 하나 "안"의 심하다/경미하다 응답 비율 구성으로 전환). AI가 안 만들고
-// TcmChecklistAnswer 원본 점수를 코드가 그대로 집계한 값. 후보 카테고리가 없으면 빈 배열.
-export type CategoryScoreBarView = { categoryLabel: string; severeRatioPercent: number; mildRatioPercent: number };
+// 카드4 상단 카테고리 비중 시각화 — 도넛+막대 조합으로 재설계(task.md). 계산 방식은
+// "전체 응답 문항 만점 대비 원점수 비율"(정규화 없음), AI가 안 만들고 TcmCategoryScore.ratio를
+// 코드가 그대로 옮긴 값. 후보 카테고리가 없으면 slices 빈 배열(시각화 자체를 숨김).
+export type CategoryShareSliceView = { categoryCode: string; categoryLabel: string; ratioPercent: number };
+export type CategoryVisualizationView = { slices: CategoryShareSliceView[]; otherPercent: number };
 
 export type HealthReportCards = {
   headline: string;
@@ -137,8 +139,8 @@ export type HealthReportCards = {
   tcmInterpretation: string;
   progression: string;
   redFlagNotice: string | null;
-  // 카드4 상단 시각화(task.md). 옛 레코드(재생성 전)는 항상 빈 배열.
-  categoryScoreBars: CategoryScoreBarView[];
+  // 카드4 상단 시각화(task.md 도넛+막대). 옛 레코드(재생성 전)는 slices 빈 배열.
+  categoryVisualization: CategoryVisualizationView;
   // 카드7 카드형 재구성 — 카테고리별 독립 카드. 옛 레코드(재생성 전)는 항상 빈 배열.
   treatmentCards: CategoryTreatmentCardView[];
   // 카드7의 공통 생활관리 문단(카드형 재구성 이후로는 카테고리 치료원칙을 다루지 않음).
@@ -158,8 +160,9 @@ function parseCheckedSymptomsJson(json: string | null | undefined): string[] {
   }
 }
 
-// {categoryLabel, body}만 유효로 본다 — 한때(커밋 d5fd073) 저장됐을 수 있는 고정사전
-// {items} 모양 값은 body 필드가 없어 자연히 걸러진다(재생성 전까지 카드 미노출, 화면 안 깨짐).
+// categoryCode까지 포함된 {categoryCode, categoryLabel, body}만 유효로 본다 — 이전 라운드
+// 이하 모양(categoryCode 없음, 또는 고정사전 {items} 모양)은 categoryCode 필드가 없어
+// 자연히 걸러진다(재생성 전까지 카드 미노출, 화면 안 깨짐).
 function parseTreatmentCardsJson(json: string | null | undefined): CategoryTreatmentCardView[] {
   if (!json) return [];
   try {
@@ -167,28 +170,40 @@ function parseTreatmentCardsJson(json: string | null | undefined): CategoryTreat
     if (!Array.isArray(parsed)) return [];
     return parsed.filter(
       (c): c is CategoryTreatmentCardView =>
-        c && typeof c === "object" && typeof c.categoryLabel === "string" && typeof c.body === "string",
+        c &&
+        typeof c === "object" &&
+        typeof c.categoryCode === "string" &&
+        typeof c.categoryLabel === "string" &&
+        typeof c.body === "string",
     );
   } catch {
     return [];
   }
 }
 
-function parseCategoryScoreBarsJson(json: string | null | undefined): CategoryScoreBarView[] {
-  if (!json) return [];
+function isValidShareSlice(v: unknown): v is CategoryShareSliceView {
+  return (
+    v !== null &&
+    typeof v === "object" &&
+    typeof (v as Record<string, unknown>).categoryCode === "string" &&
+    typeof (v as Record<string, unknown>).categoryLabel === "string" &&
+    typeof (v as Record<string, unknown>).ratioPercent === "number"
+  );
+}
+
+// 옛 모양(severeRatioPercent/mildRatioPercent 배열, 또는 단일 ratioPercent 배열)은
+// slices/otherPercent 필드가 없어 파싱 실패 → 빈 시각화로 안전하게 폴백한다.
+function parseCategoryVisualizationJson(json: string | null | undefined): CategoryVisualizationView {
+  const empty: CategoryVisualizationView = { slices: [], otherPercent: 0 };
+  if (!json) return empty;
   try {
     const parsed = JSON.parse(json);
-    if (!Array.isArray(parsed)) return [];
-    return parsed.filter(
-      (c): c is CategoryScoreBarView =>
-        c &&
-        typeof c === "object" &&
-        typeof c.categoryLabel === "string" &&
-        typeof c.severeRatioPercent === "number" &&
-        typeof c.mildRatioPercent === "number",
-    );
+    if (!parsed || typeof parsed !== "object" || !Array.isArray(parsed.slices) || typeof parsed.otherPercent !== "number") {
+      return empty;
+    }
+    return { slices: parsed.slices.filter(isValidShareSlice), otherPercent: parsed.otherPercent };
   } catch {
-    return [];
+    return empty;
   }
 }
 
@@ -227,7 +242,7 @@ export function toHealthReportCards(detail: {
     tcmInterpretation: detail.aiTcmInterpretation ?? "",
     progression: detail.aiProgressionCard ?? "",
     redFlagNotice: detail.aiRedFlagNotice ?? null,
-    categoryScoreBars: parseCategoryScoreBarsJson(detail.aiCategoryScoreBarsJson),
+    categoryVisualization: parseCategoryVisualizationJson(detail.aiCategoryScoreBarsJson),
     treatmentCards: parseTreatmentCardsJson(detail.aiTreatmentCardsJson),
     treatmentAndLifestyle: detail.aiLifestyleGuide ?? "",
   };

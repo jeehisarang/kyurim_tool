@@ -181,23 +181,102 @@ export function buildCategoryTreatmentCards(
   return cards;
 }
 
-// 카드4(한의건강해석) 상단 카테고리 점수 시각화 — 재설계(task.md, 배경: 초판(막대 길이로
-// 카테고리 간 비교)은 후보 카테고리가 전부 동점(최대 비율) 병렬 선정 방식이라 실제로는
-// 막대 길이가 항상 같아서 무의미했음). 이제는 막대 "길이"로 카테고리끼리 비교하지 않고,
-// 막대 하나의 폭을 모든 카테고리 동일하게 고정한 뒤, 그 "안"을 심하다(2)/경미하다(1) 응답
-// 비율로 두 구간(진한색/옅은색) 나눠 그 카테고리 내부 심각도 구성만 보여준다. AI가 아니라
-// TcmChecklistAnswer 원본 점수를 코드가 그대로 집계한다(카드2/3/6과 동일 "AI가 안 만들고
-// 시스템이 결정" 원칙).
-export type CategoryScoreBar = { categoryLabel: string; severeRatioPercent: number; mildRatioPercent: number };
+// 카드4(한의건강해석) 상단 카테고리 비중 시각화 — 도넛+막대 조합으로 재설계(task.md,
+// 원장 확정안). 계산 방식은 "전체 응답 문항 만점 대비 원점수 비율"(TcmCategoryScore.ratio,
+// 정규화 없음)을 그대로 쓴다 — 직전 라운드의 심하다/경미하다 내부 구성 방식에서 다시
+// 되돌아온 것. 도넛은 후보 카테고리들 + "기타"(후보 아닌 나머지 비중) 한 조각, 막대는
+// 후보 카테고리만 라벨+퍼센트로 보여준다. "정규화 없음"이 명시 지시라 후보 카테고리 비율의
+// 합이 100%를 넘어도 재분배(rescale)하지 않고, "기타"만 0으로 clamp한다(후보가 전부 동점
+// 최대 비율 병렬 선정이라 여러 개면 ratio가 서로 같을 수 있음 — 설계상 정상).
+export type CategoryShareSlice = { categoryCode: string; categoryLabel: string; ratioPercent: number };
+export type CategoryVisualization = { slices: CategoryShareSlice[]; otherPercent: number };
 
-export function buildCategoryScoreBars(
-  breakdown: { categoryLabel: string; severeRatio: number; mildRatio: number }[],
-): CategoryScoreBar[] {
-  return breakdown.map((c) => ({
-    categoryLabel: c.categoryLabel,
-    severeRatioPercent: Math.round(c.severeRatio * 100),
-    mildRatioPercent: Math.round(c.mildRatio * 100),
+export function buildCategoryVisualization(
+  candidates: { categoryCode: string; patientLabel: string; ratio: number }[],
+): CategoryVisualization {
+  const slices = candidates.map((c) => ({
+    categoryCode: c.categoryCode,
+    categoryLabel: c.patientLabel,
+    ratioPercent: Math.round(c.ratio * 100),
   }));
+  const sumPercent = slices.reduce((sum, s) => sum + s.ratioPercent, 0);
+  const otherPercent = Math.max(0, 100 - sumPercent);
+  return { slices, otherPercent };
+}
+
+// 변증명(치료원칙 키워드) 한자 병기 고정 사전(task.md) — AI가 만들지 않고 코드가 후처리로
+// 삽입한다. ⚠ 원장님이 최종 검수 후 확정할 값 — 지금은 초안이다. "양심안신"처럼 카테고리
+// 둘(스트레스·정서긴장/혈허 경향)에 동시에 등장하는 키워드는 카테고리 문맥과 무관하게
+// 항상 같은 한자를 쓴다(task.md 지시) — 그래서 원본 표에는 28회 언급되지만 고유 키는 27개.
+export const TREATMENT_KEYWORD_HANJA: Record<string, string> = {
+  소간해울: "疏肝解鬱",
+  이기해울: "理氣解鬱",
+  청간사화: "淸肝瀉火",
+  양심안신: "養心安神",
+  보기익기: "補氣益氣",
+  건비익기: "健脾益氣",
+  온양산한: "溫陽散寒",
+  온보비신: "溫補脾腎",
+  자음생진: "滋陰生津",
+  자음청열: "滋陰淸熱",
+  자음강화: "滋陰降火",
+  보익간신: "補益肝腎",
+  건비화위: "健脾和胃",
+  이기화중: "理氣和中",
+  소도화적: "消導化積",
+  화담강역: "化痰降逆",
+  건비화습: "健脾化濕",
+  화담이수: "化痰利水",
+  이수소종: "利水消腫",
+  온양화수: "溫陽化水",
+  보혈양혈: "補血養血",
+  익기생혈: "益氣生血",
+  건비생혈: "健脾生血",
+  활혈거어: "活血祛瘀",
+  행기활혈: "行氣活血",
+  통락지통: "通絡止痛",
+  온경산한: "溫經散寒",
+};
+
+// 카테고리의 원본 treatmentPrinciple 텍스트(예: "소간해울, 이기해울, 청간사화, 양심안신의
+// 치료 방향을 고려할 수 있습니다.\n증상에 따라 시호소간산·... 계열 등이 참고될 수
+// 있습니다.")에서 대표처방/문장은 빼고 치료원칙 키워드만 추출한다 — 이 형식이 전 카테고리
+// 시드 문구에 고정돼 있음을 전제한다(형식이 바뀌면 이 파서도 함께 손봐야 함).
+export function extractTreatmentKeywords(treatmentPrinciple: string | null): string[] {
+  if (!treatmentPrinciple) return [];
+  const match = /^(.+?)의\s*치료\s*방향을\s*고려할\s*수\s*있습니다/.exec(treatmentPrinciple);
+  if (!match) return [];
+  return match[1]
+    .split(/[,、]\s*/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
+// 키워드가 이미 AI 출력 자체에서 **로 감싸져 있으면 건드리지 않는다(카드7 프롬프트가 이
+// 키워드를 볼드하라고 지시하지 않아 실제로는 거의 발생하지 않지만, 이중/깨진 마크업을
+// 구조적으로 막기 위한 안전장치 — hrv-explanation.ts의 isAlreadyBolded와 동일 원칙).
+function isAlreadyBolded(text: string, target: string): boolean {
+  const boldSpans = [...text.matchAll(/\*\*(.+?)\*\*/g)];
+  return boldSpans.some(([, inner]) => inner.includes(target));
+}
+
+/**
+ * 카드7 치료방향 카드 본문에 변증명 볼드+한자 병기를 후처리로 삽입한다(task.md, AI 출력
+ * 자체는 건드리지 않고 후처리로만 추가). 사전에 없는 키워드(향후 카테고리 확장 등)는
+ * 볼드만 적용하고 한자는 생략 + 콘솔 경고 — 지어낸 한자를 붙이는 것보다 안전하다.
+ */
+export function annotateTreatmentKeywords(body: string, keywords: string[]): string {
+  let result = body;
+  for (const keyword of keywords) {
+    if (!result.includes(keyword) || isAlreadyBolded(result, keyword)) continue;
+    const hanja = TREATMENT_KEYWORD_HANJA[keyword];
+    if (!hanja) {
+      console.warn(`[hrv-health-report] 한자 사전에 없는 변증명 키워드: ${keyword} — 볼드만 적용합니다.`);
+    }
+    const escaped = keyword.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    result = result.replace(new RegExp(escaped, "g"), hanja ? `**${keyword}**(${hanja})` : `**${keyword}**`);
+  }
+  return result;
 }
 
 /**

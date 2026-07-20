@@ -714,7 +714,9 @@ export async function generateHrvExplanation(input: HrvExplanationInput): Promis
 // 방지). hrv-health-report.ts의 TREATMENT_PRINCIPLE_KEYWORD_GLOSSARY/
 // buildCategoryTreatmentCards는 카드 렌더링에서 더 이상 참조하지 않지만, 추후 다른 용도로
 // 재사용할 가능성이 있어 코드는 그대로 남겨둔다(task.md 지시 — 삭제 보류).
-export type CategoryTreatmentCard = { categoryLabel: string; body: string };
+// categoryCode는 카드7 렌더링 시 고정 색상/아이콘 매핑(tcm-category-visuals.ts) 조회 키로
+// 쓰인다(task.md — 카드4 시각화와 카드7이 같은 카테고리에서 항상 같은 색을 쓰도록).
+export type CategoryTreatmentCard = { categoryCode: string; categoryLabel: string; body: string };
 
 const CATEGORY_TREATMENT_CARD_SYSTEM_PROMPT = `당신은 한의원 "건강 리포트"에서 치료 방향 카드 하나를 작성하는 카피라이터입니다.
 이 카드는 매거진처럼 카테고리별로 나란히 노출되는 카드 중 하나이며, 오직 [카테고리명] 하나만
@@ -764,14 +766,15 @@ async function generateCategoryTreatmentCard(categoryLabel: string, treatmentPri
  * 이 경우 카드7(공통 생활관리)만 노출된다.
  */
 export async function generateCategoryTreatmentCards(
-  tcmCategoryProfile: { patientLabel: string; treatmentPrinciple: string | null }[] | null,
+  tcmCategoryProfile: { categoryCode: string; patientLabel: string; treatmentPrinciple: string | null }[] | null,
 ): Promise<CategoryTreatmentCard[]> {
   if (!tcmCategoryProfile || tcmCategoryProfile.length === 0) return [];
   const withPrinciple = tcmCategoryProfile.filter(
-    (c): c is { patientLabel: string; treatmentPrinciple: string } => c.treatmentPrinciple !== null,
+    (c): c is { categoryCode: string; patientLabel: string; treatmentPrinciple: string } => c.treatmentPrinciple !== null,
   );
   return Promise.all(
     withPrinciple.map(async (c) => ({
+      categoryCode: c.categoryCode,
       categoryLabel: c.patientLabel,
       body: await generateCategoryTreatmentCard(c.patientLabel, c.treatmentPrinciple),
     })),

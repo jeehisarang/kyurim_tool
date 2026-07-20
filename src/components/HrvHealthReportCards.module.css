@@ -144,70 +144,90 @@
   color: var(--color-warning);
 }
 
-/* 카드4 상단 카테고리 점수 시각화 — 재설계(task.md, celadon/한지 팔레트 내에서만 처리).
-   막대 길이는 전부 동일(카테고리 간 비교 아님) — track을 flex row로 두고 그 안에 진한색
-   (심하다)/옅은색(경미하다) 두 구간을 폭만큼 나란히 채운다. */
-.scoreBars {
+/* 카드4 상단 카테고리 비중 시각화 — 도넛(좌)+막대(우) 조합으로 재설계(task.md). 도넛/막대
+   둘 다 tcm-category-visuals.ts의 카테고리 고정 색을 쓴다(카드7과 동일 색으로 시각적 연결). */
+.visualWrap {
+  display: flex;
+  align-items: center;
+  gap: 16px;
   margin-bottom: 12px;
   padding-bottom: 12px;
   border-bottom: 1px solid rgba(110, 148, 140, 0.2);
 }
 
-.scoreBarsPatient {
+.visualWrapPatient {
+  display: flex;
+  align-items: center;
+  gap: 20px;
   margin-bottom: 16px;
   padding-bottom: 16px;
   border-bottom: 1px solid rgba(110, 148, 140, 0.25);
 }
 
-.scoreBarRow {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 3px 0;
-}
-
-.scoreBarLabel {
+.donutWrap {
   flex: 0 0 auto;
-  min-width: 84px;
-  font-size: 13px;
-  color: var(--color-ink);
+  line-height: 0;
 }
 
-.scoreBarTrack {
+.shareBarList {
   flex: 1 1 auto;
   display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.shareBarRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.shareBarDot {
+  flex: 0 0 auto;
+  width: 8px;
   height: 8px;
+  border-radius: 50%;
+}
+
+.shareBarLabel {
+  flex: 0 0 auto;
+  min-width: 76px;
+  font-size: 12px;
+  color: var(--color-ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.shareBarTrack {
+  flex: 1 1 auto;
+  height: 7px;
   background: rgba(110, 148, 140, 0.15);
   border-radius: 4px;
   overflow: hidden;
 }
 
-/* 심하다(2) 구간 — 진한 색. */
-.scoreBarSevere {
+.shareBarFill {
   height: 100%;
-  background: var(--color-celadon-dark);
+  border-radius: 4px;
 }
 
-/* 경미하다(1) 구간 — 옅은 색(심하다보다는 진하지만 빈 트랙보다는 옅게). */
-.scoreBarMild {
-  height: 100%;
-  background: rgba(110, 148, 140, 0.45);
-}
-
-.scoreBarPercent {
+.shareBarPercent {
   flex: 0 0 auto;
-  min-width: 110px;
+  min-width: 34px;
   text-align: right;
   font-size: 12px;
-  color: var(--color-celadon-dark);
+  color: var(--color-ink);
   font-weight: 700;
 }
 
-.scoreBarFootnote {
-  margin: 6px 0 0;
-  font-size: 11px;
+/* 카드7 변증명 한자 병기(task.md) — 볼드 처리된 키워드 바로 뒤에 작게+회색으로 붙는다. */
+.hanja {
+  font-size: 0.75em;
   color: var(--color-ink);
   opacity: 0.55;
+  margin-left: 1px;
 }
 
 /* 카드6: 위험신호 안내 — 다른 카드와 시각적으로 명확히 구분되는 경고 톤(안전 안내 박스와
