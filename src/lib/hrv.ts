@@ -2,9 +2,11 @@ import { prisma } from "@/lib/db";
 import { saveHrvResultImage, readUploadedImageAsBase64 } from "@/lib/image-upload";
 import {
   generateHrvExplanation,
+  generateCategoryTreatmentCards,
   HRV_COMMENTARY_VERSION,
   type TcmPatternMapEntry,
   type HrvExplanationSections,
+  type CategoryTreatmentCard,
 } from "@/lib/hrv-explanation";
 import { getExamAcademicGuide } from "@/lib/exam-academic-guide";
 import { listConsultationNotesForPatient } from "@/lib/consultation-notes";
@@ -19,10 +21,10 @@ import {
   computeNotableChanges,
   pickHeadlineSymptoms,
   ensureTreatmentConsultDisclaimer,
-  buildCategoryTreatmentCards,
+  buildCategoryScoreBars,
   type NotableChange,
   type HrvMetricsSnapshot,
-  type CategoryTreatmentCard,
+  type CategoryScoreBar,
 } from "@/lib/hrv-health-report";
 import type { HrvTestRecord } from "@/generated/prisma/client";
 
@@ -122,9 +124,13 @@ export type HrvCommentaryBundle = {
   checkedSymptoms: CheckedSymptomItem[];
   notableChanges: NotableChange[];
   redFlagNotice: string | null;
-  // 카드7 카드형 재구성(task.md) — 카테고리별 독립 생성 치료방향 카드. 후보 카테고리가
-  // 없거나 전부 치료원칙 미입력이면 빈 배열(카드7 공통 생활관리 문단만 노출).
+  // 카드7 카드형 재구성(task.md) — 카테고리별 독립 생성 치료방향 카드(AI 개인화 버전으로
+  // 롤백, 커밋 d5fd073 고정사전에서 되돌림). 후보 카테고리가 없거나 전부 치료원칙 미입력이면
+  // 빈 배열(카드7 공통 생활관리 문단만 노출).
   categoryTreatmentCards: CategoryTreatmentCard[];
+  // 카드4 상단 카테고리 점수 시각화(task.md 가독성 개선) — 후보 카테고리가 없으면 빈 배열
+  // (시각화 자체를 숨김).
+  categoryScoreBars: CategoryScoreBar[];
 };
 
 // AI 해설 생성 실패해도 검사 저장 자체는 반드시 성공해야 한다(examinations.ts와 동일 원칙) —
@@ -179,12 +185,17 @@ async function tryGenerateHrvCommentary(
 
     const notableChanges = previousMetrics ? computeNotableChanges(previousMetrics, toMetricsSnapshot(record)) : [];
 
-    // 카테고리별 치료방향 카드(task.md — 키워드 불릿 고정사전 전환, AI 호출 제거) —
-    // tcmCategoryProfile은 위에서 이미 조회해둔 것을 그대로 재사용한다(추가 쿼리 없음).
-    // AI 호출이 없는 동기 함수라 실패할 일이 없다(사전 조회 실패 시나리오 자체가 없음).
-    const categoryTreatmentCards = buildCategoryTreatmentCards(tcmCategoryProfile ?? []);
+    // 카테고리별 치료방향 카드(task.md — AI 개인화 버전으로 롤백) — tcmCategoryProfile은
+    // 위에서 이미 조회해둔 것을 그대로 재사용한다(추가 쿼리 없음). generateHrvExplanation과
+    // 별개의 독립 AI 호출들이라 실패하면 이 함수 전체가 catch로 떨어져 안전하게 null 처리된다.
+    const categoryTreatmentCards = await generateCategoryTreatmentCards(tcmCategoryProfile);
 
-    return { ai, checkedSymptoms, notableChanges, redFlagNotice, categoryTreatmentCards };
+    // 카드4 상단 카테고리 점수 시각화(task.md) — AI 호출 없이 코드로 결정적으로 계산한다
+    // (카드2/3/6과 동일 원칙). tcmCategoryProfile은 후보(동점 최대 비율) 카테고리만 담고
+    // 있어 ratio가 서로 같을 수 있다(설계상 정상 — 동점 병렬 후보이므로).
+    const categoryScoreBars = buildCategoryScoreBars(tcmCategoryProfile ?? []);
+
+    return { ai, checkedSymptoms, notableChanges, redFlagNotice, categoryTreatmentCards, categoryScoreBars };
   } catch (err) {
     console.error("[hrv] 건강 리포트 생성 실패:", err);
     return null;
@@ -274,6 +285,8 @@ function saveHrvCommentarySections(id: number, commentary: HrvCommentaryBundle) 
       aiRedFlagNotice: commentary.redFlagNotice,
       aiTreatmentCardsJson:
         commentary.categoryTreatmentCards.length > 0 ? JSON.stringify(commentary.categoryTreatmentCards) : null,
+      aiCategoryScoreBarsJson:
+        commentary.categoryScoreBars.length > 0 ? JSON.stringify(commentary.categoryScoreBars) : null,
       aiCommentaryVersion: HRV_COMMENTARY_VERSION,
     },
   });

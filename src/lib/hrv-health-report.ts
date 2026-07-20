@@ -99,14 +99,12 @@ export function ensureTreatmentConsultDisclaimer(text: string): string {
   return `${text} ${TREATMENT_CONSULT_DISCLAIMER}`;
 }
 
-// 치료방향 카드 키워드 불릿 고정 사전(task.md — "AI가 매번 다듬지 않고 원장이 최종 확정한
-// 고정 설명 사전을 그대로 노출"). 카드형 재구성 직후 라운드(커밋 48dbc6e)에서는 카테고리당
-// 독립 AI 호출로 만들었지만, 상담 중 가독성 피드백을 받아 이 라운드에서 AI 호출 자체를
-// 없애고 고정 텍스트로 전환했다 — 매번 다른 표현이 나올 필요가 없는 정적 지식이라 AI보다
-// 사전 조회가 더 빠르고 일관적이다. 대표처방(시호소간산 등)은 이 사전에 의도적으로 넣지
-// 않는다(task.md — 환자용 카드에는 노출 안 함, 원장 확인화면은 TcmCategory.treatmentPrinciple
-// 원문을 계속 그대로 쓰므로 대표처방 정보 자체가 사라지는 게 아니라 "카드 표시에서만 제외").
-// 키는 TcmCategory.categoryCode와 정확히 일치해야 한다.
+// 치료방향 카드 키워드 불릿 고정 사전(과거 커밋 d5fd073 — "AI가 매번 다듬지 않고 원장이
+// 최종 확정한 고정 설명 사전을 그대로 노출"). 이후 "교과서적이고 도움 안 되는" 느낌이라는
+// 피드백으로 카드 렌더링은 다시 AI 개인화 버전(hrv-explanation.ts generateCategoryTreatmentCards,
+// 커밋 48dbc6e 계열)으로 롤백됐다(task.md) — 이 사전/buildCategoryTreatmentCards는 현재
+// 카드 렌더링 경로에서 호출되지 않지만, 추후 다른 용도로 재사용할 가능성이 있어 삭제하지
+// 않고 남겨둔다(task.md 명시 지시). 키는 TcmCategory.categoryCode와 정확히 일치해야 한다.
 const TREATMENT_PRINCIPLE_KEYWORD_GLOSSARY: Record<string, { keyword: string; description: string }[]> = {
   EMOTION_STAGNATION: [
     { keyword: "소간해울·이기해울", description: "몸 안에 막힌 기운을 풀어 답답함을 덜어줍니다" },
@@ -151,7 +149,7 @@ const TREATMENT_PRINCIPLE_KEYWORD_GLOSSARY: Record<string, { keyword: string; de
   ],
 };
 
-export type CategoryTreatmentCard = {
+export type GlossaryTreatmentCard = {
   categoryLabel: string;
   items: { keyword: string; description: string }[];
 };
@@ -166,8 +164,8 @@ export type CategoryTreatmentCard = {
  */
 export function buildCategoryTreatmentCards(
   candidates: { categoryCode: string; patientLabel: string }[],
-): CategoryTreatmentCard[] {
-  const cards: CategoryTreatmentCard[] = [];
+): GlossaryTreatmentCard[] {
+  const cards: GlossaryTreatmentCard[] = [];
   for (const c of candidates) {
     const entries = TREATMENT_PRINCIPLE_KEYWORD_GLOSSARY[c.categoryCode];
     if (entries === undefined) {
@@ -181,6 +179,18 @@ export function buildCategoryTreatmentCards(
     cards.push({ categoryLabel: c.patientLabel, items: entries });
   }
   return cards;
+}
+
+// 카드4(한의건강해석) 상단 카테고리 점수 시각화(task.md 가독성 개선, 배경: 여러 카테고리가
+// 겹칠 때 문장만 나열되면 핵심이 한눈에 안 들어온다는 최승희 팀장 피드백) — AI가 아니라
+// TcmCategoryScore.ratio를 코드가 그대로 옮겨 담는다(카드2/3/6과 동일 "AI가 안 만들고
+// 시스템이 결정" 원칙, 지어내거나 왜곡할 위험 자체가 없음). 후보 카테고리는 전부 동점(최대
+// 비율) 병렬 선정이라(tcm-checklist.ts markCandidates) 여러 개면 ratio 값이 서로 같을 수
+// 있다 — 이는 버그가 아니라 "체크 문항 대비 비율" 채점 방식의 정상적인 결과다.
+export type CategoryScoreBar = { categoryLabel: string; ratioPercent: number };
+
+export function buildCategoryScoreBars(candidates: { patientLabel: string; ratio: number }[]): CategoryScoreBar[] {
+  return candidates.map((c) => ({ categoryLabel: c.patientLabel, ratioPercent: Math.round(c.ratio * 100) }));
 }
 
 /**

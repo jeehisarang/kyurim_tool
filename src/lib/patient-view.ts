@@ -121,12 +121,13 @@ export type NotableChangeView = { label: string; direction: "IMPROVED" | "ATTENT
 // 건강 리포트(task.md 7카드 리뉴얼) 화이트리스트 뷰 — commentaryVersion이
 // "HEALTH_REPORT_V1"일 때만 채워진다. 카드2(checkedSymptoms)/카드3(notableChanges)/
 // 카드6(redFlagNotice)은 AI가 아니라 코드가 계산한 데이터를 그대로 옮긴 것이다.
-// 카드7 치료방향 카드(task.md 키워드 불릿 고정사전 전환) — body 단일 문자열 대신 키워드별
-// 항목 배열로 저장한다(불릿 렌더링을 위해 구조 유지, AI 문단이 아니므로 굳이 이어붙이지 않음).
-export type CategoryTreatmentCardView = {
-  categoryLabel: string;
-  items: { keyword: string; description: string }[];
-};
+// 카드7 치료방향 카드(task.md — AI 개인화 버전으로 롤백, 커밋 d5fd073의 키워드 불릿 고정사전
+// {items} 모양에서 다시 담백한 1문장 {body} 모양으로 되돌림).
+export type CategoryTreatmentCardView = { categoryLabel: string; body: string };
+
+// 카드4 상단 카테고리 점수 시각화(task.md 가독성 개선) — TcmCategoryScore.ratio를 그대로
+// 옮긴 값(AI가 안 만듦). 후보 카테고리가 없으면 빈 배열(시각화 자체를 숨김).
+export type CategoryScoreBarView = { categoryLabel: string; ratioPercent: number };
 
 export type HealthReportCards = {
   headline: string;
@@ -135,7 +136,9 @@ export type HealthReportCards = {
   tcmInterpretation: string;
   progression: string;
   redFlagNotice: string | null;
-  // 카드7 카드형 재구성(task.md) — 카테고리별 독립 카드. 옛 레코드(재생성 전)는 항상 빈 배열.
+  // 카드4 상단 시각화(task.md). 옛 레코드(재생성 전)는 항상 빈 배열.
+  categoryScoreBars: CategoryScoreBarView[];
+  // 카드7 카드형 재구성 — 카테고리별 독립 카드. 옛 레코드(재생성 전)는 항상 빈 배열.
   treatmentCards: CategoryTreatmentCardView[];
   // 카드7의 공통 생활관리 문단(카드형 재구성 이후로는 카테고리 치료원칙을 다루지 않음).
   treatmentAndLifestyle: string;
@@ -154,15 +157,8 @@ function parseCheckedSymptomsJson(json: string | null | undefined): string[] {
   }
 }
 
-function isValidTreatmentCardItem(v: unknown): v is { keyword: string; description: string } {
-  return (
-    v !== null &&
-    typeof v === "object" &&
-    typeof (v as Record<string, unknown>).keyword === "string" &&
-    typeof (v as Record<string, unknown>).description === "string"
-  );
-}
-
+// {categoryLabel, body}만 유효로 본다 — 한때(커밋 d5fd073) 저장됐을 수 있는 고정사전
+// {items} 모양 값은 body 필드가 없어 자연히 걸러진다(재생성 전까지 카드 미노출, 화면 안 깨짐).
 function parseTreatmentCardsJson(json: string | null | undefined): CategoryTreatmentCardView[] {
   if (!json) return [];
   try {
@@ -170,11 +166,21 @@ function parseTreatmentCardsJson(json: string | null | undefined): CategoryTreat
     if (!Array.isArray(parsed)) return [];
     return parsed.filter(
       (c): c is CategoryTreatmentCardView =>
-        c &&
-        typeof c === "object" &&
-        typeof c.categoryLabel === "string" &&
-        Array.isArray(c.items) &&
-        c.items.every(isValidTreatmentCardItem),
+        c && typeof c === "object" && typeof c.categoryLabel === "string" && typeof c.body === "string",
+    );
+  } catch {
+    return [];
+  }
+}
+
+function parseCategoryScoreBarsJson(json: string | null | undefined): CategoryScoreBarView[] {
+  if (!json) return [];
+  try {
+    const parsed = JSON.parse(json);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter(
+      (c): c is CategoryScoreBarView =>
+        c && typeof c === "object" && typeof c.categoryLabel === "string" && typeof c.ratioPercent === "number",
     );
   } catch {
     return [];
@@ -206,6 +212,7 @@ export function toHealthReportCards(detail: {
   aiClinicalMeaning?: string | null;
   aiRedFlagNotice?: string | null;
   aiTreatmentCardsJson?: string | null;
+  aiCategoryScoreBarsJson?: string | null;
 }): HealthReportCards | null {
   if (!detail.aiDeviceReading) return null;
   return {
@@ -215,6 +222,7 @@ export function toHealthReportCards(detail: {
     tcmInterpretation: detail.aiTcmInterpretation ?? "",
     progression: detail.aiProgressionCard ?? "",
     redFlagNotice: detail.aiRedFlagNotice ?? null,
+    categoryScoreBars: parseCategoryScoreBarsJson(detail.aiCategoryScoreBarsJson),
     treatmentCards: parseTreatmentCardsJson(detail.aiTreatmentCardsJson),
     treatmentAndLifestyle: detail.aiLifestyleGuide ?? "",
   };
@@ -264,6 +272,7 @@ type RawHrvDetail = {
   aiCheckedSymptomsJson?: string | null;
   aiRedFlagNotice?: string | null;
   aiTreatmentCardsJson?: string | null;
+  aiCategoryScoreBarsJson?: string | null;
   aiCommentaryVersion?: string | null;
 };
 

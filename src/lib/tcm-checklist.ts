@@ -270,17 +270,22 @@ export async function getLatestAnswerMap(patientId: number): Promise<Map<number,
 // tcmPatternMap 방식으로 자연히 폴백하게 한다(병행 원칙).
 export async function getTcmCategoryProfileForAi(
   patientId: number,
-): Promise<{ categoryCode: string; patientLabel: string; treatmentPrinciple: string | null }[] | null> {
+): Promise<
+  { categoryCode: string; patientLabel: string; treatmentPrinciple: string | null; ratio: number }[] | null
+> {
   const latest = await getLatestChecklistResponse(patientId);
   if (!latest) return null;
   const candidates = latest.categoryScores.filter((s) => s.isCandidate);
   if (candidates.length === 0) return null;
-  // categoryCode는 카드7 치료방향 카드의 고정 키워드 사전(hrv-health-report.ts
-  // TREATMENT_PRINCIPLE_KEYWORD_GLOSSARY) 조회 키로도 재사용된다(task.md, AI 호출 제거).
+  // categoryCode는 hrv-health-report.ts의 고정 키워드 사전(TREATMENT_PRINCIPLE_KEYWORD_
+  // GLOSSARY, 현재는 카드 렌더링에 미사용이지만 코드는 남아있음) 조회 키로도 쓰였던 필드.
+  // ratio는 카드4 상단 카테고리 점수 시각화(task.md 가독성 개선)에 쓰인다 — 후보는 전부
+  // 동점(최대 비율) 병렬 선정이라 여러 개면 값이 서로 같을 수 있다(설계상 정상).
   return candidates.map((c) => ({
     categoryCode: c.categoryCode,
     patientLabel: c.patientLabel,
     treatmentPrinciple: c.treatmentPrinciple,
+    ratio: c.ratio,
   }));
 }
 
