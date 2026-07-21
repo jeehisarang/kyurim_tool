@@ -626,6 +626,9 @@ model PatientTeachingPage {
   academicHook          String
   viewCount             Int                @default(0)
   firstViewedAt         DateTime?
+  // 페이지 열람 활동피드 당일 1건 중복방지(task.md) — 토큰 단위로 마지막 기록 시각을
+  // 들고 있다가, 자정(KST) 경계를 넘긴 다음 열람에서만 다시 로그를 남긴다.
+  lastViewLoggedAt      DateTime?
   createdAt             DateTime           @default(now())
   createdByStaffId      Int
   createdByStaff        StaffUser          @relation("TeachingPageCreator", fields: [createdByStaffId], references: [id])
@@ -719,6 +722,10 @@ model PatientShareLink {
   createdByStaff        StaffUser              @relation("ShareLinkCreator", fields: [createdByStaffId], references: [id])
   viewCount             Int                    @default(0)
   firstViewedAt         DateTime?
+  // 페이지 열람 활동피드 당일 1건 중복방지(task.md) — PatientTeachingPage.lastViewLoggedAt과
+  // 동일 원칙. /s/[token]은 티칭/이벤트/검사 섹션을 합쳐도 페이지 전체 기준 1건이라
+  // 링크(token) 레벨에 둔다.
+  lastViewLoggedAt      DateTime?
   createdAt             DateTime               @default(now())
   // 검사톡(task.md) — 인바디/근력/HRV처럼 서로 다른 테이블에 있는 검사기록을 하나의 FK로
   // 묶을 수 없어 별도 조인테이블로 뺐다. 0개면 기존(티칭/이벤트만 있는) 링크와 완전히 동일하게

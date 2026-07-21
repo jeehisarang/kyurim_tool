@@ -197,6 +197,35 @@ export type PublicTeachingPageView = {
 };
 
 /**
+ * 페이지 열람 활동피드 당일 1건 중복방지(task.md) — checkActivityLog와 동일한 원자적
+ * updateMany 패턴: lastViewLoggedAt이 없거나 오늘(KST) 이전일 때만 갱신에 성공하고,
+ * 그 요청만 로그를 남긴다. 같은 날 새로고침을 반복해도 두 번째 요청부터는 count===0이라
+ * 조용히 스킵된다.
+ */
+async function recordTeachingPageViewOnce(
+  id: number,
+  patientId: number,
+  patientName: string,
+  programName: string,
+): Promise<void> {
+  const updated = await prisma.patientTeachingPage.updateMany({
+    where: {
+      id,
+      OR: [{ lastViewLoggedAt: null }, { lastViewLoggedAt: { lt: startOfDay(new Date()) } }],
+    },
+    data: { lastViewLoggedAt: new Date() },
+  });
+  if (updated.count === 0) return;
+
+  await logActivity({
+    actorType: "PATIENT",
+    actorId: patientId,
+    actionType: "TEACHING_PAGE_VIEW",
+    label: `${patientName}님이 [${programName}] 티칭지를 열람했습니다`,
+  });
+}
+
+/**
  * 공개 페이지(/p/{token}) 전용 조회 — 화이트리스트 변환(patient-view.ts와 동일 원칙,
  * 측정자/staffId/원본 메모 등 내부 정보는 반환 타입 자체에 아예 없음).
  * 접속마다 viewCount +1, 최초 접속이면 firstViewedAt만 1회 기록한다.
@@ -204,7 +233,10 @@ export type PublicTeachingPageView = {
 export async function getPublicTeachingPageByToken(
   token: string,
 ): Promise<PublicTeachingPageView | null> {
-  const existing = await prisma.patientTeachingPage.findUnique({ where: { token } });
+  const existing = await prisma.patientTeachingPage.findUnique({
+    where: { token },
+    include: { patient: true },
+  });
   if (!existing) return null;
 
   const updated = await prisma.patientTeachingPage.update({
@@ -215,6 +247,13 @@ export async function getPublicTeachingPageByToken(
     },
     include: { programTeaching: true },
   });
+
+  await recordTeachingPageViewOnce(
+    existing.id,
+    existing.patientId,
+    existing.patient.name,
+    updated.programTeaching.programName,
+  );
 
   let testValueSummary: string | null = null;
   if (updated.snapshotTestValueJson) {

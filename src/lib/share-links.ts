@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db";
 import { getTeachingPageContentById, type TeachingPageContentForShare, startOfDay, getSystemStaffUserId } from "@/lib/teaching-pages";
+import { logActivity } from "@/lib/activity-log";
 import { getEventImage } from "@/lib/event-images";
 import { createWithShortToken } from "@/lib/short-token";
 import { createWorkTask } from "@/lib/work-tasks";
@@ -208,11 +209,37 @@ async function buildExamEntry(link: { examType: string; examRecordId: number }):
 }
 
 /**
+ * 페이지 열람 활동피드 당일 1건 중복방지(task.md) — teaching-pages.ts의
+ * recordTeachingPageViewOnce와 동일한 원자적 updateMany 패턴. /s/[token]은 티칭/이벤트/
+ * 검사 섹션이 섞여 있어도 페이지 전체 기준(공유링크 token) 1건만 남긴다.
+ */
+async function recordShareLinkViewOnce(id: number, patientId: number, patientName: string): Promise<void> {
+  const updated = await prisma.patientShareLink.updateMany({
+    where: {
+      id,
+      OR: [{ lastViewLoggedAt: null }, { lastViewLoggedAt: { lt: startOfDay(new Date()) } }],
+    },
+    data: { lastViewLoggedAt: new Date() },
+  });
+  if (updated.count === 0) return;
+
+  await logActivity({
+    actorType: "PATIENT",
+    actorId: patientId,
+    actionType: "SHARE_LINK_VIEW",
+    label: `${patientName}님이 공유링크를 열람했습니다`,
+  });
+}
+
+/**
  * 공개 페이지(/s/{token}) 전용 조회 — 접속마다 PatientShareLink.viewCount +1, 최초
  * 접속이면 firstViewedAt만 1회 기록한다(getPublicTeachingPageByToken과 동일 패턴).
  */
 export async function getShareLinkByToken(token: string): Promise<PublicShareLinkView | null> {
-  const existing = await prisma.patientShareLink.findUnique({ where: { token }, include: { examLinks: true } });
+  const existing = await prisma.patientShareLink.findUnique({
+    where: { token },
+    include: { examLinks: true, patient: true },
+  });
   if (!existing) return null;
 
   const updated = await prisma.patientShareLink.update({
@@ -222,6 +249,8 @@ export async function getShareLinkByToken(token: string): Promise<PublicShareLin
       firstViewedAt: existing.firstViewedAt ?? new Date(),
     },
   });
+
+  await recordShareLinkViewOnce(existing.id, existing.patientId, existing.patient.name);
 
   const [teaching, event, examEntries, checklistResponse] = await Promise.all([
     updated.teachingPageId ? getTeachingPageContentById(updated.teachingPageId) : null,
