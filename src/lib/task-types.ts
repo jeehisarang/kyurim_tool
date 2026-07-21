@@ -26,3 +26,13 @@ export const WORK_TASK_TYPE = "WORK";
 export function isWorkTaskType(taskType: string): boolean {
   return taskType === WORK_TASK_TYPE;
 }
+
+// 검사 해피톡(task.md) — 검사(인바디/근력/HRV) 등록 시 ExamReminderCycle이 자동 생성하는
+// "다음 검사 리마인더". WORK와 동일하게 TodoTask.isDone이 진실원천이고 patientId 직결
+// (prescriptionId 없음)이지만, 직원이 직접 쓰는 게 아니라 사이클에서 나온다는 점이 달라
+// 별도 taskType으로 분류한다(WorkTask 같은 상세 테이블 없이 examReminderCycle 관계만 참조).
+export const EXAM_REMINDER_TASK_TYPE = "EXAM_REMINDER";
+
+export function isExamReminderTaskType(taskType: string): boolean {
+  return taskType === EXAM_REMINDER_TASK_TYPE;
+}

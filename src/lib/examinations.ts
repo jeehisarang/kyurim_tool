@@ -13,6 +13,7 @@ import {
   type Gender,
 } from "@/lib/exam-thresholds";
 import { getExamTrend } from "@/lib/program-teaching";
+import { scheduleNextExamReminder } from "@/lib/exam-reminders";
 import { generateExamExplanation } from "@/lib/exam-explanation";
 import type { BodyCompositionRecord, StrengthTestRecord } from "@/generated/prisma/client";
 
@@ -227,6 +228,9 @@ export async function createBodyCompositionRecord(input: BodyCompositionInput & 
     },
   });
 
+  // 검사 해피톡(task.md) — 등록 성공 직후 "다음 검사 리마인더" 사이클을 갱신한다.
+  await scheduleNextExamReminder(record.patientId, "BODY_COMPOSITION", record.examDate);
+
   // 저장 시점에 동기적으로 함께 생성한다(task.md — 원장님이 저장 직후 바로 "환자와
   // 함께보기"로 넘어가는 실사용 흐름이라 지연 없이 바로 보여야 함). 실패해도 위 create는
   // 이미 끝난 뒤이므로 검사 저장 자체는 영향받지 않는다.
@@ -313,6 +317,9 @@ export async function createStrengthTestRecord(input: StrengthTestInput & { staf
       staffUserId: input.staffUserId,
     },
   });
+
+  // 검사 해피톡(task.md) — 등록 성공 직후 "다음 검사 리마인더" 사이클을 갱신한다.
+  await scheduleNextExamReminder(record.patientId, "STRENGTH_TEST", record.examDate);
 
   // BodyCompositionRecord와 동일한 원칙 — 저장 시점 동기 생성, 실패해도 저장엔 영향 없음.
   const explanation = await tryGenerateStrengthTestExplanation(record, gender);

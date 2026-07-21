@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { buildPrescriptionRows } from "@/lib/prescriptions";
 import { listExaminations } from "@/lib/examinations";
+import { listExamReminderCyclesForPatient } from "@/lib/exam-reminders";
 
 const RECENT_EXAM_LIMIT = 5;
 const RECENT_VISIT_LIMIT = 5;
@@ -42,11 +43,14 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
     take: RECENT_VISIT_LIMIT,
   });
 
+  const examReminderCycles = await listExamReminderCyclesForPatient(patientId);
+
   return NextResponse.json({
     patient,
     activePrescriptions,
     inactivePrescriptions,
     recentExams,
     recentVisits,
+    examReminderCycles,
   });
 }

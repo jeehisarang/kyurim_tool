@@ -12,7 +12,7 @@ export const SHARED_TASK_VALUE = "SHARED";
 export type StaffUser = { id: number; name: string; role: string };
 export type Patient = { id: number; name: string; chartNumber: string };
 export type Program = { id: number; name: string };
-export type TodoCategory = "PRESCRIPTION" | "TALK" | "WORK";
+export type TodoCategory = "PRESCRIPTION" | "TALK" | "WORK" | "EXAM_REMINDER";
 export type TodoTask = {
   id: number;
   category: TodoCategory;
@@ -26,7 +26,7 @@ export type TodoTask = {
   doneByUser: StaffUser | null;
   skippedAt: string | null;
   skippedByUser: StaffUser | null;
-  // WORK 전용 필드 — 그 외 카테고리에서는 항상 undefined/null.
+  // WORK/EXAM_REMINDER 전용 필드 — 그 외 카테고리에서는 항상 undefined/null.
   title?: string;
   description?: string | null;
   creator?: StaffUser | null;
@@ -51,6 +51,7 @@ const CATEGORY_LABEL: Record<TodoCategory, string> = {
   PRESCRIPTION: "처방",
   TALK: "톡",
   WORK: "업무",
+  EXAM_REMINDER: "검사리마인더",
 };
 
 function taskTypeBadgeClass(taskType: string): string {
@@ -337,6 +338,7 @@ export default function TodoTaskTable({
 
           const task = row.task;
           const isWork = task.category === "WORK";
+          const isExamReminder = task.category === "EXAM_REMINDER";
           const isEditingThis = editingWorkId === task.id;
           const colSpan = (hideNameColumns ? 3 : 6) + (showDueBadge ? 1 : 0);
           return (
@@ -347,6 +349,8 @@ export default function TodoTaskTable({
                     <td>
                       {isWork ? (
                         <span className={styles.categoryBadgeWork}>{CATEGORY_LABEL.WORK}</span>
+                      ) : isExamReminder ? (
+                        <span className={styles.categoryBadgeExamReminder}>{CATEGORY_LABEL.EXAM_REMINDER}</span>
                       ) : (
                         <span className={styles.categoryBadgePrescription}>{CATEGORY_LABEL.PRESCRIPTION}</span>
                       )}
@@ -379,6 +383,11 @@ export default function TodoTaskTable({
                         !task.assignee && <span className={styles.selfAssignedTag}> (자율업무)</span>
                       )}
                     </span>
+                  ) : isExamReminder ? (
+                    <span className={styles.taskTypeBadgeExamReminder}>
+                      🔬 {task.title}
+                      <span className={styles.selfAssignedTag}> (전체 공통)</span>
+                    </span>
                   ) : (
                     <span className={taskTypeBadgeClass(task.taskType)}>
                       {TASK_TYPE_ICON[task.taskType] ?? ""} {TASK_TYPE_LABEL[task.taskType] ?? task.taskType}
@@ -400,7 +409,9 @@ export default function TodoTaskTable({
                         )}
                   </td>
                 )}
-                <td>{isWork && task.isSharedTask ? "전체 공통" : (task.staffUser?.name ?? "미배정")}</td>
+                <td>
+                  {(isExamReminder || (isWork && task.isSharedTask)) ? "전체 공통" : (task.staffUser?.name ?? "미배정")}
+                </td>
                 <td>
                   <span className={styles.actionsCell}>
                     {task.isDone ? (

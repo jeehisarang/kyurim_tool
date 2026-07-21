@@ -44,6 +44,7 @@ model Patient {
   shareLinks                  PatientShareLink[]
   hrvImportPendingResolutions HrvImportPending[]
   tcmChecklistResponses       TcmChecklistResponse[]
+  examReminderCycles          ExamReminderCycle[]
 }
 
 model TreatmentCategory {
@@ -430,7 +431,7 @@ model TodoTask {
   prescription   Prescription?    @relation(fields: [prescriptionId], references: [id])
   patientId      Int?
   patient        Patient?         @relation(fields: [patientId], references: [id])
-  taskType       String // NEXT_DOSE | FOLLOW_UP (처방) | DAY2 | DAY7 | THIRD_VISIT | TRIAL_WELCOME | TRIAL_DAY2 | TRIAL_DEADLINE (톡) | WORK (업무/요청)
+  taskType       String // NEXT_DOSE | FOLLOW_UP (처방) | DAY2 | DAY7 | THIRD_VISIT | TRIAL_WELCOME | TRIAL_DAY2 | TRIAL_DEADLINE (톡) | WORK (업무/요청) | EXAM_REMINDER (검사 해피톡)
   // WORK는 마감일이 선택사항이라 nullable — 그 외 타입은 관례상 항상 값이 채워진다.
   // 값이 있으면 반드시 자정(00:00:00) 기준으로 저장(examDate/visitDate와 동일 원칙).
   dueDate        DateTime?
@@ -443,6 +444,33 @@ model TodoTask {
   createdAt      DateTime         @default(now())
   eventLog       ProgramEventLog?
   workTask       WorkTask?
+  // 검사 해피톡(task.md) — 이 리마인더를 발생시킨 사이클(환자+검사종류). 같은 사이클에서
+  // superseded된 과거 리마인더도 이 FK로 계속 연결되어 있다(이력용, 굳이 끊지 않음).
+  examReminderCycleId Int?
+  examReminderCycle   ExamReminderCycle? @relation(fields: [examReminderCycleId], references: [id])
+}
+
+// 검사 해피톡(task.md) — 인바디/근력/HRV 전부 검사종류 무관 1달(calendar month) 주기로
+// "다음 검사 리마인더"를 무한 반복한다(프로그램 회차와 달리 종료조건 없음, 원장이 끄기
+// 전까지 계속). 환자당 검사종류별로 사이클은 항상 1개(unique)만 존재하고, 매 검사 등록마다
+// 그 실제 검사일 기준으로 nextDueDate를 다시 계산한다(스케줄 고정이 아니라 재검사 시점에
+// 자연스럽게 다시 잡힘 — 처방 회차 계산과 동일 원칙).
+model ExamReminderCycle {
+  id            Int        @id @default(autoincrement())
+  patientId     Int
+  patient       Patient    @relation(fields: [patientId], references: [id])
+  examType      String // BODY_COMPOSITION | STRENGTH_TEST | HRV (검사기록 examType과 동일 값)
+  // 원장 수동 온/오프 스위치(task.md) — 꺼지면 이후 검사 등록 시 새 리마인더를 만들지 않는다.
+  // lastExamDate/nextDueDate 갱신 자체는 계속하므로(꺼져 있어도 검사 이력은 정확히 반영),
+  // 나중에 다시 켜면 그 시점 최신 검사일 기준으로 바로 이어서 작동한다.
+  isActive      Boolean    @default(true)
+  lastExamDate  DateTime
+  nextDueDate   DateTime
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+  reminderTasks TodoTask[]
+
+  @@unique([patientId, examType])
 }
 
 // 업무/요청(taskType='WORK') TodoTask 1건과 1:1 대응하는 상세 정보.

@@ -143,6 +143,60 @@
   text-decoration: underline;
 }
 
+.examReminderRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.examReminderChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid rgba(110, 148, 140, 0.3);
+  border-radius: 4px;
+  padding: 4px 10px;
+  font-size: 13px;
+  color: var(--color-ink);
+}
+
+.examReminderNextDue {
+  font-size: 11px;
+  opacity: 0.65;
+  white-space: nowrap;
+}
+
+.statusActive,
+.statusInactive {
+  border: none;
+  background: transparent;
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+.statusActive:hover:not(:disabled),
+.statusInactive:hover:not(:disabled) {
+  background: rgba(110, 148, 140, 0.12);
+}
+
+.statusActive:disabled,
+.statusInactive:disabled {
+  cursor: not-allowed;
+}
+
+.statusActive {
+  color: var(--color-celadon-dark);
+}
+
+.statusInactive {
+  color: var(--color-seal);
+}
+
 .collapseToggleButton {
   display: block;
   margin-top: 4px;

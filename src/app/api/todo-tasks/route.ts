@@ -8,7 +8,7 @@ import {
   findMessageLogsByPatientAndType,
   findProgramEventLogsByTodoTaskIds,
 } from "@/lib/todo-tasks";
-import { isMessageTaskType, WORK_TASK_TYPE } from "@/lib/task-types";
+import { isMessageTaskType, WORK_TASK_TYPE, EXAM_REMINDER_TASK_TYPE } from "@/lib/task-types";
 
 // MessageLog는 patientId 직결 자가치유형 톡(2일/7일/3회차톡)만 저장한다.
 // 프로그램 이벤트(TRIAL_* 등, prescriptionId 경유)는 ProgramEventLog를 따로 조회한다.
@@ -46,9 +46,16 @@ export async function GET(request: Request) {
   };
 
   // 전체 공통(WorkTask.isSharedTask) 업무는 특정 담당자 소유가 아니라 모든 직원 화면에
-  // 동일하게 노출돼야 하므로, 담당자 필터가 걸려 있어도 별도로 포함시킨다.
+  // 동일하게 노출돼야 하므로, 담당자 필터가 걸려 있어도 별도로 포함시킨다. 검사 리마인더
+  // (EXAM_REMINDER)도 항상 담당자 미지정(전체공통)이라 동일하게 별도 포함시킨다.
   const staffFilter = staffUserId
-    ? { OR: [{ staffUserId: Number(staffUserId) }, { workTask: { isSharedTask: true } }] }
+    ? {
+        OR: [
+          { staffUserId: Number(staffUserId) },
+          { workTask: { isSharedTask: true } },
+          { taskType: EXAM_REMINDER_TASK_TYPE },
+        ],
+      }
     : {};
 
   const tasks = await prisma.todoTask.findMany({

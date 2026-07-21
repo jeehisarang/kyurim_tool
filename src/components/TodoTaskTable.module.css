@@ -166,6 +166,27 @@
   color: var(--color-ink);
 }
 
+.categoryBadgeExamReminder {
+  display: inline-block;
+  border-radius: 4px;
+  padding: 2px 8px;
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+  background: rgba(42, 95, 168, 0.12);
+  color: var(--color-info);
+}
+
+.taskTypeBadgeExamReminder {
+  display: inline-block;
+  border-radius: 4px;
+  padding: 2px 8px;
+  font-size: 13px;
+  white-space: nowrap;
+  background: rgba(42, 95, 168, 0.1);
+  color: var(--color-info);
+}
+
 .selfAssignedTag {
   font-size: 11px;
   opacity: 0.65;

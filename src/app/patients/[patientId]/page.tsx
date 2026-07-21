@@ -56,12 +56,20 @@ type VisitRow = {
   visitType: { name: string };
 };
 
+type ExamReminderCycleRow = {
+  examType: "BODY_COMPOSITION" | "STRENGTH_TEST" | "HRV";
+  isActive: boolean;
+  lastExamDate: string;
+  nextDueDate: string;
+};
+
 type ProfileData = {
   patient: PatientInfo;
   activePrescriptions: PrescriptionRow[];
   inactivePrescriptions: PrescriptionRow[];
   recentExams: ExaminationRow[];
   recentVisits: VisitRow[];
+  examReminderCycles: ExamReminderCycleRow[];
 };
 
 type ConsultationNote = {
@@ -112,6 +120,7 @@ export default function PatientProfilePage() {
   const [coreProfileError, setCoreProfileError] = useState<string | null>(null);
 
   const [consultationNotes, setConsultationNotes] = useState<ConsultationNote[] | null>(null);
+  const [togglingExamType, setTogglingExamType] = useState<string | null>(null);
 
   useEffect(() => {
     setLoadError(false);
@@ -191,6 +200,37 @@ export default function PatientProfilePage() {
     }
   }
 
+  async function toggleExamReminder(cycle: ExamReminderCycleRow) {
+    const staffUserId = getCurrentUserId();
+    if (!staffUserId || togglingExamType !== null) return;
+    setTogglingExamType(cycle.examType);
+    try {
+      const res = await fetch(`/api/patients/${patientId}/exam-reminders`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ staffUserId, examType: cycle.examType, isActive: !cycle.isActive }),
+      });
+      if (!res.ok) {
+        alert("처리에 실패했습니다. 다시 시도해주세요.");
+        return;
+      }
+      setData((prev) =>
+        prev
+          ? {
+              ...prev,
+              examReminderCycles: prev.examReminderCycles.map((c) =>
+                c.examType === cycle.examType ? { ...c, isActive: !cycle.isActive } : c,
+              ),
+            }
+          : prev,
+      );
+    } catch {
+      alert("서버에 연결하지 못했습니다. 다시 시도해주세요.");
+    } finally {
+      setTogglingExamType(null);
+    }
+  }
+
   if (loadError) {
     return (
       <div className={styles.container}>
@@ -210,7 +250,8 @@ export default function PatientProfilePage() {
     );
   }
 
-  const { patient, activePrescriptions, inactivePrescriptions, recentExams, recentVisits } = data;
+  const { patient, activePrescriptions, inactivePrescriptions, recentExams, recentVisits, examReminderCycles } =
+    data;
 
   return (
     <div className={styles.container}>
@@ -429,6 +470,29 @@ export default function PatientProfilePage() {
             전체 이력 보기 →
           </Link>
         </div>
+        {/* 검사 해피톡(task.md) 온/오프 — 한 번이라도 등록된 검사종류만 표시(끌 대상이 있어야
+            토글이 의미가 있음). 원장만 변경 가능(settings/programs 토글과 동일 서버단 재검증). */}
+        {examReminderCycles.length > 0 && (
+          <div className={styles.examReminderRow}>
+            {examReminderCycles.map((cycle) => (
+              <span key={cycle.examType} className={styles.examReminderChip}>
+                {EXAM_TYPE_LABEL[cycle.examType]} 리마인더
+                <button
+                  type="button"
+                  className={cycle.isActive ? styles.statusActive : styles.statusInactive}
+                  onClick={() => toggleExamReminder(cycle)}
+                  disabled={!isDirector || togglingExamType !== null}
+                  title={isDirector ? `클릭하여 ${cycle.isActive ? "끄기" : "켜기"}` : "원장만 변경할 수 있습니다."}
+                >
+                  {cycle.isActive ? "켜짐" : "꺼짐"}
+                </button>
+                {cycle.isActive && (
+                  <span className={styles.examReminderNextDue}>다음 {formatDate(cycle.nextDueDate)}</span>
+                )}
+              </span>
+            ))}
+          </div>
+        )}
         {recentExams.length === 0 && <p className={styles.muted}>등록된 검사 기록이 없습니다.</p>}
         {recentExams.length > 0 && (
           <table className={styles.table}>

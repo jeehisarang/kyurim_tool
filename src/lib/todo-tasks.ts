@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db";
-import { isMessageTaskType, isWorkTaskType } from "@/lib/task-types";
+import { isMessageTaskType, isWorkTaskType, isExamReminderTaskType } from "@/lib/task-types";
+import { EXAM_REMINDER_TYPE_LABEL, isExamReminderExamType } from "@/lib/exam-reminders";
 
 export const TODO_TASK_INCLUDE = {
   prescription: { include: { patient: true, program: true } },
@@ -7,6 +8,7 @@ export const TODO_TASK_INCLUDE = {
   staffUser: true,
   doneByUser: true,
   workTask: { include: { creator: true, assignee: true } },
+  examReminderCycle: true,
 } as const;
 
 type RawTodoTask = Awaited<ReturnType<typeof fetchOne>>;
@@ -50,6 +52,31 @@ export function normalizeTodoTask(task: RawTodoTask, eventLog: EventLogLite) {
       isSharedTask: task.workTask?.isSharedTask ?? false,
       dueDate: task.dueDate,
       patient: null,
+      program: null,
+      staffUser: task.staffUser,
+      isDone: task.isDone,
+      doneByUser: task.doneByUser,
+      skippedAt: null as Date | null,
+      skippedByUser: null as StaffUserLite | null,
+    };
+  }
+
+  if (isExamReminderTaskType(task.taskType)) {
+    const cycleExamType = task.examReminderCycle?.examType;
+    const examTypeLabel =
+      cycleExamType && isExamReminderExamType(cycleExamType) ? EXAM_REMINDER_TYPE_LABEL[cycleExamType] : "검사";
+
+    return {
+      id: task.id,
+      category: "EXAM_REMINDER" as const,
+      taskType: task.taskType,
+      title: `${examTypeLabel} 검사 시기 도래`,
+      description: null,
+      creator: null,
+      assignee: null,
+      isSharedTask: true,
+      dueDate: task.dueDate,
+      patient: task.patient,
       program: null,
       staffUser: task.staffUser,
       isDone: task.isDone,

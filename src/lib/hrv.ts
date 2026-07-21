@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db";
 import { saveHrvResultImage, readUploadedImageAsBase64 } from "@/lib/image-upload";
+import { scheduleNextExamReminder } from "@/lib/exam-reminders";
 import {
   generateHrvExplanation,
   generateCategoryTreatmentCards,
@@ -291,6 +292,10 @@ export async function createHrvTestRecord(input: CreateHrvTestRecordInput) {
       measuredByStaffId: input.measuredByStaffId,
     },
   });
+
+  // 검사 해피톡(task.md) — 등록 성공 직후 "다음 검사 리마인더" 사이클을 갱신한다. CSV
+  // 자동연동(hrv-csv-import.ts)도 이 함수를 재사용하므로 수동 등록/자동 연동 양쪽 다 적용된다.
+  await scheduleNextExamReminder(record.patientId, "HRV", record.testDate);
 
   const commentary = await tryGenerateHrvCommentary(record);
   if (!commentary) return record;
