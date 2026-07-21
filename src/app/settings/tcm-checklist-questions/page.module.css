@@ -1,0 +1,193 @@
+.container {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 32px 16px 64px;
+}
+
+.titleRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.pageTitle {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 26px;
+  color: var(--color-ink);
+}
+
+.titleRow .pageTitle {
+  margin-bottom: 0;
+}
+
+.muted {
+  color: var(--color-ink);
+  opacity: 0.55;
+  font-size: 13px;
+  margin-bottom: 24px;
+}
+
+.section {
+  background: var(--color-hanji-card);
+  border: 1px solid rgba(110, 148, 140, 0.35);
+  border-radius: 6px;
+  box-shadow: 0 1px 2px rgba(43, 39, 35, 0.04);
+  padding: 20px;
+  margin-bottom: 24px;
+}
+
+.sectionTitle {
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--color-celadon-dark);
+  border-left: 3px solid var(--color-celadon);
+  padding-left: 8px;
+  margin-bottom: 16px;
+}
+
+.errorText {
+  color: var(--color-seal);
+  font-size: 13px;
+  margin: 4px 0 16px;
+}
+
+.questionList {
+  list-style: none;
+  margin: 0 0 16px;
+  padding: 0;
+}
+
+.questionItem {
+  border-top: 1px solid rgba(110, 148, 140, 0.2);
+  padding: 10px 0;
+}
+
+.questionItem:first-child {
+  border-top: none;
+  padding-top: 0;
+}
+
+.viewRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.questionText {
+  font-size: 14px;
+  color: var(--color-ink);
+  cursor: pointer;
+  flex: 1;
+}
+
+.questionText:hover {
+  text-decoration: underline;
+  text-decoration-style: dotted;
+}
+
+.editRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.questionInput {
+  flex: 1;
+  border: 1px solid rgba(110, 148, 140, 0.4);
+  border-radius: 4px;
+  background: var(--color-hanji-bg);
+  color: var(--color-ink);
+  padding: 8px 10px;
+  font-size: 14px;
+  font-family: var(--font-body);
+}
+
+.addRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.saveButton {
+  border: none;
+  border-radius: 4px;
+  background: var(--color-celadon);
+  color: var(--color-hanji-card);
+  padding: 8px 14px;
+  font-size: 13px;
+  font-family: var(--font-body);
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background-color 0.15s ease;
+}
+
+.saveButton:hover:not(:disabled) {
+  background: var(--color-celadon-dark);
+}
+
+.saveButton:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.cancelButton {
+  border: 1px solid rgba(110, 148, 140, 0.4);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--color-ink);
+  padding: 8px 12px;
+  font-size: 13px;
+  font-family: var(--font-body);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.cancelButton:hover {
+  background: rgba(110, 148, 140, 0.1);
+}
+
+.removeRowButton {
+  border: 1px solid var(--color-seal);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--color-seal);
+  padding: 4px 10px;
+  font-size: 12px;
+  font-family: var(--font-body);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.removeRowButton:hover:not(:disabled) {
+  background: rgba(179, 60, 46, 0.1);
+}
+
+.removeRowButton:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.addRowButton {
+  border: 1px solid var(--color-celadon);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--color-celadon-dark);
+  padding: 8px 14px;
+  font-size: 13px;
+  font-family: var(--font-body);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.addRowButton:hover:not(:disabled) {
+  background: rgba(110, 148, 140, 0.1);
+}
+
+.addRowButton:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}

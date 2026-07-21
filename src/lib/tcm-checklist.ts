@@ -68,7 +68,69 @@ export async function listActiveCategoriesWithQuestions() {
 export async function listCategoriesForAdmin() {
   return prisma.tcmCategory.findMany({
     orderBy: { displayOrder: "asc" },
-    include: { questions: { orderBy: { displayOrder: "asc" } } },
+    include: { questions: { where: { isActive: true }, orderBy: { displayOrder: "asc" } } },
+  });
+}
+
+// 질문 관리 화면(task.md "질문 관리") 전용 CRUD — 카테고리 자체(추가/삭제/이름변경)는 이번
+// 범위 밖이라 categoryId는 항상 기존 7개 카테고리 중 하나를 가리켜야 한다.
+//
+// 삭제 방식 결정 근거: TcmChecklistAnswer.questionId는 스냅샷이 아니라 TcmChecklistQuestion을
+// 가리키는 FK 참조이고(질문 텍스트 컬럼이 TcmChecklistAnswer에 없음), 마이그레이션에도
+// `ON DELETE RESTRICT`로 걸려 있다. 그리고 getCandidateCheckedSymptoms()가 리포트 렌더링
+// 시점에 answer.question.patientQuestion을 그때그때 조인해서 읽는다 — 즉 하드 삭제하면 과거
+// 응답이 있는 문항은 FK 제약으로 삭제가 아예 막히거나(강제로 뚫으면) 과거 리포트가 깨진다.
+// 그래서 하드 삭제 대신 이미 있는 isActive 플래그로 소프트 삭제한다 — 활성 목록
+// (listActiveCategoriesWithQuestions)에서만 빠지고, 과거 응답의 조인 대상 row는 그대로 남는다.
+
+/** 카테고리 안에서 다음 순번(추가 시 항상 "끝에 추가", task.md 범위) — 비활성 문항도 순번
+ * 충돌을 피하기 위해 포함해서 max를 구한다. */
+async function nextDisplayOrderInCategory(categoryId: number): Promise<number> {
+  const last = await prisma.tcmChecklistQuestion.findFirst({
+    where: { categoryId },
+    orderBy: { displayOrder: "desc" },
+  });
+  return (last?.displayOrder ?? 0) + 1;
+}
+
+/** 질문 추가 — 관리화면에서 카테고리 섹션 하단 "질문 추가"에 대응. questionCode는 표시에
+ * 쓰이지 않는 내부 고유키라 카테고리코드+타임스탬프로 충돌 없이 생성한다.
+ *
+ * "그외"(OTHER)는 관리 대상 7개 카테고리에 포함되지 않는다 — consultation-survey 화면이
+ * `questions.length === 0`인 카테고리를 자유기록 textarea로 특별 취급하므로(otherCategory),
+ * 여기에 질문을 추가하면 그 textarea가 사라지고 대신 채점 대상 카테고리로 둔갑해 후보/점수
+ * 계산 로직까지 오염된다 — 반드시 막는다. */
+export async function addChecklistQuestion(categoryId: number, patientQuestion: string) {
+  const category = await prisma.tcmCategory.findUnique({ where: { id: categoryId } });
+  if (!category) throw new Error("존재하지 않는 카테고리입니다.");
+  if (category.categoryCode === "OTHER") {
+    throw new Error("\"그외\" 카테고리는 자유기록 전용이라 질문을 추가할 수 없습니다.");
+  }
+
+  const displayOrder = await nextDisplayOrderInCategory(categoryId);
+  return prisma.tcmChecklistQuestion.create({
+    data: {
+      categoryId,
+      questionCode: `${category.categoryCode}_CUSTOM_${Date.now()}`,
+      patientQuestion,
+      displayOrder,
+    },
+  });
+}
+
+/** 질문 텍스트 인라인 수정. */
+export async function updateChecklistQuestionText(questionId: number, patientQuestion: string) {
+  return prisma.tcmChecklistQuestion.update({
+    where: { id: questionId },
+    data: { patientQuestion },
+  });
+}
+
+/** 질문 삭제(소프트) — isActive=false. 하드 삭제로 인한 FK 제약/과거 리포트 파손을 피한다. */
+export async function softDeleteChecklistQuestion(questionId: number) {
+  return prisma.tcmChecklistQuestion.update({
+    where: { id: questionId },
+    data: { isActive: false },
   });
 }
 

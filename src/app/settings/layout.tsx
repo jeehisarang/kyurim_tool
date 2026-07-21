@@ -11,6 +11,7 @@ const TABS = [
   { label: "프로그램 티칭 관리", href: "/settings/program-teaching" },
   { label: "상담유형 관리", href: "/settings/consultation-types" },
   { label: "검사 학술근거 관리", href: "/settings/exam-guides" },
+  { label: "질문 관리", href: "/settings/tcm-checklist-questions" },
 ];
 
 export default function SettingsLayout({ children }: { children: React.ReactNode }) {
