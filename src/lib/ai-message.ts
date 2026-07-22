@@ -230,6 +230,65 @@ ${progressLevel ? `- 호전도: ${progressLevelLabel[progressLevel]}` : ""}
   return generateMessage(SYSTEM_PROMPT, userMessage);
 }
 
+// 해피톡(처방주기 안내, task.md/13-5) — SPLIT(분할처방) 프로그램의 다음 처방일이 임박한
+// 환자에게 보내는 리마인드 메시지. COMMON_SYSTEM_PROMPT(톤/자체검토/예약링크 마무리)를
+// 그대로 재사용하고 few-shot 예시만 해피톡용으로 추가한다 — DAY2/DAY7/THIRD_VISIT과 같은
+// "내원기반" 계열은 아니지만 톤 원칙(자연스러운 리마인드, 압박 아님)과 품질 기준(비문 금지,
+// 자체검토)이 동일해서 TRIAL_*처럼 완전히 독립된 프롬프트를 새로 만들 필요는 없다고 판단.
+const HAPPY_TALK_SYSTEM_PROMPT = `${COMMON_SYSTEM_PROMPT}
+
+[해피톡(처방주기 안내) 예시 — 실제 사용 사례]
+입력: 김민지 / 프로그램: 킬팻캡슐 1개월 / 남은 차수: 2/3차 / 다음 처방일: 2026-08-01
+출력: "김민지님, 안녕하세요🙂 규림한의원입니다. 지금 드시고 계신 킬팻캡슐이 이제 거의 다 드셔가실 시기예요. 다음 처방일이 8월 1일로 다가오고 있어서 미리 안내드리려고 연락드렸어요. 꾸준히 이어서 챙겨 드시는 게 효과를 이어가는 데 가장 중요하니, 편하실 때 다음 처방 받으러 와주세요. 편하실 때 예약 링크로 확인해 주세요. 👉 ${BOOKING_LINK}"`;
+
+const HAPPY_TALK_PROMPT_INSTRUCTION =
+  "SPLIT(분할처방) 프로그램을 복용 중인 환자에게, 다음 처방일이 1~2일 앞으로 다가왔다는 걸 " +
+  "자연스럽게 알려주는 메시지를 써줘. '다 드셔가는데 다음 처방 받으셔야죠?' 개념이야 — " +
+  "압박하거나 재촉하는 느낌이 아니라, 잘 챙겨 드시고 계신지 자연스럽게 챙기는 리마인드 톤이어야 " +
+  "해. [프로그램명]과 [다음 처방일]을 자연스럽게 문장에 녹여 언급하고, [남은 차수]가 있다면 " +
+  "참고해서 톤을 살짝 조절해도 좋아(예: 마지막 차수에 가까우면 그동안 잘 이어오신 것에 대한 " +
+  "격려를 살짝 더해도 됨 — 단 남은 차수를 숫자 그대로 문장에 나열하듯 쓰지는 말 것). [해피톡 예시]의 " +
+  "구조와 톤을 참고해.";
+
+export type HappyTalkPatientContext = {
+  name: string;
+  memo: string | null;
+  programName: string;
+  remainingRounds: number | null;
+  nextDueDate: Date;
+  notes: PatientNoteContext[];
+  coreProfile?: CoreProfileContext;
+  latestConsultationNote?: { typeName: string; text: string };
+  extraKeywords?: string;
+};
+
+export async function generateHappyTalkMessageDraft(patient: HappyTalkPatientContext): Promise<string> {
+  const noteHistory =
+    patient.notes.length > 0
+      ? patient.notes.map((n) => `- ${n.createdAt.toISOString().slice(0, 10)} ${n.content}`).join("\n")
+      : "없음";
+
+  const consultationNoteText = patient.latestConsultationNote
+    ? `(${patient.latestConsultationNote.typeName}) ${patient.latestConsultationNote.text}`
+    : "없음";
+
+  const userMessage = `환자 정보:
+- 이름: ${patient.name}
+- 핵심프로필(원장이 정리한 사실관계 — 과거력/현재질환/주요니즈, 있으면 최우선 참고): ${formatCoreProfile(patient.coreProfile)}
+- 프로그램명: ${patient.programName}
+- 남은 차수(현재 회차 포함): ${patient.remainingRounds != null ? `${patient.remainingRounds}차` : "정보 없음"}
+- 다음 처방일: ${patient.nextDueDate.toISOString().slice(0, 10)}
+- 최근 상담기록(관련 있을 때만 참고): ${consultationNoteText}
+- 메모(단건): ${patient.memo ?? "없음"}
+- 누적 메모(최근 디테일/뉘앙스 — 관련 있는 것만 선별해서 반영, 전부 나열 금지):
+${noteHistory}
+${patient.extraKeywords ? `- 이번 발송에만 참고할 추가 키워드: ${patient.extraKeywords}` : ""}
+
+요청: ${HAPPY_TALK_PROMPT_INSTRUCTION}`;
+
+  return generateMessage(HAPPY_TALK_SYSTEM_PROMPT, userMessage);
+}
+
 // 마감톡에 삽입하는 마감설문 링크. 나중에 바뀔 수 있어 코드에 하드코딩하지 않고 .env의
 // TRIAL_DEADLINE_SURVEY_LINK로 관리한다 — 값이 없는 개발 환경을 위한 안전한 기본값만 유지.
 const TRIAL_DEADLINE_SURVEY_LINK =

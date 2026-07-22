@@ -24,6 +24,13 @@ export const TRIAL_TASK_TYPE_LABEL: Record<"TRIAL_WELCOME" | "TRIAL_DAY2" | "TRI
   TRIAL_DEADLINE: "체험 마감톡",
 };
 
+// 해피톡(처방주기 안내, task.md/13-5) 표시 라벨 — taskType은 새로 만들지 않고 기존 NEXT_DOSE를
+// 그대로 재사용한다(SPLIT 처방의 "다음 처방일" TodoTask). "오늘 할 일" 화면(TodoTaskTable)에서는
+// 여전히 "다음 처방일"로 표시되고, 톡생성기 쪽에서만 이 라벨을 쓴다.
+export const HAPPY_TALK_TASK_TYPE_LABEL: Record<"NEXT_DOSE", string> = {
+  NEXT_DOSE: "해피톡",
+};
+
 // 활동피드(ActivityLog) 문구 조립용 — WELCOME/MEETING까지 포함한 전체 톡 타입 라벨.
 // EXAM(검사톡, task.md) — 웰컴/만남톡처럼 내원일 자동생성 없이 담당자가 그때그때 만드는
 // 6번째 유형. TodoTask 없이 MessageLog만으로 발송함/안함을 추적한다(웰컴/만남톡과 동일 원칙).
@@ -33,4 +40,5 @@ export const MESSAGE_TYPE_LABEL: Record<string, string> = {
   EXAM: "검사톡",
   ...TALK_MESSAGE_TYPE_LABEL,
   ...TRIAL_TASK_TYPE_LABEL,
+  ...HAPPY_TALK_TASK_TYPE_LABEL,
 };

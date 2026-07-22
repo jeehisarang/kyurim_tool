@@ -442,6 +442,19 @@ export default function TodoTaskTable({
                         </button>
                       </>
                     )}
+                    {/* 해피톡(처방주기 안내, task.md/13-5) 진입점 — NEXT_DOSE(다음 처방일)는
+                        톡 그룹(TALK) 행이 아니라 개별 PRESCRIPTION 행으로 나오므로, 톡 그룹
+                        "톡 관리" 버튼과 동일한 콜백(onManageTalk)을 여기서도 그대로 재사용해
+                        톡생성기 "환자별 톡 관리" 화면(해피톡 섹션 포함)으로 이동시킨다. */}
+                    {task.taskType === "NEXT_DOSE" && task.patient && (
+                      <button
+                        type="button"
+                        className={styles.talkGenerateButton}
+                        onClick={() => onManageTalk(task.patient!.id)}
+                      >
+                        톡 관리
+                      </button>
+                    )}
                   </span>
                 </td>
               </tr>

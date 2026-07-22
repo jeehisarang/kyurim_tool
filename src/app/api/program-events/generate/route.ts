@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getProgramEventDetail } from "@/lib/program-events";
-import { generateTrialMessageDraft } from "@/lib/ai-message";
+import { generateTrialMessageDraft, generateHappyTalkMessageDraft } from "@/lib/ai-message";
+import { listConsultationNotesForPatient } from "@/lib/consultation-notes";
+import { HAPPY_TALK_TASK_TYPE } from "@/lib/happy-talk";
 
 // 3종(웰컴/2일차/마감) 전부 AI 생성으로 통일 — 웰컴톡도 설문 데이터를 반영해야 하므로
 // 더 이상 고정 템플릿을 쓰지 않는다 (task.md 지시).
@@ -13,7 +15,7 @@ function isTrialTaskType(value: string): value is (typeof TRIAL_TASK_TYPES)[numb
 
 export async function POST(request: Request) {
   const body = await request.json();
-  const { todoTaskId } = body;
+  const { todoTaskId, extraKeywords } = body;
 
   if (!todoTaskId) {
     return NextResponse.json({ error: "todoTaskId가 필요합니다." }, { status: 400 });
@@ -23,6 +25,51 @@ export async function POST(request: Request) {
   if (!task.prescription) {
     return NextResponse.json({ error: "프로그램 이벤트가 아닙니다." }, { status: 400 });
   }
+
+  // 해피톡(처방주기 안내, task.md/13-5) — SPLIT 처방의 "다음 처방일"(NEXT_DOSE) 리마인더.
+  // TRIAL_*(FIXED_SEQUENCE)과 입력재료/프롬프트가 완전히 달라 별도 함수로 분기한다.
+  if (task.taskType === HAPPY_TALK_TASK_TYPE) {
+    const { prescription } = task;
+    if (!task.dueDate) {
+      return NextResponse.json({ error: "다음 처방일 정보가 없습니다." }, { status: 400 });
+    }
+    const remainingRounds =
+      prescription.totalRounds != null && prescription.currentRound != null
+        ? prescription.totalRounds - prescription.currentRound + 1
+        : null;
+
+    const [notes, consultationNotes] = await Promise.all([
+      prisma.patientNote.findMany({ where: { patientId: prescription.patient.id }, orderBy: { createdAt: "desc" } }),
+      listConsultationNotesForPatient(prescription.patient.id),
+    ]);
+    const latestNote = consultationNotes[0];
+    const latestConsultationNote = latestNote
+      ? { typeName: latestNote.consultationType.name, text: latestNote.convertedChartText ?? latestNote.rawText }
+      : undefined;
+
+    try {
+      const message = await generateHappyTalkMessageDraft({
+        name: prescription.patient.name,
+        memo: prescription.patient.memo,
+        programName: prescription.program.name,
+        remainingRounds,
+        nextDueDate: task.dueDate,
+        notes: notes.map((n) => ({ content: n.content, createdAt: n.createdAt })),
+        coreProfile: {
+          pastHistory: prescription.patient.pastHistory,
+          currentCondition: prescription.patient.currentCondition,
+          mainNeeds: prescription.patient.mainNeeds,
+        },
+        latestConsultationNote,
+        extraKeywords: typeof extraKeywords === "string" && extraKeywords.trim() ? extraKeywords.trim() : undefined,
+      });
+      return NextResponse.json({ patientMessage: message, internalAnalysis: "" });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "문구 생성에 실패했습니다.";
+      return NextResponse.json({ error: message }, { status: 500 });
+    }
+  }
+
   if (!isTrialTaskType(task.taskType)) {
     return NextResponse.json({ error: "지원하지 않는 프로그램 이벤트 타입입니다." }, { status: 400 });
   }

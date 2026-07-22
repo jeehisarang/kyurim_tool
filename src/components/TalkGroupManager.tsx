@@ -7,10 +7,13 @@ import SealStamp from "@/components/SealStamp";
 import ShareLinkPanel, { buildShareLinkIntro, type ShareLinkFlags } from "@/components/ShareLinkPanel";
 import { getCurrentUserId } from "@/lib/currentUser";
 import { copyToClipboard } from "@/lib/clipboard";
-import { TALK_MESSAGE_TYPE_LABEL, TRIAL_TASK_TYPE_LABEL } from "@/lib/message-templates";
+import { TALK_MESSAGE_TYPE_LABEL, TRIAL_TASK_TYPE_LABEL, HAPPY_TALK_TASK_TYPE_LABEL } from "@/lib/message-templates";
 
 type StaffUserLite = { id: number; name: string; role: string };
 type ProgressLevel = "HIGH" | "MID" | "LOW";
+
+// 해피톡(처방주기 안내, task.md/13-5) taskType — NEXT_DOSE를 그대로 재사용(신규 taskType 안 만듦).
+const HAPPY_TALK_TASK_TYPE = "NEXT_DOSE";
 
 type Candidate = {
   id: number;
@@ -26,16 +29,29 @@ type Candidate = {
   skippedByUser: StaffUserLite | null;
   draftContent: string | null;
   internalAnalysis: string | null;
+  // 해피톡(NEXT_DOSE) 전용 — 그 외 후보는 항상 null.
+  remainingRounds: number | null;
 };
 
 const TASK_TYPE_LABEL: Record<string, string> = {
   ...TALK_MESSAGE_TYPE_LABEL,
   ...TRIAL_TASK_TYPE_LABEL,
+  ...HAPPY_TALK_TASK_TYPE_LABEL,
 };
 
 // 2일톡/7일톡/3회차톡 보류 가능 — /todo, /messages와 동일 규칙(task2.md 확인/수정 요청으로
-// 2일톡/3회차톡도 수동 즉시 보류 가능하도록 확장).
-const SKIPPABLE_TASK_TYPES = ["DAY2", "DAY7", "THIRD_VISIT"];
+// 2일톡/3회차톡도 수동 즉시 보류 가능하도록 확장). 해피톡(NEXT_DOSE)도 task.md 지시로
+// 보류 가능하게 포함.
+const SKIPPABLE_TASK_TYPES = ["DAY2", "DAY7", "THIRD_VISIT", HAPPY_TALK_TASK_TYPE];
+
+// 해피톡 행에 "다음 처방일" 짧게 표시(task.md — 환자명/프로그램명/남은 차수/다음 처방일).
+// 환자명/프로그램명은 sourceBadge(프로그램명)와 이 화면 자체가 이미 환자 1명으로 스코프돼
+// 있어 별도 컬럼 없이 충분하지만, task.md가 명시적으로 나열해서 남은 차수/다음 처방일은
+// 후보 행에 직접 붙여 보여준다.
+function formatShortDate(iso: string): string {
+  const d = new Date(iso);
+  return `${d.getMonth() + 1}/${d.getDate()}`;
+}
 
 const PROGRESS_LEVEL_LABEL: Record<ProgressLevel, string> = {
   HIGH: "상 (60%↑)",
@@ -108,7 +124,8 @@ export default function TalkGroupManager({ patientId, date }: { patientId: numbe
         const res = await fetch("/api/program-events/generate", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ todoTaskId: candidate.id }),
+          // extraKeywords는 해피톡(NEXT_DOSE)에서만 실제로 쓰인다 — TRIAL_*은 서버에서 무시.
+          body: JSON.stringify({ todoTaskId: candidate.id, extraKeywords: extraKeywords[candidate.id] || undefined }),
         });
         const data = await res.json();
         if (!res.ok) {
@@ -181,9 +198,15 @@ export default function TalkGroupManager({ patientId, date }: { patientId: numbe
       return;
     }
     const draft = drafts[candidate.id];
+    // 해피톡(NEXT_DOSE)은 일반 PATCH /api/todo-tasks/[id]를 타면 completeTodoTask(회차 진행)로
+    // 빠진다 — "오늘 할 일" 체크와 톡생성기 발송확인을 분리하기 위해 전용 라우트를 쓴다.
+    const endpoint =
+      candidate.taskType === HAPPY_TALK_TASK_TYPE
+        ? `/api/todo-tasks/${candidate.id}/happy-talk`
+        : `/api/todo-tasks/${candidate.id}`;
 
     try {
-      const res = await fetch(`/api/todo-tasks/${candidate.id}`, {
+      const res = await fetch(endpoint, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -211,8 +234,13 @@ export default function TalkGroupManager({ patientId, date }: { patientId: numbe
       return;
     }
 
+    const endpoint =
+      candidate.taskType === HAPPY_TALK_TASK_TYPE
+        ? `/api/todo-tasks/${candidate.id}/happy-talk`
+        : `/api/todo-tasks/${candidate.id}`;
+
     try {
-      const res = await fetch(`/api/todo-tasks/${candidate.id}`, {
+      const res = await fetch(endpoint, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ doneByUserId: staffUserId, action: "SKIPPED" }),
@@ -246,6 +274,13 @@ export default function TalkGroupManager({ patientId, date }: { patientId: numbe
                 <input type="checkbox" checked={selected.has(c.id)} onChange={() => toggle(c.id)} />
                 <span className={cardStyles.sourceBadge}>{c.sourceLabel}</span>
                 <span>{TASK_TYPE_LABEL[c.taskType] ?? c.taskType}</span>
+                {c.taskType === HAPPY_TALK_TASK_TYPE && (
+                  <span>
+                    {c.patient.name}님
+                    {c.remainingRounds != null ? ` · 남은 ${c.remainingRounds}차` : ""} · 다음처방일{" "}
+                    {formatShortDate(c.dueDate)}
+                  </span>
+                )}
                 <span>
                   {c.isDone
                     ? `완료됨 (${c.doneByUser?.name ?? "-"})`
@@ -290,6 +325,8 @@ export default function TalkGroupManager({ patientId, date }: { patientId: numbe
               <div className={styles.messageHeader}>
                 <span className={styles.messageTypeLabel}>
                   {c.sourceLabel} · {TASK_TYPE_LABEL[c.taskType] ?? c.taskType}
+                  {c.taskType === HAPPY_TALK_TASK_TYPE &&
+                    ` · ${c.patient.name}님${c.remainingRounds != null ? ` · 남은 ${c.remainingRounds}차` : ""} · 다음처방일 ${formatShortDate(c.dueDate)}`}
                 </span>
                 <span
                   className={c.isDone ? styles.sentBadge : c.skippedAt ? styles.skippedBadge : styles.unsentBadge}
@@ -304,7 +341,7 @@ export default function TalkGroupManager({ patientId, date }: { patientId: numbe
 
               {generateErrors[c.id] && <p className={styles.errorText}>{generateErrors[c.id]}</p>}
 
-              {!c.program && (
+              {(!c.program || c.taskType === HAPPY_TALK_TASK_TYPE) && (
                 <div className={styles.generationOptions}>
                   <input
                     type="text"

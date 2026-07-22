@@ -8,6 +8,7 @@ import {
   findProgramEventLogsByTodoTaskIds,
 } from "@/lib/todo-tasks";
 import { MESSAGE_TASK_TYPES } from "@/lib/task-types";
+import { listHappyTalkCandidates } from "@/lib/happy-talk";
 
 const TALK_MESSAGE_LOG_TYPES = ["DAY2", "DAY7", "THIRD_VISIT"] as const;
 
@@ -64,7 +65,19 @@ export async function GET(request: Request) {
     .map((normalized) => ({
       ...normalized,
       sourceLabel: normalized.program?.name ?? "내원기반",
+      remainingRounds: null as number | null,
     }));
 
-  return NextResponse.json(candidates);
+  // 해피톡(처방주기 안내, task.md) — NEXT_DOSE는 MESSAGE_TASK_TYPES에 넣지 않았으므로
+  // (넣으면 "오늘 할 일" 체크 흐름이 완전히 달라짐, completeTodoTask 문서 참고) 위 쿼리와는
+  // 별도로 조회해서 같은 배열에 합친다. dueDate 기준으로 함께 정렬한다.
+  const happyTalkCandidates = await listHappyTalkCandidates(patientId, referenceDate);
+
+  const merged = [...candidates, ...happyTalkCandidates].sort((a, b) => {
+    const aTime = a.dueDate ? new Date(a.dueDate).getTime() : 0;
+    const bTime = b.dueDate ? new Date(b.dueDate).getTime() : 0;
+    return aTime - bTime;
+  });
+
+  return NextResponse.json(merged);
 }
