@@ -166,6 +166,41 @@ export async function createTrialApplication(input: TrialApplicationInput) {
   return application;
 }
 
+export type TrialReferralStatus = {
+  token: string;
+  expiresAt: Date;
+  isActive: boolean;
+  creditCount: number;
+  creditTotalAmount: number;
+};
+
+/**
+ * 처방 기준 추천링크 현황 조회(task.md Phase 2) — 마감설문 배너(2-1)와 2일차톡 추천링크
+ * 삽입(2-2) 양쪽이 공유한다. getPrescriptionDetail(prescriptions.ts)의 기존 referralLink
+ * 집계 로직과 동일 원칙(ReferralCreditEntry(TRIAL_SIGNUP)을 linkToken 기준 집계)이지만,
+ * 그쪽은 상세페이지 조회 함수 안에 인라인돼 있어 재사용할 수 없어 별도로 둔다.
+ */
+export async function getTrialReferralStatus(prescriptionId: number): Promise<TrialReferralStatus | null> {
+  const link = await prisma.referralLink.findFirst({
+    where: { sourcePrescriptionId: prescriptionId, kind: REFERRAL_KIND_TRIAL },
+  });
+  if (!link) return null;
+
+  const creditAgg = await prisma.referralCreditEntry.aggregate({
+    where: { linkToken: link.token, kind: CREDIT_KIND_TRIAL_SIGNUP },
+    _count: true,
+    _sum: { amount: true },
+  });
+
+  return {
+    token: link.token,
+    expiresAt: link.expiresAt,
+    isActive: link.isActive,
+    creditCount: creditAgg._count,
+    creditTotalAmount: creditAgg._sum.amount ?? 0,
+  };
+}
+
 export function listUnconvertedTrialApplications() {
   return prisma.trialApplication.findMany({
     where: { convertedPrescriptionId: null },

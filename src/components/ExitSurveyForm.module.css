@@ -1,0 +1,240 @@
+.page {
+  min-height: 100vh;
+  display: flex;
+  justify-content: center;
+  background: var(--color-hanji-bg);
+  padding: 28px 16px;
+}
+
+.card {
+  width: 100%;
+  max-width: 480px;
+  background: var(--color-hanji-card);
+  border: 1px solid rgba(110, 148, 140, 0.35);
+  border-radius: 12px;
+  box-shadow: 0 4px 16px rgba(43, 39, 35, 0.08);
+  padding: 28px 20px;
+  align-self: flex-start;
+  overflow-wrap: break-word;
+}
+
+.headline {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 22px;
+  line-height: 1.4;
+  color: var(--color-ink);
+  margin: 0 0 20px;
+  text-align: center;
+}
+
+.referralBanner {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  background: rgba(110, 148, 140, 0.12);
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 12px;
+}
+
+.referralBannerTitle {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--color-celadon-dark);
+  text-align: center;
+}
+
+.referralWarning {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--color-seal);
+  text-align: center;
+}
+
+.referralStatsRow {
+  display: flex;
+  gap: 8px;
+}
+
+.referralStatCard {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  background: var(--color-hanji-card);
+  border-radius: 8px;
+  padding: 12px 8px;
+}
+
+.referralStatLabel {
+  font-size: 12px;
+  color: var(--color-ink);
+  opacity: 0.65;
+}
+
+.referralStatValue {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--color-ink);
+}
+
+.referralSafeNotice {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--color-ink);
+  opacity: 0.6;
+  text-align: center;
+}
+
+.referralExtraNotice {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-celadon-dark);
+  text-align: center;
+}
+
+.copyButton {
+  width: 100%;
+  border: 1px solid var(--color-celadon);
+  border-radius: 8px;
+  background: var(--color-hanji-card);
+  color: var(--color-celadon-dark);
+  padding: 12px;
+  font-size: 15px;
+  font-weight: 600;
+  font-family: var(--font-body);
+  cursor: pointer;
+  margin-bottom: 24px;
+  transition: background-color 0.15s ease;
+}
+
+.copyButton:hover {
+  background: rgba(110, 148, 140, 0.12);
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.fieldLabel {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--color-ink);
+}
+
+.fieldHint {
+  font-size: 13px;
+  font-weight: 400;
+  opacity: 0.6;
+}
+
+.textInput,
+.textareaInput {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid rgba(110, 148, 140, 0.35);
+  border-radius: 8px;
+  padding: 12px 14px;
+  font-size: 16px;
+  font-family: var(--font-body);
+  color: var(--color-ink);
+  background: var(--color-hanji-card);
+}
+
+.textInput:focus,
+.textareaInput:focus {
+  outline: none;
+  border-color: var(--color-celadon);
+}
+
+.textareaInput {
+  resize: vertical;
+}
+
+.textInput:read-only {
+  opacity: 0.7;
+  cursor: default;
+}
+
+.optionGrid {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.optionButton {
+  width: 100%;
+  box-sizing: border-box;
+  text-align: left;
+  border: 1px solid rgba(110, 148, 140, 0.35);
+  border-radius: 8px;
+  background: var(--color-hanji-card);
+  color: var(--color-ink);
+  padding: 14px 16px;
+  font-size: 16px;
+  font-family: var(--font-body);
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.optionButton:hover {
+  border-color: var(--color-celadon);
+}
+
+.optionButtonSelected {
+  background: var(--color-celadon);
+  border-color: var(--color-celadon);
+  color: var(--color-hanji-card);
+  font-weight: 600;
+}
+
+.submitButton {
+  width: 100%;
+  border: none;
+  border-radius: 8px;
+  background: var(--color-celadon);
+  color: var(--color-hanji-card);
+  padding: 16px;
+  font-size: 17px;
+  font-weight: 600;
+  font-family: var(--font-body);
+  cursor: pointer;
+  margin-top: 4px;
+  transition: background-color 0.15s ease;
+}
+
+.submitButton:hover {
+  background: var(--color-celadon-dark);
+}
+
+.submitButton:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.errorText {
+  color: var(--color-seal);
+  font-size: 14px;
+  text-align: center;
+}
+
+.completeText {
+  text-align: center;
+  font-size: 18px;
+  line-height: 1.6;
+  color: var(--color-ink);
+  padding: 8px 0 24px;
+}
