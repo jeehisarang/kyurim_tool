@@ -1,6 +1,11 @@
 import { prisma } from "@/lib/db";
 import { createWithShortToken } from "@/lib/short-token";
-import { TRIAL_REFERRAL_BONUS_AMOUNT, computeTrialReferralExpiry } from "@/lib/referral-config";
+import {
+  TRIAL_REFERRAL_BONUS_AMOUNT,
+  MAIN_REFERRAL_BONUS_AMOUNT,
+  computeTrialReferralExpiry,
+  computeMainReferralExpiry,
+} from "@/lib/referral-config";
 import { logActivity } from "@/lib/activity-log";
 import { createWorkTask } from "@/lib/work-tasks";
 import { startOfDay, getSystemStaffUserId } from "@/lib/teaching-pages";
@@ -9,6 +14,13 @@ import { BODY_TYPE_MAX_SELECTIONS } from "@/lib/trial-application-format";
 
 const REFERRAL_KIND_TRIAL = "TRIAL";
 const CREDIT_KIND_TRIAL_SIGNUP = "TRIAL_SIGNUP";
+const REFERRAL_KIND_MAIN = "MAIN";
+const CREDIT_KIND_MAIN_SIGNUP = "MAIN_SIGNUP";
+// MAIN_SIGNUP 적립(task.md Phase 3-2)은 공개 신청폼을 거치지 않고 직원이 처방등록 화면에서
+// 환자를 검색해 직접 확정하는 방식이라(TRIAL_SIGNUP처럼 실제로 "쓰인 코드"가 없음), linkToken에
+// 넣을 실제 코드가 없다. ReferralCreditEntry.linkToken이 FK가 아니라 감사용 문자열이라는
+// 기존 설계 원칙(스키마 주석 참고)에 맞춰 고정 플레이스홀더를 쓴다.
+const MANUAL_MAIN_REFERRAL_TOKEN = "MANUAL_MAIN_REFERRAL";
 
 /**
  * 3일체험(FIXED_SEQUENCE) Prescription 등록 시 자동 발급되는 추천링크(task.md).
@@ -32,6 +44,148 @@ export async function issueTrialReferralLink(prescription: {
       },
     }),
   );
+}
+
+/**
+ * 킬팻캡슐 본프로그램(1개월/3개월, SPLIT) Prescription 등록 시 자동 발급되는 추천링크
+ * (task.md Phase 3-1) — issueTrialReferralLink와 동일한 후킹 패턴. 만료일은 이 처방의
+ * 종료예정일(startDate+totalDurationDays)로, TRIAL의 고정 7일과 다르다.
+ */
+export async function issueMainReferralLink(prescription: {
+  id: number;
+  patientId: number;
+  startDate: Date;
+  totalDurationDays: number;
+}): Promise<void> {
+  await createWithShortToken((token) =>
+    prisma.referralLink.create({
+      data: {
+        token,
+        patientId: prescription.patientId,
+        kind: REFERRAL_KIND_MAIN,
+        sourcePrescriptionId: prescription.id,
+        expiresAt: computeMainReferralExpiry(prescription.startDate, prescription.totalDurationDays),
+      },
+    }),
+  );
+}
+
+/**
+ * 처방등록 화면 "소개 확인" 섹션(task.md Phase 3-2) 확정 처리 — 추천인에게 70,000원
+ * MAIN_SIGNUP 적립을 생성한다. 확정은 직원이 검색으로 추천인을 직접 지목하는 수동 절차라
+ * TRIAL_SIGNUP과 달리 실제 소비된 링크 토큰이 없어 MANUAL_MAIN_REFERRAL_TOKEN을 쓴다.
+ */
+export async function confirmMainReferral(input: {
+  referrerPatientId: number;
+  referredPatientName: string;
+  referredPrescriptionId: number;
+  confirmedByStaffId: number;
+}) {
+  return prisma.referralCreditEntry.create({
+    data: {
+      patientId: input.referrerPatientId,
+      linkToken: MANUAL_MAIN_REFERRAL_TOKEN,
+      kind: CREDIT_KIND_MAIN_SIGNUP,
+      amount: MAIN_REFERRAL_BONUS_AMOUNT,
+      referredName: input.referredPatientName,
+      referredPrescriptionId: input.referredPrescriptionId,
+      confirmedByStaffId: input.confirmedByStaffId,
+    },
+  });
+}
+
+// 처방등록 화면에서 이 처방이 소개(MAIN_SIGNUP)로 확정된 등록인지 조회(task.md Phase 3-2
+// "소개받음 - 3만원 할인 대상" 표시) — 별도 필드 추가 없이 ReferralCreditEntry에서 역참조한다.
+export async function isDiscountEligiblePrescription(prescriptionId: number): Promise<boolean> {
+  const entry = await prisma.referralCreditEntry.findFirst({
+    where: { referredPrescriptionId: prescriptionId, kind: CREDIT_KIND_MAIN_SIGNUP },
+  });
+  return entry !== null;
+}
+
+export type TrialReferralHint = {
+  referralToken: string;
+  referrerPatientId: number;
+  referrerPatientName: string;
+};
+
+/**
+ * "소개 확인" 힌트(task.md Phase 3-2) — 이 환자가 예전에 체험 신청(TrialApplication) 당시
+ * 추천코드로 들어왔다면, 그 코드 소유 환자를 본프로그램 추천인 후보로 자동 제시한다.
+ * TrialApplication.convertedPrescriptionId → Prescription.patientId 경로로 "이 환자가 제출한
+ * 체험신청"을 역으로 찾는다(신청 자체엔 patientId가 없고 전환된 처방을 통해서만 연결됨).
+ */
+export async function getTrialReferralHintForPatient(patientId: number): Promise<TrialReferralHint | null> {
+  const application = await prisma.trialApplication.findFirst({
+    where: { referralToken: { not: null }, prescription: { patientId } },
+  });
+  if (!application?.referralToken) return null;
+
+  const link = await prisma.referralLink.findUnique({
+    where: { token: application.referralToken },
+    include: { patient: true },
+  });
+  if (!link) return null;
+
+  return { referralToken: link.token, referrerPatientId: link.patientId, referrerPatientName: link.patient.name };
+}
+
+export type ReferralCreditPatientSummary = {
+  patientId: number;
+  patientName: string;
+  chartNumber: string;
+  trialTotal: number;
+  mainTotal: number;
+  total: number;
+  entries: {
+    id: number;
+    kind: string;
+    amount: number;
+    referredName: string;
+    createdAt: Date;
+    confirmedByStaffName: string | null;
+  }[];
+};
+
+// 원장 전용 적립 현황 화면(task.md Phase 3-3, /settings/referral-credits) — 환자를 가로질러
+// TRIAL_SIGNUP/MAIN_SIGNUP 적립 전체를 환자별로 묶어 보여준다. 처방상세의 개별 표시(링크
+// 1개 기준)와 달리 이건 환자 전체 누적 기준이라 group-by를 JS에서 직접 수행한다 — 이
+// 화면의 트래픽/데이터량이 적어 DB 레벨 집계가 필요할 만큼 크지 않다.
+export async function listReferralCreditSummary(): Promise<ReferralCreditPatientSummary[]> {
+  const entries = await prisma.referralCreditEntry.findMany({
+    include: { patient: true, confirmedByStaff: true },
+    orderBy: { createdAt: "desc" },
+  });
+
+  const byPatient = new Map<number, ReferralCreditPatientSummary>();
+  for (const entry of entries) {
+    let summary = byPatient.get(entry.patientId);
+    if (!summary) {
+      summary = {
+        patientId: entry.patientId,
+        patientName: entry.patient.name,
+        chartNumber: entry.patient.chartNumber,
+        trialTotal: 0,
+        mainTotal: 0,
+        total: 0,
+        entries: [],
+      };
+      byPatient.set(entry.patientId, summary);
+    }
+    if (entry.kind === CREDIT_KIND_TRIAL_SIGNUP) summary.trialTotal += entry.amount;
+    else if (entry.kind === CREDIT_KIND_MAIN_SIGNUP) summary.mainTotal += entry.amount;
+    summary.total += entry.amount;
+    summary.entries.push({
+      id: entry.id,
+      kind: entry.kind,
+      amount: entry.amount,
+      referredName: entry.referredName,
+      createdAt: entry.createdAt,
+      confirmedByStaffName: entry.confirmedByStaff?.name ?? null,
+    });
+  }
+
+  return [...byPatient.values()].sort((a, b) => b.total - a.total);
 }
 
 export type TrialApplicationInput = {

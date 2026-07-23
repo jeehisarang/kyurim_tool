@@ -1,6 +1,13 @@
 import { prisma } from "@/lib/db";
 import { isMessageTaskType } from "@/lib/task-types";
-import { issueTrialReferralLink, linkTrialApplicationToPrescription } from "@/lib/referrals";
+import {
+  issueTrialReferralLink,
+  linkTrialApplicationToPrescription,
+  issueMainReferralLink,
+  confirmMainReferral,
+  isDiscountEligiblePrescription,
+} from "@/lib/referrals";
+import { isMainProgram } from "@/lib/program-categories";
 
 const PROGRAM_TYPE_FIXED_SEQUENCE_ROW = "FIXED_SEQUENCE";
 
@@ -139,6 +146,9 @@ export async function createPrescription(input: {
   surveyDataJson?: string;
   surveyResponseCacheId?: number;
   trialApplicationId?: number;
+  // "소개 확인" 섹션(task.md Phase 3-2) — 킬팻캡슐 본프로그램(SPLIT) 등록 시에만 의미가
+  // 있다. 확정 시 이 환자에게 MAIN_SIGNUP 70,000원 적립을 생성한다.
+  referrerPatientId?: number;
 }) {
   const program = await prisma.program.findUniqueOrThrow({
     where: { id: input.programId },
@@ -217,6 +227,28 @@ export async function createPrescription(input: {
       totalRounds,
     },
   });
+
+  // 킬팻캡슐 본프로그램(1개월/3개월) 추천 이벤트(task.md Phase 3) — TRIAL과 동일하게 등록
+  // 시점에 항상 개인 추천링크를 자동 발급하고, "소개 확인" 섹션에서 추천인이 확정됐으면
+  // 그 추천인에게 즉시 70,000원 적립을 생성한다.
+  if (isMainProgram(program)) {
+    await issueMainReferralLink({
+      id: prescription.id,
+      patientId: input.patientId,
+      startDate: input.startDate,
+      totalDurationDays,
+    });
+
+    if (input.referrerPatientId) {
+      const patient = await prisma.patient.findUniqueOrThrow({ where: { id: input.patientId } });
+      await confirmMainReferral({
+        referrerPatientId: input.referrerPatientId,
+        referredPatientName: patient.name,
+        referredPrescriptionId: prescription.id,
+        confirmedByStaffId: input.staffUserId,
+      });
+    }
+  }
 
   const dueDate = isSplit
     ? splitSchedule?.nextDueDate
@@ -392,12 +424,23 @@ export type PrescriptionDetail = {
   singleFollowUp: PrescriptionRoundEntry | null;
   events: PrescriptionEventEntry[] | null;
   taskHistory: PrescriptionTaskHistoryEntry[];
-  // 킬팻캡슐 3일체험 추천 이벤트(task.md) — FIXED_SEQUENCE 처방에만 존재(issueTrialReferralLink).
-  // creditCount/creditTotalAmount는 이 링크로 발생한 ReferralCreditEntry(TRIAL_SIGNUP) 집계
-  // (task.md 보완 5항 — Phase 3 전체화면 이전 임시 표시).
+  // 추천 이벤트(task.md) — FIXED_SEQUENCE 처방은 TRIAL(issueTrialReferralLink), 킬팻캡슐
+  // 본프로그램(SPLIT) 처방은 MAIN(issueMainReferralLink) 링크가 각각 존재한다. creditCount/
+  // creditTotalAmount는 이 링크의 kind에 맞는 ReferralCreditEntry(TRIAL_SIGNUP|MAIN_SIGNUP)
+  // 집계(task.md 보완 5항 — Phase 3 전체화면 이전 임시 표시, Phase 3-1에서 MAIN까지 확장).
   referralLink:
-    | { token: string; expiresAt: Date; isActive: boolean; creditCount: number; creditTotalAmount: number }
+    | {
+        token: string;
+        kind: string;
+        expiresAt: Date;
+        isActive: boolean;
+        creditCount: number;
+        creditTotalAmount: number;
+      }
     | null;
+  // "소개받음 - 3만원 할인 대상" 표시(task.md Phase 3-2) — 이 처방이 MAIN_SIGNUP 적립의
+  // referredPrescriptionId로 걸려있으면 true.
+  introducedDiscountEligible: boolean;
 };
 
 // SPLIT 타입 회차 리스트 재구성. 1차는 등록일 당일 처방을 이미 받은 것으로 간주해
@@ -507,16 +550,32 @@ export async function getPrescriptionDetail(prescriptionId: number): Promise<Pre
   let events: PrescriptionEventEntry[] | null = null;
   let referralLink: PrescriptionDetail["referralLink"] = null;
 
-  if (program.type === PROGRAM_TYPE_FIXED_SEQUENCE_ROW) {
+  // FIXED_SEQUENCE(체험)는 TRIAL 링크, 킬팻캡슐 본프로그램(SPLIT)은 MAIN 링크 — 한 처방에
+  // 둘 다 존재하는 경우는 없어 kind 필터 없이 sourcePrescriptionId만으로 찾고, 집계는 그
+  // 링크의 실제 kind에 맞는 credit kind로 한다(task.md Phase 3-1).
+  if (program.type === PROGRAM_TYPE_FIXED_SEQUENCE_ROW || isMainProgram(program)) {
     const link = await prisma.referralLink.findFirst({ where: { sourcePrescriptionId: prescriptionId } });
     if (link) {
-      const creditAgg = await prisma.referralCreditEntry.aggregate({
-        where: { linkToken: link.token, kind: "TRIAL_SIGNUP" },
-        _count: true,
-        _sum: { amount: true },
-      });
+      // TRIAL_SIGNUP은 공개 신청폼 제출 시 실제 이 링크의 token을 그대로 저장하므로
+      // linkToken으로 정확히 집계된다. MAIN_SIGNUP은 confirmMainReferral이 "실제 쓰인
+      // 코드"가 없는 수동 확정이라 링크 토큰이 아니라 patientId(추천인=링크 소유자)로
+      // 저장돼 있어(referrals.ts MANUAL_MAIN_REFERRAL_TOKEN 참고) 여기서도 patientId로
+      // 집계해야 한다.
+      const creditAgg =
+        link.kind === "MAIN"
+          ? await prisma.referralCreditEntry.aggregate({
+              where: { patientId: link.patientId, kind: "MAIN_SIGNUP" },
+              _count: true,
+              _sum: { amount: true },
+            })
+          : await prisma.referralCreditEntry.aggregate({
+              where: { linkToken: link.token, kind: "TRIAL_SIGNUP" },
+              _count: true,
+              _sum: { amount: true },
+            });
       referralLink = {
         token: link.token,
+        kind: link.kind,
         expiresAt: link.expiresAt,
         isActive: link.isActive,
         creditCount: creditAgg._count,
@@ -524,6 +583,8 @@ export async function getPrescriptionDetail(prescriptionId: number): Promise<Pre
       };
     }
   }
+
+  const introducedDiscountEligible = await isDiscountEligiblePrescription(prescriptionId);
 
   if (program.type === PROGRAM_TYPE_SPLIT && prescription.totalRounds != null && prescription.currentRound != null) {
     const overrideRows = await prisma.prescriptionRoundOverride.findMany({ where: { prescriptionId } });
@@ -584,6 +645,7 @@ export async function getPrescriptionDetail(prescriptionId: number): Promise<Pre
     events,
     taskHistory,
     referralLink,
+    introducedDiscountEligible,
   };
 }
 

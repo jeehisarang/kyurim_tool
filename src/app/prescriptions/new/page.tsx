@@ -19,10 +19,13 @@ import { formatTrialApplicationText } from "@/lib/trial-application-format";
 import {
   getProgramBadgeInfo,
   getProgramCategory,
+  isMainProgram,
   PROGRAM_CATEGORY_GROUP_LABEL,
   PROGRAM_CATEGORY_ICON,
   PROGRAM_CATEGORY_ORDER,
 } from "@/lib/program-categories";
+
+type TrialReferralHint = { referralToken: string; referrerPatientId: number; referrerPatientName: string };
 
 // <option>은 HTML/굵기 표현이 안 되므로 "[아이콘] 대분류 · 기간" 형식을 평문으로 구성한다.
 function programOptionLabel(program: Program): string {
@@ -86,6 +89,16 @@ export default function NewPrescriptionPage() {
   const [trialApplicationId, setTrialApplicationId] = useState<number | null>(null);
   const [showTrialApplicationPicker, setShowTrialApplicationPicker] = useState(false);
 
+  // "소개 확인" 섹션(task.md Phase 3-2) — 킬팻캡슐 본프로그램(1개월/3개월) 선택 시에만 노출.
+  const [introducedByFriend, setIntroducedByFriend] = useState(false);
+  const [referrerPatient, setReferrerPatient] = useState<Patient | null>(null);
+  const [referrerQuery, setReferrerQuery] = useState("");
+  const [referrerResults, setReferrerResults] = useState<Patient[] | null>(null);
+  const [referrerSearching, setReferrerSearching] = useState(false);
+  // 체험신청 당시 추천코드로 들어왔던 환자면 그 코드 소유 환자를 후보로 자동 제시한다.
+  const [referralHint, setReferralHint] = useState<TrialReferralHint | null>(null);
+  const [hintDismissed, setHintDismissed] = useState(false);
+
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [stampKey, setStampKey] = useState(0);
@@ -129,6 +142,15 @@ export default function NewPrescriptionPage() {
     setQuery("");
   }
 
+  function resetIntroduceSection() {
+    setIntroducedByFriend(false);
+    setReferrerPatient(null);
+    setReferrerQuery("");
+    setReferrerResults(null);
+    setReferralHint(null);
+    setHintDismissed(false);
+  }
+
   function clearSelectedPatient() {
     setSelectedPatient(null);
     setProgramId("");
@@ -136,6 +158,7 @@ export default function NewPrescriptionPage() {
     setSurveyDataJson("");
     setSurveyResponseCacheId(null);
     setTrialApplicationId(null);
+    resetIntroduceSection();
   }
 
   function handleSelectSurveyResponse(response: SurveyResponseCache) {
@@ -154,6 +177,42 @@ export default function NewPrescriptionPage() {
 
   const selectedProgram = programs.find((p) => String(p.id) === programId) ?? null;
   const isTrialSurveyProgram = selectedProgram?.type === PROGRAM_TYPE_FIXED_SEQUENCE;
+  const isMainReferralProgram = Boolean(selectedProgram && isMainProgram(selectedProgram));
+
+  // 소개확인 힌트(task.md Phase 3-2) — 본프로그램 선택 + 환자 선택 시에만 조회.
+  useEffect(() => {
+    if (!selectedPatient || !isMainReferralProgram) return;
+    fetch(`/api/patients/${selectedPatient.id}/trial-referral-hint`)
+      .then((res) => res.json())
+      .then((hint: TrialReferralHint | null) => setReferralHint(hint));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedPatient?.id, isMainReferralProgram]);
+
+  function applyReferralHint() {
+    if (!referralHint) return;
+    setIntroducedByFriend(true);
+    setReferrerPatient({ id: referralHint.referrerPatientId, name: referralHint.referrerPatientName, chartNumber: "" });
+    setHintDismissed(true);
+  }
+
+  async function handleReferrerSearch(e: React.FormEvent) {
+    e.preventDefault();
+    if (!referrerQuery.trim()) return;
+    setReferrerSearching(true);
+    try {
+      const res = await fetch(`/api/patients?q=${encodeURIComponent(referrerQuery.trim())}`);
+      const data: Patient[] = await res.json();
+      setReferrerResults(data.filter((p) => p.id !== selectedPatient?.id));
+    } finally {
+      setReferrerSearching(false);
+    }
+  }
+
+  function selectReferrerPatient(patient: Patient) {
+    setReferrerPatient(patient);
+    setReferrerResults(null);
+    setReferrerQuery("");
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -179,6 +238,8 @@ export default function NewPrescriptionPage() {
           surveyDataJson: isTrialSurveyProgram ? surveyDataJson : undefined,
           surveyResponseCacheId: isTrialSurveyProgram ? surveyResponseCacheId ?? undefined : undefined,
           trialApplicationId: isTrialSurveyProgram ? trialApplicationId ?? undefined : undefined,
+          referrerPatientId:
+            isMainReferralProgram && introducedByFriend && referrerPatient ? referrerPatient.id : undefined,
         }),
       });
       const data = await res.json();
@@ -198,6 +259,7 @@ export default function NewPrescriptionPage() {
       setSurveyDataJson("");
       setSurveyResponseCacheId(null);
       setTrialApplicationId(null);
+      resetIntroduceSection();
       setStampKey((k) => k + 1);
     } catch {
       setSubmitError("서버에 연결하지 못했습니다. 처방이 등록되지 않았으니 다시 시도해주세요.");
@@ -359,6 +421,104 @@ export default function NewPrescriptionPage() {
                 onSelect={handleSelectTrialApplication}
                 onClose={() => setShowTrialApplicationPicker(false)}
               />
+            )}
+
+            {isMainReferralProgram && (
+              <div className={styles.introduceSection}>
+                <span className={styles.fieldLabel}>이 환자, 소개받고 오셨나요?</span>
+
+                {referralHint && !hintDismissed && (
+                  <div className={styles.hintBanner}>
+                    <span>
+                      이 신청은 <strong>{referralHint.referralToken}</strong>로 들어왔습니다 — 추천인(
+                      {referralHint.referrerPatientName})으로 연결할까요?
+                    </span>
+                    <span className={styles.hintActions}>
+                      <button type="button" className={styles.surveyImportButton} onClick={applyReferralHint}>
+                        예, 연결합니다
+                      </button>
+                      <button
+                        type="button"
+                        className={styles.surveyImportButton}
+                        onClick={() => setHintDismissed(true)}
+                      >
+                        아니오
+                      </button>
+                    </span>
+                  </div>
+                )}
+
+                <div className={styles.introduceToggle}>
+                  <label>
+                    <input
+                      type="radio"
+                      name="introducedByFriend"
+                      checked={!introducedByFriend}
+                      onChange={() => {
+                        setIntroducedByFriend(false);
+                        setReferrerPatient(null);
+                      }}
+                    />{" "}
+                    아니오
+                  </label>
+                  <label>
+                    <input
+                      type="radio"
+                      name="introducedByFriend"
+                      checked={introducedByFriend}
+                      onChange={() => setIntroducedByFriend(true)}
+                    />{" "}
+                    예
+                  </label>
+                </div>
+
+                {introducedByFriend && (
+                  <div className={styles.referrerPicker}>
+                    {referrerPatient ? (
+                      <div className={styles.selectedPatient}>
+                        <span>
+                          추천인: <strong>{referrerPatient.name}</strong>
+                          {referrerPatient.chartNumber && (
+                            <>
+                              {" "}
+                              (<span className={styles.mono}>{referrerPatient.chartNumber}</span>)
+                            </>
+                          )}
+                        </span>
+                        <button type="button" onClick={() => setReferrerPatient(null)}>
+                          다시 선택
+                        </button>
+                      </div>
+                    ) : (
+                      <>
+                        <form className={styles.row} onSubmit={handleReferrerSearch}>
+                          <input
+                            type="text"
+                            placeholder="추천인 차트번호 또는 이름"
+                            value={referrerQuery}
+                            onChange={(e) => setReferrerQuery(e.target.value)}
+                          />
+                          <button type="submit" disabled={referrerSearching}>
+                            검색
+                          </button>
+                        </form>
+                        {referrerResults !== null && referrerResults.length > 0 && (
+                          <ul className={styles.resultList}>
+                            {referrerResults.map((p) => (
+                              <li key={p.id} onClick={() => selectReferrerPatient(p)}>
+                                {p.name} (<span className={styles.mono}>{p.chartNumber}</span>)
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                        {referrerResults !== null && referrerResults.length === 0 && (
+                          <p className={styles.muted}>검색 결과가 없습니다.</p>
+                        )}
+                      </>
+                    )}
+                  </div>
+                )}
+              </div>
             )}
 
             {submitError && <p className={styles.errorText}>{submitError}</p>}

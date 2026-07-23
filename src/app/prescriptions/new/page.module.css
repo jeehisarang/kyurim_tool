@@ -270,3 +270,45 @@
   opacity: 0.55;
   font-size: 13px;
 }
+
+.introduceSection {
+  border-top: 1px dashed rgba(110, 148, 140, 0.35);
+  padding-top: 16px;
+  margin-bottom: 16px;
+}
+
+.fieldLabel {
+  display: block;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--color-ink);
+  margin-bottom: 8px;
+}
+
+.hintBanner {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: rgba(110, 148, 140, 0.12);
+  border-left: 3px solid var(--color-celadon);
+  border-radius: 4px;
+  padding: 10px 12px;
+  font-size: 13px;
+  margin-bottom: 12px;
+}
+
+.hintActions {
+  display: flex;
+  gap: 8px;
+}
+
+.introduceToggle {
+  display: flex;
+  gap: 20px;
+  font-size: 14px;
+  margin-bottom: 12px;
+}
+
+.referrerPicker {
+  margin-left: 4px;
+}

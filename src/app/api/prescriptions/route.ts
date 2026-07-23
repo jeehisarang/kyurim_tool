@@ -46,6 +46,7 @@ export async function POST(request: Request) {
     surveyDataJson,
     surveyResponseCacheId,
     trialApplicationId,
+    referrerPatientId,
   } = body;
 
   if (!patientId || !programId || !staffUserId) {
@@ -72,6 +73,7 @@ export async function POST(request: Request) {
     surveyResponseCacheId:
       typeof surveyResponseCacheId === "number" ? surveyResponseCacheId : undefined,
     trialApplicationId: typeof trialApplicationId === "number" ? trialApplicationId : undefined,
+    referrerPatientId: typeof referrerPatientId === "number" ? referrerPatientId : undefined,
   });
 
   const withRelations = await prisma.prescription.findUniqueOrThrow({

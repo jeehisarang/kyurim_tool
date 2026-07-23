@@ -36,6 +36,14 @@ export function getProgramCategory(programName: string): ProgramCategoryKey | nu
   return PROGRAM_CATEGORY_MAP[programName] ?? null;
 }
 
+// 킬팻캡슐 "본프로그램"(1개월/3개월, SPLIT) 여부(task.md Phase 3-1) — 같은 킬팻캡슐
+// 카테고리라도 체험(킬캡3체험, FIXED_SEQUENCE)은 제외해야 해서 카테고리만으로는 못 가리고
+// type까지 함께 봐야 한다. MAIN 추천링크 자동발급 후킹(prescriptions.ts)과 처방등록
+// "소개확인" 섹션 노출(prescriptions/new/page.tsx) 양쪽이 공유한다.
+export function isMainProgram(program: { name: string; type: string }): boolean {
+  return getProgramCategory(program.name) === "킬팻캡슐" && program.type === "SPLIT";
+}
+
 export const PROGRAM_CATEGORY_ICON: Record<ProgramCategoryKey, string> = {
   탕약: "🍵",
   환: "🟤",

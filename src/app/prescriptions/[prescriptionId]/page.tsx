@@ -56,10 +56,20 @@ type PrescriptionDetail = {
   singleFollowUp: RoundEntry | null;
   events: EventEntry[] | null;
   taskHistory: TaskHistoryEntry[];
-  // 킬팻캡슐 3일체험 추천 이벤트(task.md) — FIXED_SEQUENCE 처방에만 존재.
+  // 추천 이벤트(task.md) — FIXED_SEQUENCE 처방은 TRIAL, 킬팻캡슐 본프로그램(SPLIT) 처방은
+  // MAIN 링크(task.md Phase 3-1).
   referralLink:
-    | { token: string; expiresAt: string; isActive: boolean; creditCount: number; creditTotalAmount: number }
+    | {
+        token: string;
+        kind: string;
+        expiresAt: string;
+        isActive: boolean;
+        creditCount: number;
+        creditTotalAmount: number;
+      }
     | null;
+  // "소개받음 - 3만원 할인 대상"(task.md Phase 3-2).
+  introducedDiscountEligible: boolean;
 };
 
 type StaffUser = { id: number; name: string; role: string };
@@ -110,8 +120,13 @@ export default function PrescriptionDetailPage() {
 
   const [referralLinkCopied, setReferralLinkCopied] = useState(false);
 
-  async function handleCopyReferralLink(token: string) {
-    const url = `${window.location.origin}/refer/trial/${token}`;
+  // TRIAL(체험)/MAIN(본프로그램, task.md Phase 3-1)에 따라 경로가 다르다.
+  function referralPath(kind: string, token: string): string {
+    return kind === "MAIN" ? `/refer/main/${token}` : `/refer/trial/${token}`;
+  }
+
+  async function handleCopyReferralLink(kind: string, token: string) {
+    const url = `${window.location.origin}${referralPath(kind, token)}`;
     const success = await copyToClipboard(url);
     if (!success) {
       alert("복사에 실패했습니다. 링크를 직접 선택해서 복사해주세요.");
@@ -474,17 +489,25 @@ export default function PrescriptionDetailPage() {
 
       {data.referralLink && (
         <div className={styles.section}>
-          <div className={styles.sectionTitle}>추천링크</div>
+          <div className={styles.sectionTitle}>
+            추천링크 {data.referralLink.kind === "MAIN" ? "(본프로그램)" : "(체험)"}
+          </div>
+          {data.introducedDiscountEligible && (
+            <p className={styles.infoRow}>
+              <strong>소개받음 - 3만원 할인 대상</strong>
+            </p>
+          )}
           <p className={styles.infoRow}>
             <span className={styles.mono}>
-              {typeof window !== "undefined" ? window.location.origin : ""}/refer/trial/{data.referralLink.token}
+              {typeof window !== "undefined" ? window.location.origin : ""}
+              {referralPath(data.referralLink.kind, data.referralLink.token)}
             </span>
           </p>
           <div className={styles.actionsRow}>
             <button
               type="button"
               className={styles.actionButton}
-              onClick={() => handleCopyReferralLink(data.referralLink!.token)}
+              onClick={() => handleCopyReferralLink(data.referralLink!.kind, data.referralLink!.token)}
             >
               {referralLinkCopied ? "복사됨" : "링크 복사"}
             </button>
@@ -494,13 +517,14 @@ export default function PrescriptionDetailPage() {
                 : "만료됨"}
             </span>
           </div>
-          {/* 적립 현황(task.md 보완 5항) — Phase 3 전체 환자 통합 조회 화면 이전까지의 임시 표시. */}
+          {/* 적립 현황(task.md 보완 5항, Phase 3-1에서 MAIN까지 확장) — Phase 3-3 전체 환자
+              통합 조회 화면(/settings/referral-credits)과 별개로 이 링크 1개 기준의 요약. */}
           <p className={styles.infoRow}>
             적립 현황: {data.referralLink.creditCount}건 · {data.referralLink.creditTotalAmount.toLocaleString()}원
           </p>
           {typeof window !== "undefined" && (
             <QrCodeImage
-              value={`${window.location.origin}/refer/trial/${data.referralLink.token}`}
+              value={`${window.location.origin}${referralPath(data.referralLink.kind, data.referralLink.token)}`}
               filename={`referral-qr-${data.patient.name}.png`}
             />
           )}
