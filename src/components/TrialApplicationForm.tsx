@@ -2,7 +2,11 @@
 
 import { useEffect, useState } from "react";
 import styles from "./TrialApplicationForm.module.css";
-import { BODY_TYPE_QUESTIONS, BODY_TYPE_OTHER_VALUE } from "@/lib/trial-application-format";
+import { BODY_TYPE_QUESTIONS, BODY_TYPE_OTHER_VALUE, BODY_TYPE_MAX_SELECTIONS } from "@/lib/trial-application-format";
+
+// TeachingPageContent.tsx/s/[token]/page.tsx와 동일한 채널(task.md 보완 2항).
+const KAKAO_CHANNEL_CHAT_URL =
+  process.env.NEXT_PUBLIC_KAKAO_CHANNEL_CHAT_URL ?? "https://pf.kakao.com/_FVxlGT/chat";
 
 type CampaignSettings = { heroImagePath: string | null; headline: string | null; description: string | null };
 
@@ -47,7 +51,8 @@ export default function TrialApplicationForm({ referralToken }: { referralToken?
     familyHistory: "",
     dietExperience: "",
   });
-  const [bodyTypeAnswers, setBodyTypeAnswers] = useState<Record<string, string>>({});
+  // 문항당 최대 2개 선택(task.md 보완 1항 — 원본 구글폼 규칙).
+  const [bodyTypeAnswers, setBodyTypeAnswers] = useState<Record<string, string[]>>({});
   const [bodyTypeOthers, setBodyTypeOthers] = useState<Record<string, string>>({});
 
   const [submitting, setSubmitting] = useState(false);
@@ -61,10 +66,24 @@ export default function TrialApplicationForm({ referralToken }: { referralToken?
       .catch(() => setCampaign({ heroImagePath: null, headline: null, description: null }));
   }, []);
 
+  function toggleBodyTypeOption(key: string, value: string) {
+    setBodyTypeAnswers((prev) => {
+      const current = prev[key] ?? [];
+      if (current.includes(value)) {
+        return { ...prev, [key]: current.filter((v) => v !== value) };
+      }
+      if (current.length >= BODY_TYPE_MAX_SELECTIONS) {
+        alert(`이 문항은 최대 ${BODY_TYPE_MAX_SELECTIONS}개까지 선택할 수 있습니다.`);
+        return prev;
+      }
+      return { ...prev, [key]: [...current, value] };
+    });
+  }
+
   const allBodyTypesAnswered = BODY_TYPE_QUESTIONS.every((q) => {
-    const answer = bodyTypeAnswers[q.key];
-    if (!answer) return false;
-    if (answer === BODY_TYPE_OTHER_VALUE) return Boolean(bodyTypeOthers[q.key]?.trim());
+    const answers = bodyTypeAnswers[q.key] ?? [];
+    if (answers.length === 0) return false;
+    if (answers.includes(BODY_TYPE_OTHER_VALUE)) return Boolean(bodyTypeOthers[q.key]?.trim());
     return true;
   });
   const canSubmit = name.trim() && phone.trim() && allBodyTypesAnswered && !submitting;
@@ -72,17 +91,20 @@ export default function TrialApplicationForm({ referralToken }: { referralToken?
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!canSubmit) return;
+    // 팝업 차단 회피를 위해 클릭 핸들러 내에서 동기적으로 먼저 연다(s/[token]/page.tsx
+    // handleEventCtaClick과 동일한 원칙, task.md 보완 2항) — 제출 성공 여부와 무관하게 열림.
+    window.open(KAKAO_CHANNEL_CHAT_URL, "_blank", "noopener,noreferrer");
     setSubmitting(true);
     setSubmitError(null);
     try {
-      const body: Record<string, string> = {
+      const body: Record<string, unknown> = {
         name: name.trim(),
         phone: phone.trim(),
         ...textValues,
       };
       for (const q of BODY_TYPE_QUESTIONS) {
-        body[q.key] = bodyTypeAnswers[q.key];
-        if (bodyTypeAnswers[q.key] === BODY_TYPE_OTHER_VALUE) {
+        body[q.key] = bodyTypeAnswers[q.key] ?? [];
+        if ((bodyTypeAnswers[q.key] ?? []).includes(BODY_TYPE_OTHER_VALUE)) {
           body[`${q.key}Other`] = bodyTypeOthers[q.key] ?? "";
         }
       }
@@ -182,49 +204,52 @@ export default function TrialApplicationForm({ referralToken }: { referralToken?
             </label>
           ))}
 
-          {BODY_TYPE_QUESTIONS.map((q, index) => (
-            <div key={q.key} className={styles.bodyTypeBlock}>
-              <span className={styles.fieldLabel}>
-                {index + 1}. {q.question} *
-              </span>
-              <div className={styles.optionGrid}>
-                {q.options.map((option) => (
+          {BODY_TYPE_QUESTIONS.map((q, index) => {
+            const selected = bodyTypeAnswers[q.key] ?? [];
+            return (
+              <div key={q.key} className={styles.bodyTypeBlock}>
+                <span className={styles.fieldLabel}>
+                  {index + 1}. {q.question} * <span className={styles.bodyTypeHint}>(최대 2개)</span>
+                </span>
+                <div className={styles.optionGrid}>
+                  {q.options.map((option) => (
+                    <button
+                      key={option.value}
+                      type="button"
+                      className={
+                        selected.includes(option.value)
+                          ? `${styles.optionButton} ${styles.optionButtonSelected}`
+                          : styles.optionButton
+                      }
+                      onClick={() => toggleBodyTypeOption(q.key, option.value)}
+                    >
+                      {option.value}. {option.label}
+                    </button>
+                  ))}
                   <button
-                    key={option.value}
                     type="button"
                     className={
-                      bodyTypeAnswers[q.key] === option.value
+                      selected.includes(BODY_TYPE_OTHER_VALUE)
                         ? `${styles.optionButton} ${styles.optionButtonSelected}`
                         : styles.optionButton
                     }
-                    onClick={() => setBodyTypeAnswers((prev) => ({ ...prev, [q.key]: option.value }))}
+                    onClick={() => toggleBodyTypeOption(q.key, BODY_TYPE_OTHER_VALUE)}
                   >
-                    {option.value}. {option.label}
+                    기타
                   </button>
-                ))}
-                <button
-                  type="button"
-                  className={
-                    bodyTypeAnswers[q.key] === BODY_TYPE_OTHER_VALUE
-                      ? `${styles.optionButton} ${styles.optionButtonSelected}`
-                      : styles.optionButton
-                  }
-                  onClick={() => setBodyTypeAnswers((prev) => ({ ...prev, [q.key]: BODY_TYPE_OTHER_VALUE }))}
-                >
-                  기타
-                </button>
+                </div>
+                {selected.includes(BODY_TYPE_OTHER_VALUE) && (
+                  <input
+                    className={styles.textInput}
+                    type="text"
+                    value={bodyTypeOthers[q.key] ?? ""}
+                    onChange={(e) => setBodyTypeOthers((prev) => ({ ...prev, [q.key]: e.target.value }))}
+                    placeholder="직접 입력해주세요"
+                  />
+                )}
               </div>
-              {bodyTypeAnswers[q.key] === BODY_TYPE_OTHER_VALUE && (
-                <input
-                  className={styles.textInput}
-                  type="text"
-                  value={bodyTypeOthers[q.key] ?? ""}
-                  onChange={(e) => setBodyTypeOthers((prev) => ({ ...prev, [q.key]: e.target.value }))}
-                  placeholder="직접 입력해주세요"
-                />
-              )}
-            </div>
-          ))}
+            );
+          })}
 
           {submitError && <p className={styles.errorText}>{submitError}</p>}
 

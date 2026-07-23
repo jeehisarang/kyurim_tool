@@ -1,0 +1,134 @@
+.container {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 32px 16px 64px;
+}
+
+.titleRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.pageTitle {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 26px;
+  color: var(--color-ink);
+}
+
+.titleRow .pageTitle {
+  margin-bottom: 0;
+}
+
+.muted {
+  color: var(--color-ink);
+  opacity: 0.55;
+  font-size: 13px;
+  margin-bottom: 24px;
+}
+
+.list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.item {
+  background: var(--color-hanji-card);
+  border: 1px solid rgba(110, 148, 140, 0.35);
+  border-radius: 6px;
+  box-shadow: 0 1px 2px rgba(43, 39, 35, 0.04);
+  overflow: hidden;
+}
+
+.itemHeader {
+  width: 100%;
+  box-sizing: border-box;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  border: none;
+  background: transparent;
+  padding: 14px 16px;
+  cursor: pointer;
+  font-family: var(--font-body);
+}
+
+.itemHeader:hover {
+  background: rgba(110, 148, 140, 0.08);
+}
+
+.itemName {
+  font-weight: 600;
+  font-size: 15px;
+  color: var(--color-ink);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.referralTag,
+.convertedTag {
+  font-size: 11px;
+  font-weight: 500;
+  border-radius: 3px;
+  padding: 1px 6px;
+}
+
+.referralTag {
+  color: var(--color-celadon-dark);
+  border: 1px solid var(--color-celadon);
+}
+
+.convertedTag {
+  color: var(--color-ink);
+  background: rgba(110, 148, 140, 0.15);
+}
+
+.itemMeta {
+  font-size: 12px;
+  color: var(--color-ink);
+  opacity: 0.65;
+}
+
+.detail {
+  border-top: 1px dashed rgba(110, 148, 140, 0.35);
+  padding: 14px 16px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.detailRow {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 13px;
+  color: var(--color-ink);
+}
+
+.detailLabel {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--color-celadon-dark);
+}
+
+.divider {
+  border: none;
+  border-top: 1px dashed rgba(110, 148, 140, 0.25);
+  margin: 4px 0;
+}
+
+.dominantValue {
+  font-weight: 600;
+}
+
+.mono {
+  font-family: var(--font-mono);
+}

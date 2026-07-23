@@ -393,7 +393,11 @@ export type PrescriptionDetail = {
   events: PrescriptionEventEntry[] | null;
   taskHistory: PrescriptionTaskHistoryEntry[];
   // 킬팻캡슐 3일체험 추천 이벤트(task.md) — FIXED_SEQUENCE 처방에만 존재(issueTrialReferralLink).
-  referralLink: { token: string; expiresAt: Date; isActive: boolean } | null;
+  // creditCount/creditTotalAmount는 이 링크로 발생한 ReferralCreditEntry(TRIAL_SIGNUP) 집계
+  // (task.md 보완 5항 — Phase 3 전체화면 이전 임시 표시).
+  referralLink:
+    | { token: string; expiresAt: Date; isActive: boolean; creditCount: number; creditTotalAmount: number }
+    | null;
 };
 
 // SPLIT 타입 회차 리스트 재구성. 1차는 등록일 당일 처방을 이미 받은 것으로 간주해
@@ -505,7 +509,20 @@ export async function getPrescriptionDetail(prescriptionId: number): Promise<Pre
 
   if (program.type === PROGRAM_TYPE_FIXED_SEQUENCE_ROW) {
     const link = await prisma.referralLink.findFirst({ where: { sourcePrescriptionId: prescriptionId } });
-    if (link) referralLink = { token: link.token, expiresAt: link.expiresAt, isActive: link.isActive };
+    if (link) {
+      const creditAgg = await prisma.referralCreditEntry.aggregate({
+        where: { linkToken: link.token, kind: "TRIAL_SIGNUP" },
+        _count: true,
+        _sum: { amount: true },
+      });
+      referralLink = {
+        token: link.token,
+        expiresAt: link.expiresAt,
+        isActive: link.isActive,
+        creditCount: creditAgg._count,
+        creditTotalAmount: creditAgg._sum.amount ?? 0,
+      };
+    }
   }
 
   if (program.type === PROGRAM_TYPE_SPLIT && prescription.totalRounds != null && prescription.currentRound != null) {

@@ -38,6 +38,23 @@
   margin-bottom: 24px;
 }
 
+.sectionTitle {
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--color-celadon-dark);
+  border-left: 3px solid var(--color-celadon);
+  padding-left: 8px;
+  margin-bottom: 16px;
+}
+
+.linkButton {
+  display: inline-block;
+  color: var(--color-celadon-dark);
+  font-size: 14px;
+  font-weight: 500;
+  text-decoration: underline;
+}
+
 .formGrid {
   display: flex;
   flex-direction: column;

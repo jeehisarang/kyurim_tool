@@ -12,6 +12,7 @@ import {
   PROGRAM_CATEGORY_ICON,
 } from "@/lib/program-categories";
 import { copyToClipboard } from "@/lib/clipboard";
+import QrCodeImage from "@/components/QrCodeImage";
 
 type RoundEntry = {
   round: number;
@@ -56,7 +57,9 @@ type PrescriptionDetail = {
   events: EventEntry[] | null;
   taskHistory: TaskHistoryEntry[];
   // 킬팻캡슐 3일체험 추천 이벤트(task.md) — FIXED_SEQUENCE 처방에만 존재.
-  referralLink: { token: string; expiresAt: string; isActive: boolean } | null;
+  referralLink:
+    | { token: string; expiresAt: string; isActive: boolean; creditCount: number; creditTotalAmount: number }
+    | null;
 };
 
 type StaffUser = { id: number; name: string; role: string };
@@ -491,6 +494,16 @@ export default function PrescriptionDetailPage() {
                 : "만료됨"}
             </span>
           </div>
+          {/* 적립 현황(task.md 보완 5항) — Phase 3 전체 환자 통합 조회 화면 이전까지의 임시 표시. */}
+          <p className={styles.infoRow}>
+            적립 현황: {data.referralLink.creditCount}건 · {data.referralLink.creditTotalAmount.toLocaleString()}원
+          </p>
+          {typeof window !== "undefined" && (
+            <QrCodeImage
+              value={`${window.location.origin}/refer/trial/${data.referralLink.token}`}
+              filename={`referral-qr-${data.patient.name}.png`}
+            />
+          )}
         </div>
       )}
 

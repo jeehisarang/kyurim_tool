@@ -1,8 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import styles from "./page.module.css";
 import BackButton from "@/components/BackButton";
+import QrCodeImage from "@/components/QrCodeImage";
 import { useCurrentUserContext } from "@/lib/CurrentUserContext";
 
 type CampaignSettings = { heroImagePath: string | null; headline: string | null; description: string | null };
@@ -123,6 +125,22 @@ export default function TrialCampaignSettingsPage() {
             {saveError && <p className={styles.errorText}>{saveError}</p>}
           </form>
         )}
+      </div>
+
+      <div className={styles.section}>
+        <div className={styles.sectionTitle}>원내 QR 코드</div>
+        <p className={styles.muted}>추천코드 없이 들어오는 원내 포스터용 QR입니다. 인쇄해서 데스크/대기실에 부착하세요.</p>
+        <QrCodeImage
+          value={`${process.env.NEXT_PUBLIC_SHARE_BASE_URL || (typeof window !== "undefined" ? window.location.origin : "")}/refer/trial`}
+          filename="trial-campaign-qr.png"
+        />
+      </div>
+
+      <div className={styles.section}>
+        <div className={styles.sectionTitle}>신청 응답 확인</div>
+        <Link href="/refer/applications" className={styles.linkButton}>
+          신청 응답 전체보기 →
+        </Link>
       </div>
     </div>
   );

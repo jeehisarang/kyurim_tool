@@ -74,6 +74,11 @@ export const BODY_TYPE_QUESTIONS: {
 ];
 
 export const BODY_TYPE_OTHER_VALUE = "기타";
+// 원본 구글폼이 "최대 2개까지" 선택 가능한 체크박스 문항이라(task.md 보완 1항), 이 앱도
+// 동일하게 문항당 최대 2개까지만 허용한다.
+export const BODY_TYPE_MAX_SELECTIONS = 2;
+
+export type BodyTypeLetter = "A" | "B" | "C" | "D" | "E";
 
 export type TrialApplicationForFormat = {
   name: string;
@@ -85,6 +90,8 @@ export type TrialApplicationForFormat = {
   pastHistory: string | null;
   familyHistory: string | null;
   dietExperience: string | null;
+  // 문항당 최대 2개 선택 결과를 JSON 배열 문자열로 저장한다(예: '["A","C"]') — 단일 값
+  // 저장 방식에서 변경됨(task.md 보완 1항). parseBodyTypeAnswer로 파싱해서 쓴다.
   bodyType1: string;
   bodyType1Other: string | null;
   bodyType2: string;
@@ -99,13 +106,32 @@ export type TrialApplicationForFormat = {
   bodyType6Other: string | null;
 };
 
+/** JSON 배열 문자열을 파싱한다 — 형식이 깨졌으면 빈 배열(화면이 죽지 않도록 방어). */
+export function parseBodyTypeAnswer(raw: string): string[] {
+  try {
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) return parsed.filter((v): v is string => typeof v === "string");
+  } catch {
+    // 파싱 실패 시 빈 배열로 취급
+  }
+  return [];
+}
+
+function bodyTypeAnswerLabel(q: (typeof BODY_TYPE_QUESTIONS)[number], values: string[], otherText: string | null): string {
+  if (values.length === 0) return "미응답";
+  const parts = values.map((v) => {
+    if (v === BODY_TYPE_OTHER_VALUE) return `기타(${otherText?.trim() || "미입력"})`;
+    const label = q.options.find((o) => o.value === v)?.label;
+    return label ? `${v}. ${label}` : v;
+  });
+  return parts.join(" / ");
+}
+
 function bodyTypeLine(app: TrialApplicationForFormat, index: number): string {
   const q = BODY_TYPE_QUESTIONS[index];
-  const value = app[q.key];
+  const values = parseBodyTypeAnswer(app[q.key]);
   const otherText = app[`${q.key}Other` as keyof TrialApplicationForFormat] as string | null;
-  const optionLabel = q.options.find((o) => o.value === value)?.label;
-  const answer = value === BODY_TYPE_OTHER_VALUE ? `기타(${otherText?.trim() || "미입력"})` : (optionLabel ?? value);
-  return `${q.question} → ${answer}`;
+  return `${q.question} → ${bodyTypeAnswerLabel(q, values, otherText)}`;
 }
 
 /** /prescriptions/new 설문 textarea 프리필용 — formatSurveyResponseText와 동일한 역할. */
@@ -124,5 +150,32 @@ export function formatTrialApplicationText(app: TrialApplicationForFormat): stri
   for (let i = 0; i < BODY_TYPE_QUESTIONS.length; i++) {
     lines.push(bodyTypeLine(app, i));
   }
+  const dominant = computeDominantBodyType(app);
+  lines.push(`우세타입: ${formatDominantBodyTypeLabel(dominant.letters)}`);
   return lines.join("\n");
+}
+
+export type DominantBodyTypeResult = { letters: BodyTypeLetter[]; tally: Record<BodyTypeLetter, number> };
+
+/**
+ * 우세타입 계산(task.md 보완 1항) — 6문항 응답 전체에서 A~E(기타 제외) 등장 횟수를 합산해
+ * 가장 많이 나온 알파벳을 우세타입으로 산출한다. 동점이면 전부 반환(화면에서 "A, C 동점"
+ * 형태로 표시).
+ */
+export function computeDominantBodyType(app: TrialApplicationForFormat): DominantBodyTypeResult {
+  const tally: Record<BodyTypeLetter, number> = { A: 0, B: 0, C: 0, D: 0, E: 0 };
+  for (const q of BODY_TYPE_QUESTIONS) {
+    for (const value of parseBodyTypeAnswer(app[q.key])) {
+      if (value in tally) tally[value as BodyTypeLetter] += 1;
+    }
+  }
+  const max = Math.max(...Object.values(tally));
+  const letters = max === 0 ? [] : (Object.keys(tally) as BodyTypeLetter[]).filter((l) => tally[l] === max);
+  return { letters, tally };
+}
+
+export function formatDominantBodyTypeLabel(letters: BodyTypeLetter[]): string {
+  if (letters.length === 0) return "-";
+  if (letters.length === 1) return letters[0];
+  return `${letters.join(", ")} 동점`;
 }

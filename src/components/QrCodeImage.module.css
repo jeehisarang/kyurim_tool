@@ -1,0 +1,25 @@
+.wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.image {
+  border: 1px solid rgba(110, 148, 140, 0.35);
+  border-radius: 6px;
+  background: #fff;
+  padding: 8px;
+}
+
+.downloadLink {
+  font-size: 13px;
+  color: var(--color-celadon-dark);
+  text-decoration: underline;
+}
+
+.muted {
+  color: var(--color-ink);
+  opacity: 0.55;
+  font-size: 13px;
+}
