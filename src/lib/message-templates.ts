@@ -3,6 +3,19 @@ export const FIXED_MESSAGE_TEMPLATE: Record<"WELCOME", string> = {
   WELCOME: "안녕하세요, 규림한의원입니다. 내원해 주셔서 감사합니다.",
 };
 
+// 검사톡(task.md) — 만남톡과 동일하게 AI 호출 없는 고정 템플릿. 환자마다 달라지는 재료가
+// {환자명}/{링크}뿐이라 그 둘만 치환한다. 줄바꿈은 카카오톡 붙여넣기 시 문단 구분이 유지되도록
+// 그대로 유지한다.
+export function buildExamTalkTemplate(patientName: string, link: string): string {
+  return [
+    `${patientName}님 안녕하세요~`,
+    `지난번 검사하신 검사결과가 나왔어요~!`,
+    `내용 확인해 보시고 다음번 내원시 자세하게 상담 도와드리겠습니다. 오늘 하루도 화이팅입니다.`,
+    `${patientName}님 검사결과를 클릭해서 확인해보세요.(안전링크)`,
+    link,
+  ].join("\n");
+}
+
 // 만남톡은 요구사항(4-1)상 고정 템플릿 2종을 보유해야 함.
 // TODO: 아래 2개는 실제 문구 전달 전까지의 임시 플레이스홀더 — 전달되면 이 배열만 교체할 것.
 export const MEETING_TALK_TEMPLATES: readonly [string, string] = [

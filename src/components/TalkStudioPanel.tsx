@@ -15,6 +15,7 @@ import {
   FIXED_MESSAGE_TEMPLATE,
   MEETING_TALK_TEMPLATES,
   TALK_MESSAGE_TYPE_LABEL,
+  buildExamTalkTemplate,
 } from "@/lib/message-templates";
 
 type Patient = { id: number; chartNumber: string; name: string };
@@ -55,6 +56,12 @@ type MessageStatus = {
 
 function isAiMessageType(type: MessageType): type is AiMessageType {
   return (AI_MESSAGE_TYPES as readonly string[]).includes(type);
+}
+
+// 검사톡(task.md)은 AI 생성은 아니지만 텍스트박스는 자유 수정 가능해야 한다 — AI 유형과
+// 동일하게 drafts(state)로 관리해서 readOnly를 풀고, 복사 시에도 이 값을 그대로 쓴다.
+function isEditableMessageType(type: MessageType): boolean {
+  return isAiMessageType(type) || type === "EXAM";
 }
 
 /**
@@ -131,6 +138,11 @@ function TalkStudioInner() {
   function handleLinkGenerated(url: string, flags: ShareLinkFlags) {
     setShareUrl(url);
     setShareLinkFlags(flags);
+    // 검사톡(task.md)은 링크 생성 시점에 고정 템플릿을 만들어 drafts에 채워둔다 — 이후
+    // 텍스트박스에서 자유롭게 수정할 수 있고, 복사도 이 값(수정본) 기준으로 이뤄진다.
+    if (flags.hasExam && selectedPatient) {
+      setDrafts((prev) => ({ ...prev, EXAM: buildExamTalkTemplate(selectedPatient.name, url) }));
+    }
   }
 
   // "오늘 할 일"의 "톡생성 하기" 버튼에서 넘어온 경우: 환자 + 톡 유형을 미리 선택된 상태로 만든다.
@@ -223,13 +235,9 @@ function TalkStudioInner() {
   function contentFor(status: MessageStatus): string {
     if (status.messageType === "WELCOME") return FIXED_MESSAGE_TEMPLATE.WELCOME;
     if (status.messageType === "MEETING") return MEETING_TALK_TEMPLATES[meetingTemplateIndex];
-    // 검사톡(task.md) — 별도 문구 생성 없이 위쪽 "링크 포함하기"에서 검사결과를 체크해
-    // 만든 링크 그 자체가 카드 내용이다. 아직 검사결과 포함 링크가 없으면 빈 문자열
-    // (placeholder로 안내).
-    if (status.messageType === "EXAM") {
-      if (!shareUrl || !shareLinkFlags?.hasExam || !selectedPatient) return "";
-      return `${buildShareLinkIntro(selectedPatient.name, shareLinkFlags)}\n${shareUrl}`;
-    }
+    // 검사톡(task.md) — 위쪽 "링크 포함하기"에서 검사결과를 체크해 링크를 생성하면
+    // 고정 템플릿(buildExamTalkTemplate)이 drafts.EXAM에 채워진다(handleLinkGenerated).
+    // 그 전까지는 빈 문자열(placeholder로 안내), 이후엔 사용자가 자유롭게 수정 가능.
     return drafts[status.messageType] ?? status.aiDraftContent ?? "";
   }
 
@@ -463,10 +471,10 @@ function TalkStudioInner() {
 
                 <textarea
                   className={styles.messageTextarea}
-                  readOnly={!isAiMessageType(status.messageType)}
+                  readOnly={!isEditableMessageType(status.messageType)}
                   value={contentFor(status)}
                   onChange={(e) =>
-                    isAiMessageType(status.messageType)
+                    isEditableMessageType(status.messageType)
                       ? setDrafts((prev) => ({ ...prev, [status.messageType]: e.target.value }))
                       : undefined
                   }
