@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db";
 import { isMessageTaskType } from "@/lib/task-types";
+import { issueTrialReferralLink, linkTrialApplicationToPrescription } from "@/lib/referrals";
 
 const PROGRAM_TYPE_FIXED_SEQUENCE_ROW = "FIXED_SEQUENCE";
 
@@ -137,6 +138,7 @@ export async function createPrescription(input: {
   staffUserId: number;
   surveyDataJson?: string;
   surveyResponseCacheId?: number;
+  trialApplicationId?: number;
 }) {
   const program = await prisma.program.findUniqueOrThrow({
     where: { id: input.programId },
@@ -164,6 +166,18 @@ export async function createPrescription(input: {
         data: { linkedPrescriptionId: String(prescription.id) },
       });
     }
+
+    if (input.trialApplicationId) {
+      await linkTrialApplicationToPrescription(input.trialApplicationId, prescription.id);
+    }
+
+    // 킬팻캡슐 3일체험 추천 이벤트(task.md) — 이 처방으로 온 환자가 스스로 추천할 수 있는
+    // 개인 링크를 등록 시점에 항상 자동 발급한다(도보/구글폼/추천링크 등 유입 경로 무관).
+    await issueTrialReferralLink({
+      id: prescription.id,
+      patientId: input.patientId,
+      startDate: input.startDate,
+    });
 
     const templates = await prisma.programEventTemplate.findMany({
       where: { programId: input.programId },
@@ -378,6 +392,8 @@ export type PrescriptionDetail = {
   singleFollowUp: PrescriptionRoundEntry | null;
   events: PrescriptionEventEntry[] | null;
   taskHistory: PrescriptionTaskHistoryEntry[];
+  // 킬팻캡슐 3일체험 추천 이벤트(task.md) — FIXED_SEQUENCE 처방에만 존재(issueTrialReferralLink).
+  referralLink: { token: string; expiresAt: Date; isActive: boolean } | null;
 };
 
 // SPLIT 타입 회차 리스트 재구성. 1차는 등록일 당일 처방을 이미 받은 것으로 간주해
@@ -485,6 +501,12 @@ export async function getPrescriptionDetail(prescriptionId: number): Promise<Pre
   let rounds: PrescriptionRoundEntry[] | null = null;
   let singleFollowUp: PrescriptionRoundEntry | null = null;
   let events: PrescriptionEventEntry[] | null = null;
+  let referralLink: PrescriptionDetail["referralLink"] = null;
+
+  if (program.type === PROGRAM_TYPE_FIXED_SEQUENCE_ROW) {
+    const link = await prisma.referralLink.findFirst({ where: { sourcePrescriptionId: prescriptionId } });
+    if (link) referralLink = { token: link.token, expiresAt: link.expiresAt, isActive: link.isActive };
+  }
 
   if (program.type === PROGRAM_TYPE_SPLIT && prescription.totalRounds != null && prescription.currentRound != null) {
     const overrideRows = await prisma.prescriptionRoundOverride.findMany({ where: { prescriptionId } });
@@ -544,6 +566,7 @@ export async function getPrescriptionDetail(prescriptionId: number): Promise<Pre
     singleFollowUp,
     events,
     taskHistory,
+    referralLink,
   };
 }
 

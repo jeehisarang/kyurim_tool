@@ -27,7 +27,11 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const isPublicPatientFacing =
     (pathname?.startsWith("/patient-view") ||
       pathname?.startsWith("/p/") ||
-      pathname?.startsWith("/s/")) ??
+      pathname?.startsWith("/s/") ||
+      // 킬팻캡슐 3일체험 추천 이벤트(task.md) 공개 신청페이지 — /refer/ 전체가 아니라
+      // /refer/trial만(그 아래는 전부 공개 페이지). 직원용 화면이 /refer/ 하위에 생기더라도
+      // 이 접두사와 겹치지 않게 주의할 것.
+      pathname?.startsWith("/refer/trial")) ??
     false;
   const isStandaloneStaffPage = pathname?.startsWith("/consult-mode") ?? false;
 

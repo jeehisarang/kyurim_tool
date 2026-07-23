@@ -11,6 +11,7 @@ import {
   PROGRAM_CATEGORY_GROUP_LABEL,
   PROGRAM_CATEGORY_ICON,
 } from "@/lib/program-categories";
+import { copyToClipboard } from "@/lib/clipboard";
 
 type RoundEntry = {
   round: number;
@@ -54,6 +55,8 @@ type PrescriptionDetail = {
   singleFollowUp: RoundEntry | null;
   events: EventEntry[] | null;
   taskHistory: TaskHistoryEntry[];
+  // 킬팻캡슐 3일체험 추천 이벤트(task.md) — FIXED_SEQUENCE 처방에만 존재.
+  referralLink: { token: string; expiresAt: string; isActive: boolean } | null;
 };
 
 type StaffUser = { id: number; name: string; role: string };
@@ -101,6 +104,19 @@ export default function PrescriptionDetailPage() {
   const [roundOverrideDate, setRoundOverrideDate] = useState("");
   const [roundOverrideSaving, setRoundOverrideSaving] = useState(false);
   const [roundOverrideError, setRoundOverrideError] = useState<string | null>(null);
+
+  const [referralLinkCopied, setReferralLinkCopied] = useState(false);
+
+  async function handleCopyReferralLink(token: string) {
+    const url = `${window.location.origin}/refer/trial/${token}`;
+    const success = await copyToClipboard(url);
+    if (!success) {
+      alert("복사에 실패했습니다. 링크를 직접 선택해서 복사해주세요.");
+      return;
+    }
+    setReferralLinkCopied(true);
+    setTimeout(() => setReferralLinkCopied(false), 1500);
+  }
 
   function refresh() {
     fetch(`/api/prescriptions/${prescriptionId}`)
@@ -450,6 +466,31 @@ export default function PrescriptionDetailPage() {
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {data.referralLink && (
+        <div className={styles.section}>
+          <div className={styles.sectionTitle}>추천링크</div>
+          <p className={styles.infoRow}>
+            <span className={styles.mono}>
+              {typeof window !== "undefined" ? window.location.origin : ""}/refer/trial/{data.referralLink.token}
+            </span>
+          </p>
+          <div className={styles.actionsRow}>
+            <button
+              type="button"
+              className={styles.actionButton}
+              onClick={() => handleCopyReferralLink(data.referralLink!.token)}
+            >
+              {referralLinkCopied ? "복사됨" : "링크 복사"}
+            </button>
+            <span className={styles.mono}>
+              {data.referralLink.isActive && new Date(data.referralLink.expiresAt).getTime() > Date.now()
+                ? `${formatDate(data.referralLink.expiresAt)}까지 유효`
+                : "만료됨"}
+            </span>
+          </div>
         </div>
       )}
 

@@ -124,6 +124,43 @@ export async function saveHrvResultImage(buffer: Buffer): Promise<ResizedImage> 
   };
 }
 
+// 체험이벤트 캠페인 히어로 이미지(task.md 1-5) — 원장실 학술자료 이미지(saveResizedImage)와
+// 동일한 규격(1080px/80%)을 쓰되 폴더만 분리한다.
+const TRIAL_CAMPAIGN_UPLOAD_DIR = path.join(process.cwd(), "public", "uploads", "trial-campaign");
+const TRIAL_CAMPAIGN_PUBLIC_PATH_PREFIX = "/uploads/trial-campaign";
+const TRIAL_CAMPAIGN_MAX_DIMENSION = 1080;
+const TRIAL_CAMPAIGN_JPEG_QUALITY = 80;
+
+export async function saveTrialCampaignHeroImage(file: File): Promise<ResizedImage> {
+  const originalBuffer = Buffer.from(await file.arrayBuffer());
+
+  let resizedBuffer: Buffer;
+  try {
+    resizedBuffer = await sharp(originalBuffer)
+      .rotate()
+      .resize({
+        width: TRIAL_CAMPAIGN_MAX_DIMENSION,
+        height: TRIAL_CAMPAIGN_MAX_DIMENSION,
+        fit: "inside",
+        withoutEnlargement: true,
+      })
+      .jpeg({ quality: TRIAL_CAMPAIGN_JPEG_QUALITY })
+      .toBuffer();
+  } catch (err) {
+    throw new ImageResizeError(err);
+  }
+
+  await mkdir(TRIAL_CAMPAIGN_UPLOAD_DIR, { recursive: true });
+  const filename = `${crypto.randomUUID()}.jpg`;
+  await writeFile(path.join(TRIAL_CAMPAIGN_UPLOAD_DIR, filename), resizedBuffer);
+
+  return {
+    path: `${TRIAL_CAMPAIGN_PUBLIC_PATH_PREFIX}/${filename}`,
+    originalBytes: originalBuffer.length,
+    resizedBytes: resizedBuffer.length,
+  };
+}
+
 // 합성 결과(문구가 얹힌 최종 이미지)는 브라우저 Canvas가 이미 적정 해상도로 렌더링해
 // 보낸 PNG를 그대로 저장한다 — sharp로 재압축하면 텍스트 가장자리가 뭉개질 수 있어 피한다.
 export async function saveCompositeImage(file: File): Promise<{ path: string }> {

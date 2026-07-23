@@ -45,6 +45,8 @@ model Patient {
   hrvImportPendingResolutions HrvImportPending[]
   tcmChecklistResponses       TcmChecklistResponse[]
   examReminderCycles          ExamReminderCycle[]
+  referralLinks               ReferralLink[]
+  referralCreditEntries       ReferralCreditEntry[]
 }
 
 model TreatmentCategory {
@@ -123,6 +125,7 @@ model StaffUser {
   checkedActivityLogs       ActivityLog[]
   resolvedHrvImportPendings HrvImportPending[]
   tcmChecklistResponses     TcmChecklistResponse[]
+  confirmedReferralCredits ReferralCreditEntry[]
 }
 
 model Program {
@@ -177,6 +180,10 @@ model Prescription {
   bodyCompositionRecords BodyCompositionRecord[]
   strengthTestRecords    StrengthTestRecord[]
   roundOverrides         PrescriptionRoundOverride[]
+  referralLinksIssued    ReferralLink[]
+  trialApplication       TrialApplication?
+  exitSurveyResponse     ExitSurveyResponse?
+  referralCredits        ReferralCreditEntry[]
 }
 
 // SPLIT 타입 처방의 회차별 예정일을 직원이 개별 수동 조정한 값 — roundNumber당 최대
@@ -876,4 +883,106 @@ model TcmCategoryScore {
   isCandidate Boolean              @default(false)
 
   @@unique([responseId, categoryId])
+}
+
+// 킬팻캡슐 3일체험 추천 이벤트(task.md) — 체험 참가자가 발급받는 개인 추천링크.
+// 3일체험(FIXED_SEQUENCE) 처방 등록 시 자동 발급된다(prescriptions.ts createPrescription).
+// kind는 이번 Phase에서는 TRIAL만 발급하고, MAIN(본프로그램 전환 후 발급)은 스키마만
+// 준비해두고 발급 로직은 이후 단계에서 추가한다.
+model ReferralLink {
+  id                   Int          @id @default(autoincrement())
+  token                String       @unique
+  patientId            Int
+  patient              Patient      @relation(fields: [patientId], references: [id])
+  kind                 String // TRIAL | MAIN
+  sourcePrescriptionId Int
+  sourcePrescription   Prescription @relation(fields: [sourcePrescriptionId], references: [id])
+  issuedAt             DateTime     @default(now())
+  expiresAt            DateTime
+  isActive             Boolean      @default(true)
+}
+
+// 킬팻캡슐 3일체험 추천 이벤트(task.md) — 공개 신청페이지(/refer/trial[/token]) 제출
+// 데이터. 기존 구글폼(신청설문) 대체. referralToken이 있고 유효(만료 전+활성)하면
+// 제출 즉시 ReferralCreditEntry(TRIAL_SIGNUP)가 자동 생성된다(referrals.ts). 실제 3일체험
+// 처방 등록은 이 레코드를 보고 직원이 /prescriptions/new에서 수동으로 진행하며, 그때
+// convertedPrescriptionId가 연결된다(SurveyResponseCache.linkedPrescriptionId와 동일 원칙).
+model TrialApplication {
+  id                      Int           @id @default(autoincrement())
+  name                    String
+  phone                   String
+  heightWeight            String?
+  weightGoalKg            String?
+  weightChange6mo         String?
+  currentMeds             String?
+  pastHistory             String?
+  familyHistory           String?
+  dietExperience          String?
+  // 몸타입 6문항(task2.md 확정 문구) — 각 A/B/C/D/E/기타 중 선택, 기타 선택 시
+  // bodyTypeNOther에 자유텍스트를 병기한다.
+  bodyType1               String
+  bodyType1Other          String?
+  bodyType2               String
+  bodyType2Other          String?
+  bodyType3               String
+  bodyType3Other          String?
+  bodyType4               String
+  bodyType4Other          String?
+  bodyType5               String
+  bodyType5Other          String?
+  bodyType6               String
+  bodyType6Other          String?
+  // 추천링크 없이 원내 QR로 들어온 신청이면 null.
+  referralToken           String?
+  submittedAt             DateTime      @default(now())
+  convertedPrescriptionId Int?          @unique
+  prescription            Prescription? @relation(fields: [convertedPrescriptionId], references: [id])
+  referralCreditEntries   ReferralCreditEntry[]
+}
+
+// 킬팻캡슐 3일체험 추천 이벤트(task.md) — 마감설문(기존 구글폼) 대체용 스키마.
+// 이번 Phase는 스키마만 준비하고, 실제 제출 화면/API는 이후 단계에서 추가한다.
+model ExitSurveyResponse {
+  id              Int          @id @default(autoincrement())
+  prescriptionId  Int          @unique
+  prescription    Prescription @relation(fields: [prescriptionId], references: [id])
+  compliance      String // 매일복용 | 1~2회놓침 | 거의못함
+  changes         String // 다중선택 결과 JSON 배열
+  consultInterest String // 네 | 고민중 | 아니오
+  comment         String?
+  submittedAt     DateTime     @default(now())
+}
+
+// 킬팻캡슐 3일체험 추천 이벤트(task.md) — 적립 발생 내역만 기록(지급/사용은 시스템이
+// 처리하지 않음, 실제 사용은 원장이 결제 시 수동 반영). linkToken은 FK가 아니라 원문
+// 문자열 그대로 저장 — 나중에 ReferralLink가 비활성화돼도 적립 내역 자체는 그때 쓰인
+// 코드로 남아야 하기 때문(SurveyResponseCache.linkedPrescriptionId와 유사한 느슨한 참조
+// 철학이지만, 여기는 FK 없는 순수 문자열).
+model ReferralCreditEntry {
+  id                          Int               @id @default(autoincrement())
+  patientId                   Int
+  patient                     Patient           @relation(fields: [patientId], references: [id])
+  linkToken                   String
+  kind                        String // TRIAL_SIGNUP | MAIN_SIGNUP
+  amount                      Int
+  referredName                String
+  referredTrialApplicationId  Int?
+  referredTrialApplication    TrialApplication? @relation(fields: [referredTrialApplicationId], references: [id])
+  referredPrescriptionId      Int?
+  referredPrescription        Prescription?     @relation(fields: [referredPrescriptionId], references: [id])
+  createdAt                   DateTime          @default(now())
+  // MAIN_SIGNUP은 직원이 확정한 사람을 기록, TRIAL_SIGNUP은 자동 생성이라 항상 null.
+  confirmedByStaffId           Int?
+  confirmedByStaff             StaffUser?        @relation(fields: [confirmedByStaffId], references: [id])
+}
+
+// 킬팻캡슐 3일체험 추천 이벤트(task.md 1-5) — 공개 신청페이지 히어로 이미지/문구 설정.
+// 싱글톤(id=1 행 하나만 사용, upsert로만 갱신) — 별도 목록/이력 관리가 필요 없어
+// ProgramTeaching처럼 여러 행을 두지 않는다.
+model TrialCampaignSettings {
+  id            Int      @id @default(autoincrement())
+  heroImagePath String?
+  headline      String?
+  description   String?
+  updatedAt     DateTime @updatedAt
 }

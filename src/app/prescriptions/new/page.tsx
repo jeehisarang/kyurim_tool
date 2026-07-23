@@ -12,6 +12,10 @@ import SurveyResponsePickerModal, {
   type SurveyResponseCache,
 } from "@/components/SurveyResponsePickerModal";
 import { formatSurveyResponseText } from "@/lib/survey-response-format";
+import TrialApplicationPickerModal, {
+  type TrialApplicationListItem,
+} from "@/components/TrialApplicationPickerModal";
+import { formatTrialApplicationText } from "@/lib/trial-application-format";
 import {
   getProgramBadgeInfo,
   getProgramCategory,
@@ -76,6 +80,11 @@ export default function NewPrescriptionPage() {
   const [surveyDataJson, setSurveyDataJson] = useState("");
   const [surveyResponseCacheId, setSurveyResponseCacheId] = useState<number | null>(null);
   const [showSurveyPicker, setShowSurveyPicker] = useState(false);
+  // 킬팻캡슐 3일체험 추천 이벤트(task.md 1-6) — "체험신청에서 가져오기" 피커.
+  // surveyDataJson 프리필/제출은 구글폼 경로와 동일한 필드를 공유하고, trialApplicationId만
+  // 별도로 들고 있다가 등록 시 convertedPrescriptionId 연결용으로 함께 보낸다.
+  const [trialApplicationId, setTrialApplicationId] = useState<number | null>(null);
+  const [showTrialApplicationPicker, setShowTrialApplicationPicker] = useState(false);
 
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -126,12 +135,21 @@ export default function NewPrescriptionPage() {
     setStartDate(TODAY_PARAM);
     setSurveyDataJson("");
     setSurveyResponseCacheId(null);
+    setTrialApplicationId(null);
   }
 
   function handleSelectSurveyResponse(response: SurveyResponseCache) {
     setSurveyDataJson(formatSurveyResponseText(response.rawDataJson));
     setSurveyResponseCacheId(response.id);
+    setTrialApplicationId(null);
     setShowSurveyPicker(false);
+  }
+
+  function handleSelectTrialApplication(application: TrialApplicationListItem) {
+    setSurveyDataJson(formatTrialApplicationText(application));
+    setTrialApplicationId(application.id);
+    setSurveyResponseCacheId(null);
+    setShowTrialApplicationPicker(false);
   }
 
   const selectedProgram = programs.find((p) => String(p.id) === programId) ?? null;
@@ -160,6 +178,7 @@ export default function NewPrescriptionPage() {
           startDate,
           surveyDataJson: isTrialSurveyProgram ? surveyDataJson : undefined,
           surveyResponseCacheId: isTrialSurveyProgram ? surveyResponseCacheId ?? undefined : undefined,
+          trialApplicationId: isTrialSurveyProgram ? trialApplicationId ?? undefined : undefined,
         }),
       });
       const data = await res.json();
@@ -178,6 +197,7 @@ export default function NewPrescriptionPage() {
       setStartDate(TODAY_PARAM);
       setSurveyDataJson("");
       setSurveyResponseCacheId(null);
+      setTrialApplicationId(null);
       setStampKey((k) => k + 1);
     } catch {
       setSubmitError("서버에 연결하지 못했습니다. 처방이 등록되지 않았으니 다시 시도해주세요.");
@@ -309,6 +329,13 @@ export default function NewPrescriptionPage() {
                   >
                     구글폼에서 가져오기
                   </button>
+                  <button
+                    type="button"
+                    className={styles.surveyImportButton}
+                    onClick={() => setShowTrialApplicationPicker(true)}
+                  >
+                    체험신청에서 가져오기
+                  </button>
                 </span>
                 <textarea
                   className={styles.surveyTextarea}
@@ -324,6 +351,13 @@ export default function NewPrescriptionPage() {
               <SurveyResponsePickerModal
                 onSelect={handleSelectSurveyResponse}
                 onClose={() => setShowSurveyPicker(false)}
+              />
+            )}
+
+            {showTrialApplicationPicker && (
+              <TrialApplicationPickerModal
+                onSelect={handleSelectTrialApplication}
+                onClose={() => setShowTrialApplicationPicker(false)}
               />
             )}
 
