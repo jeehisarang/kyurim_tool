@@ -4,12 +4,13 @@ import { useEffect, useMemo, useState } from "react";
 import styles from "./ProgramTeachingCreator.module.css";
 import { getCurrentUserId } from "@/lib/currentUser";
 import { copyToClipboard } from "@/lib/clipboard";
+import type { ExamType } from "@/lib/exam-types";
 
 type ProgramTeaching = {
   id: number;
   programName: string;
   targetSymptomKeywords: string | null;
-  linkedTestType: "BODY_COMPOSITION" | "STRENGTH_TEST" | null;
+  linkedTestType: ExamType | null;
 };
 
 type CreatedPage = {

@@ -6,6 +6,7 @@ import Link from "next/link";
 import styles from "./page.module.css";
 import BackButton from "@/components/BackButton";
 import { computeBmi, GRIP_AGE_OUT_OF_RANGE_LABEL, type Gender, type GripAgeOutOfRange } from "@/lib/exam-thresholds";
+import { EXAM_TYPE_LABEL } from "@/lib/exam-types";
 
 type PatientInfo = { id: number; name: string; chartNumber: string; height: number | null; gender: Gender | null };
 type StaffInfo = { id: number; name: string };
@@ -57,7 +58,6 @@ const GRIP_JUDGEMENT_LABEL: Record<string, string> = {
   STRONG: "강함",
   UNKNOWN: "판정불가",
 };
-const EXAM_TYPE_LABEL: Record<string, string> = { BODY_COMPOSITION: "인바디", STRENGTH_TEST: "근력검사" };
 
 function toNumber(value: string): number | null {
   if (value.trim() === "") return null;

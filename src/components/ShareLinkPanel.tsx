@@ -18,19 +18,28 @@ function comboKey(f: ShareLinkFlags): string {
 // 링크 자동첨부 시 앞에 붙는 고정 안내문구(task.md) — AI 호출 없이 환자 이름만 치환.
 // 조합별로 자연스러운 한국어 조사를 그대로 고정 문구로 써서(동적 조립 시 조사 오류 위험 방지)
 // ShareLinkPanel을 쓰는 화면(TalkStudioPanel/TalkGroupManager)이 공통으로 재사용한다.
+// 검사(EXAM)가 포함된 조합은 아래 EXAM_INTRO를 항상 맨 앞에 고정 배치하고(task.md "검사링크
+// 복사 시 개인화 안내문구 자동첨부"), 티칭/이벤트 조합 문구는 검사 없는 버전(T/E/TE)만 남겨
+// 그 뒤에 이어 붙인다 — 그래서 이 테이블에는 검사 미포함 조합(T/E/TE)만 존재한다.
 const INTRO_BY_COMBO: Record<string, (patientName: string) => string> = {
   T: (name) => `${name}님의 검사 결과와 추천 프로그램을 아래 링크에서 확인해보세요 🙂`,
   E: (name) => `${name}님을 위한 특별한 혜택을 아래 링크에서 확인해보세요 🙂`,
-  X: (name) => `${name}님의 검사 결과를 아래 링크에서 확인해보세요 🙂`,
   TE: (name) => `${name}님의 검사 결과와 추천 혜택을 아래 링크에서 확인해보세요 🙂`,
-  TX: (name) => `${name}님의 검사 결과와 추천 프로그램을 아래 링크에서 확인해보세요 🙂`,
-  EX: (name) => `${name}님의 검사 결과와 특별한 혜택을 아래 링크에서 확인해보세요 🙂`,
-  TEX: (name) => `${name}님의 검사 결과와 추천 프로그램, 특별한 혜택을 아래 링크에서 확인해보세요 🙂`,
 };
 
+const EXAM_INTRO = (patientName: string) => `${patientName}님 검사결과를 클릭해서 확인해보세요.`;
+
 export function buildShareLinkIntro(patientName: string, flags: ShareLinkFlags): string {
+  if (flags.hasExam) {
+    // 검사 포함 시엔 항상 개인화 문구가 맨 앞(task.md 요구사항 2) — 티칭/이벤트가 함께
+    // 선택돼 있으면 그 조합 문구(검사 제외 버전)를 다음 줄에 이어 붙인다. URL은 이 함수가
+    // 반환하지 않고 호출부가 마지막에 한 번만 붙인다(중복 방지).
+    const nonExamCombo = comboKey({ ...flags, hasExam: false });
+    const secondary = nonExamCombo ? INTRO_BY_COMBO[nonExamCombo]?.(patientName) : null;
+    return secondary ? `${EXAM_INTRO(patientName)}\n${secondary}` : EXAM_INTRO(patientName);
+  }
   const combo = INTRO_BY_COMBO[comboKey(flags)];
-  return combo ? combo(patientName) : INTRO_BY_COMBO.X(patientName);
+  return combo ? combo(patientName) : `${patientName}님, 아래 링크를 확인해보세요 🙂`;
 }
 
 type TeachingSummary = { id: number; token: string; programName: string; createdAt: string };

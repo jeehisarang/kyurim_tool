@@ -5,6 +5,7 @@ import {
   formatProgramTeachingContent,
   getExamTrend,
   getLatestExamSnapshot,
+  hasExamSnapshotSupport,
   isLinkedTestType,
   type LatestExamSnapshot,
   type LinkedTestType,
@@ -104,15 +105,21 @@ export async function createTeachingPage(input: CreateTeachingPageInput) {
 
   let snapshot: LatestExamSnapshot | null = null;
   let examTrend: string | null = null;
-  if (isLinkedTestType(program.linkedTestType)) {
-    snapshot = await getLatestExamSnapshot(input.patientId, program.linkedTestType);
+  // program.linkedTestType은 prisma 원본 컬럼이라 string | null — 먼저 isLinkedTestType로
+  // 유효한 검사종류인지 좁히고, 그중에서도 스냅샷 로직이 없는 검사종류(예: HRV, task2.md)는
+  // 연결검사 없는 프로그램과 동일하게 검사이력 요구 없이 진행한다(hasExamSnapshotSupport).
+  const linkedTestType: LinkedTestType | null = isLinkedTestType(program.linkedTestType)
+    ? program.linkedTestType
+    : null;
+  if (linkedTestType !== null && hasExamSnapshotSupport(linkedTestType)) {
+    snapshot = await getLatestExamSnapshot(input.patientId, linkedTestType);
     if (!snapshot) {
-      throw new NeedsExamError(program.linkedTestType);
+      throw new NeedsExamError(linkedTestType);
     }
-    examTrend = await getExamTrend(input.patientId, program.linkedTestType);
+    examTrend = await getExamTrend(input.patientId, linkedTestType);
   }
 
-  const hasLinkedExam = isLinkedTestType(program.linkedTestType);
+  const hasLinkedExam = linkedTestType !== null && hasExamSnapshotSupport(linkedTestType);
   const testValueSummary = snapshot ? formatTestValueSummary(snapshot) : null;
   const examJudgementLabel = snapshot ? extractFourLevelJudgementLabel(snapshot, patient.gender) : null;
   const { sellingText, academicText } = formatProgramTeachingContent(program);

@@ -4,8 +4,9 @@ import { useEffect, useState } from "react";
 import styles from "./page.module.css";
 import BackButton from "@/components/BackButton";
 import { EXAM_TYPE_LABEL } from "@/lib/examination-format";
+import { EXAM_TYPES, type ExamType } from "@/lib/exam-types";
 
-type LinkedTestType = "BODY_COMPOSITION" | "STRENGTH_TEST";
+type LinkedTestType = ExamType;
 
 // src/lib/teaching-pages.ts DEFAULT_CTA_LABEL과 동일한 값 — 그쪽은 prisma를 물고 있는
 // 서버 전용 모듈이라 클라이언트 컴포넌트에서 직접 import할 수 없어 안내문구용으로만 복제.
@@ -265,8 +266,11 @@ export default function ProgramTeachingSettingsPage() {
               onChange={(e) => setNewLinkedTestType(e.target.value as LinkedTestType | "")}
             >
               <option value="">연결검사 없음</option>
-              <option value="BODY_COMPOSITION">인바디</option>
-              <option value="STRENGTH_TEST">근력검사</option>
+              {EXAM_TYPES.map((e) => (
+                <option key={e.key} value={e.key}>
+                  {e.label}
+                </option>
+              ))}
             </select>
           </div>
           <input
@@ -333,8 +337,11 @@ export default function ProgramTeachingSettingsPage() {
                       onChange={(e) => setEditLinkedTestType(e.target.value as LinkedTestType | "")}
                     >
                       <option value="">연결검사 없음</option>
-                      <option value="BODY_COMPOSITION">인바디</option>
-                      <option value="STRENGTH_TEST">근력검사</option>
+                      {EXAM_TYPES.map((e) => (
+                        <option key={e.key} value={e.key}>
+                          {e.label}
+                        </option>
+                      ))}
                     </select>
                   </div>
                   <input

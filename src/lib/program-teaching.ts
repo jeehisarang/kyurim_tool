@@ -1,10 +1,29 @@
 import { prisma } from "@/lib/db";
+import { EXAM_TYPES, type ExamType } from "@/lib/exam-types";
 
-export const LINKED_TEST_TYPES = ["BODY_COMPOSITION", "STRENGTH_TEST"] as const;
-export type LinkedTestType = (typeof LINKED_TEST_TYPES)[number];
+// "연결검사"로 선택 가능한 검사종류 — 검사종류 단일 소스(exam-types.ts)에서 그대로 파생된다
+// (task2.md). 새 검사종류가 exam-types.ts에 추가되면 드롭다운/저장 모두 자동으로 같이
+// 늘어난다. 단, "선택/저장 가능"과 "검사수치 스냅샷 계산 가능"은 별개다 —
+// hasExamSnapshotSupport 참고.
+export const LINKED_TEST_TYPES: readonly ExamType[] = EXAM_TYPES.map((e) => e.key);
+export type LinkedTestType = ExamType;
 
 export function isLinkedTestType(value: unknown): value is LinkedTestType {
   return LINKED_TEST_TYPES.includes(value as LinkedTestType);
+}
+
+// 검사수치 스냅샷/변화량(getLatestExamSnapshot/getExamTrend) 계산이 구현된 검사종류만 —
+// HRV는 "연결검사"로 선택/저장은 되지만(task2.md, 이번 라운드는 라벨·드롭다운 단일소스화만
+// 범위) 스냅샷 로직은 범위 밖이라 아직 없다. 여기 없는 검사종류로 연결된 프로그램은
+// createTeachingPage가 검사이력 요구 없이(연결검사 없는 프로그램과 동일하게) 그냥 진행한다
+// — "검사와 연결됨" 상태로 저장/표시는 정확히 되지만 티칭지 생성 시 검사 유도 오류
+// (NeedsExamError)를 띄우지 않는다. 새 검사종류의 스냅샷을 지원하려면 이 배열과
+// getLatestExamSnapshot/getExamTrend에 분기를 추가하면 된다.
+const SNAPSHOT_SUPPORTED_TYPES = ["BODY_COMPOSITION", "STRENGTH_TEST"] as const;
+export type SnapshotSupportedTestType = (typeof SNAPSHOT_SUPPORTED_TYPES)[number];
+
+export function hasExamSnapshotSupport(value: LinkedTestType): value is SnapshotSupportedTestType {
+  return (SNAPSHOT_SUPPORTED_TYPES as readonly string[]).includes(value);
 }
 
 // 직원이 채우는 셀링포인트 3개(환자/한의원/기타 관점) — 카테고리별 라벨은 UI/AI
@@ -153,7 +172,7 @@ export type LatestExamSnapshot =
 // 검사 이력이 없으면 null(호출측에서 "검사 유도 안내"로 생성을 중단시키는 근거로 사용).
 export async function getLatestExamSnapshot(
   patientId: number,
-  linkedTestType: LinkedTestType,
+  linkedTestType: SnapshotSupportedTestType,
 ): Promise<LatestExamSnapshot | null> {
   if (linkedTestType === "BODY_COMPOSITION") {
     const record = await prisma.bodyCompositionRecord.findFirst({
@@ -200,7 +219,7 @@ function formatSignedDiff(diff: number): string {
  */
 export async function getExamTrend(
   patientId: number,
-  linkedTestType: LinkedTestType,
+  linkedTestType: SnapshotSupportedTestType,
 ): Promise<string | null> {
   if (linkedTestType === "BODY_COMPOSITION") {
     const records = await prisma.bodyCompositionRecord.findMany({

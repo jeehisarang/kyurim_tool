@@ -1,4 +1,5 @@
 import { computeBmi, computeGripAgeTrend, GRIP_AGE_OUT_OF_RANGE_LABEL, type GripAgeOutOfRange, type GripAgeTrend } from "@/lib/exam-thresholds";
+export { EXAM_TYPE_LABEL } from "@/lib/exam-types";
 
 // /examinations 목록과 /examinations/patient/[patientId] 이력화면이 공유하는 검사기록
 // 표시 포맷 — 중복 구현 지양(TodoTaskTable의 buildTaskRows와 동일한 원칙).
@@ -43,12 +44,6 @@ export type ExaminationRow =
       sourceImagePath: string;
       isActive: boolean;
     };
-
-export const EXAM_TYPE_LABEL = {
-  BODY_COMPOSITION: "인바디",
-  STRENGTH_TEST: "근력검사",
-  HRV: "HRV",
-};
 
 export const SMI_JUDGEMENT_LABEL: Record<string, string> = {
   NORMAL: "정상",

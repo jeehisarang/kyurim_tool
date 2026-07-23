@@ -22,22 +22,21 @@ import {
   weightCell,
   whrCell,
 } from "@/lib/examination-format";
+import { EXAM_TYPES, isExamType, type ExamType } from "@/lib/exam-types";
 
 const PAGE_SIZE = 10;
 
-type ExamTypeFilter = "ALL" | "BODY_COMPOSITION" | "STRENGTH_TEST" | "HRV";
+type ExamTypeFilter = "ALL" | ExamType;
 
+// 검사종류 단일 소스(task2.md)에서 파생 — "전체보기"만 여기서 추가하고 나머지 탭은
+// EXAM_TYPES를 그대로 매핑한다. 새 검사종류가 추가되면 이 탭도 자동으로 늘어난다.
 const EXAM_TYPE_FILTER_TABS: { key: ExamTypeFilter; label: string }[] = [
   { key: "ALL", label: "전체보기" },
-  { key: "BODY_COMPOSITION", label: "인바디" },
-  { key: "STRENGTH_TEST", label: "근력검사" },
-  { key: "HRV", label: "자율신경맥파(HRV)" },
+  ...EXAM_TYPES.map((e) => ({ key: e.key as ExamTypeFilter, label: e.label })),
 ];
 
 function isExamTypeFilter(value: string | null): value is ExamTypeFilter {
-  return (
-    value === "ALL" || value === "BODY_COMPOSITION" || value === "STRENGTH_TEST" || value === "HRV"
-  );
+  return value === "ALL" || isExamType(value);
 }
 
 export default function ExaminationListPage() {
