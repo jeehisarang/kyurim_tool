@@ -1,6 +1,7 @@
 "use client";
 
 import { Fragment, useState } from "react";
+import { useRouter } from "next/navigation";
 import styles from "./TodoTaskTable.module.css";
 import SealStamp from "@/components/SealStamp";
 import ProgramBadge from "@/components/ProgramBadge";
@@ -21,6 +22,9 @@ export type TodoTask = {
   dueDate: string | null;
   patient: Patient | null;
   program: Program | null;
+  // 치료처방(SPLIT/SINGLE/FIXED_SEQUENCE)과 연결된 경우에만 값 존재 — 프로그램명 클릭 시
+  // /prescriptions/[prescriptionId]로 이동하는 데 쓰인다. 톡/업무 등 처방과 무관한 항목은 null.
+  prescriptionId: number | null;
   staffUser: StaffUser | null;
   isDone: boolean;
   doneByUser: StaffUser | null;
@@ -199,6 +203,7 @@ export default function TodoTaskTable({
 }: TodoTaskTableProps) {
   const hideNameColumns = mode === "work";
   const rows = buildTaskRows(tasks);
+  const router = useRouter();
 
   const [editingWorkId, setEditingWorkId] = useState<number | null>(null);
   const [editTitle, setEditTitle] = useState("");
@@ -369,7 +374,19 @@ export default function TodoTaskTable({
                       )}
                     </td>
                     <td>
-                      {task.program ? <ProgramBadge id={task.program.id} name={task.program.name} /> : "-"}
+                      {task.program ? (
+                        <ProgramBadge
+                          id={task.program.id}
+                          name={task.program.name}
+                          onClick={
+                            task.prescriptionId
+                              ? () => router.push(`/prescriptions/${task.prescriptionId}`)
+                              : undefined
+                          }
+                        />
+                      ) : (
+                        "-"
+                      )}
                     </td>
                   </>
                 )}
