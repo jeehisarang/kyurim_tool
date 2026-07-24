@@ -134,6 +134,8 @@ function TalkStudioInner() {
   // shareLinkMode는 어떤 안내문구 템플릿을 붙일지 결정한다(task.md).
   const [shareUrl, setShareUrl] = useState<string | null>(null);
   const [shareLinkFlags, setShareLinkFlags] = useState<ShareLinkFlags | null>(null);
+  // 추천링크 체크박스(task2.md) — 톡 종류 구분 없이 어떤 메시지 타입에도 붙을 수 있다.
+  const [referralBlock, setReferralBlock] = useState<string | null>(null);
 
   function handleLinkGenerated(url: string, flags: ShareLinkFlags) {
     setShareUrl(url);
@@ -194,6 +196,7 @@ function TalkStudioInner() {
     setGenerateError(null);
     setShareUrl(null);
     setShareLinkFlags(null);
+    setReferralBlock(null);
   }
 
   function clearSelectedPatient() {
@@ -202,6 +205,7 @@ function TalkStudioInner() {
     setDrafts({});
     setShareUrl(null);
     setShareLinkFlags(null);
+    setReferralBlock(null);
   }
 
   async function handleGenerate(messageType: AiMessageType) {
@@ -246,10 +250,14 @@ function TalkStudioInner() {
     if (!text) return;
     // EXAM은 contentFor가 이미 링크를 포함한 완성된 문구를 돌려주므로, 다른 유형처럼
     // 링크를 접미사로 또 붙이면 중복된다.
-    const fullText =
-      status.messageType !== "EXAM" && shareUrl && shareLinkFlags && selectedPatient
-        ? `${text}\n\n${buildShareLinkIntro(selectedPatient.name, shareLinkFlags)}\n${shareUrl}`
-        : text;
+    let fullText = text;
+    if (status.messageType !== "EXAM" && shareUrl && shareLinkFlags && selectedPatient) {
+      fullText += `\n\n${buildShareLinkIntro(selectedPatient.name, shareLinkFlags)}\n${shareUrl}`;
+    }
+    // 추천링크(task2.md)는 EXAM을 포함해 톡 종류 구분 없이 체크된 대로 그대로 붙인다.
+    if (referralBlock) {
+      fullText += `\n\n${referralBlock}`;
+    }
     const success = await copyToClipboard(fullText);
     if (!success) {
       alert("복사에 실패했습니다. 텍스트를 직접 선택해서 복사해주세요.");
@@ -372,7 +380,11 @@ function TalkStudioInner() {
 
         {selectedPatient && <ProgramTeachingCreator patientId={selectedPatient.id} />}
         {selectedPatient && (
-          <ShareLinkPanel patientId={selectedPatient.id} onLinkGenerated={handleLinkGenerated} />
+          <ShareLinkPanel
+            patientId={selectedPatient.id}
+            onLinkGenerated={handleLinkGenerated}
+            onReferralBlockChange={setReferralBlock}
+          />
         )}
       </div>
 

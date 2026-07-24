@@ -355,6 +355,28 @@ export async function getTrialReferralStatus(prescriptionId: number): Promise<Tr
   };
 }
 
+export type ActiveReferralLink = { kind: "TRIAL" | "MAIN"; token: string; expiresAt: Date };
+
+/**
+ * 톡생성기 "링크 포함하기 > 추천링크" 체크박스(task2.md) — 이 환자가 보유한 활성(만료 전 +
+ * isActive) 추천링크를 kind별 최신 1개씩 반환한다. getTrialReferralStatus 등 기존 조회는
+ * 전부 sourcePrescriptionId 기준이라, 처방과 무관하게 "이 환자가 지금 보낼 수 있는 추천링크가
+ * 뭐가 있나"를 patientId만으로 바로 조회하는 함수가 따로 필요했다.
+ */
+export async function getActiveReferralLinksForPatient(patientId: number): Promise<ActiveReferralLink[]> {
+  const links = await prisma.referralLink.findMany({
+    where: { patientId, isActive: true, expiresAt: { gt: new Date() } },
+    orderBy: { issuedAt: "desc" },
+  });
+  const byKind = new Map<string, ActiveReferralLink>();
+  for (const link of links) {
+    if (!byKind.has(link.kind)) {
+      byKind.set(link.kind, { kind: link.kind as "TRIAL" | "MAIN", token: link.token, expiresAt: link.expiresAt });
+    }
+  }
+  return [...byKind.values()];
+}
+
 export function listUnconvertedTrialApplications() {
   return prisma.trialApplication.findMany({
     where: { convertedPrescriptionId: null },

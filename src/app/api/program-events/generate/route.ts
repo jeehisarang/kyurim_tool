@@ -4,27 +4,12 @@ import { getProgramEventDetail } from "@/lib/program-events";
 import { generateTrialMessageDraft, generateHappyTalkMessageDraft } from "@/lib/ai-message";
 import { listConsultationNotesForPatient } from "@/lib/consultation-notes";
 import { HAPPY_TALK_TASK_TYPE } from "@/lib/happy-talk";
-import { getTrialReferralStatus } from "@/lib/referrals";
-import { TRIAL_REFERRAL_BONUS_AMOUNT } from "@/lib/referral-config";
 
 const SHARE_BASE_URL = process.env.NEXT_PUBLIC_SHARE_BASE_URL || "https://link.kyurim.kr";
 
 // 3종(웰컴/2일차/마감) 전부 AI 생성으로 통일 — 웰컴톡도 설문 데이터를 반영해야 하므로
 // 더 이상 고정 템플릿을 쓰지 않는다 (task.md 지시).
 const TRIAL_TASK_TYPES = ["TRIAL_WELCOME", "TRIAL_DAY2", "TRIAL_DEADLINE"] as const;
-
-// 2일차톡 하단에 고정으로 덧붙이는 추천링크 블록(task.md Phase 2-2). 웰컴톡(1일차)/마감톡
-// (3일차, 대신 마감설문 링크가 들어감)에는 붙이지 않는다.
-function buildDay2ReferralBlock(token: string, expiresAt: Date): string {
-  return (
-    `🎁 3일체험, 주변에도 추천해보세요!\n` +
-    `아래 링크로 신청하시는 분이 생기면 ${TRIAL_REFERRAL_BONUS_AMOUNT.toLocaleString()}원씩 적립해드려요.\n` +
-    `적립금은 나중에 킬팻캡슐 본프로그램 신청하실 때 사용하실 수 있어요.\n\n` +
-    `👉 내 추천링크\n` +
-    `${SHARE_BASE_URL}/refer/trial/${token}\n\n` +
-    `(${expiresAt.toISOString().slice(0, 10)}까지 신청 건에 한해 적립됩니다)`
-  );
-}
 
 function isTrialTaskType(value: string): value is (typeof TRIAL_TASK_TYPES)[number] {
   return (TRIAL_TASK_TYPES as readonly string[]).includes(value);
@@ -116,14 +101,9 @@ export async function POST(request: Request) {
       exitSurveyUrl,
     );
 
-    // 2일차톡 하단 추천링크 자동 삽입(task.md Phase 2-2) — 활성+미만료 링크가 있을 때만.
-    if (task.taskType === "TRIAL_DAY2") {
-      const referralStatus = await getTrialReferralStatus(task.prescription.id);
-      if (referralStatus && referralStatus.isActive && referralStatus.expiresAt.getTime() > Date.now()) {
-        result.patientMessage =
-          `${result.patientMessage}\n\n${buildDay2ReferralBlock(referralStatus.token, referralStatus.expiresAt)}`;
-      }
-    }
+    // 2일차톡 하단 추천링크 자동삽입(task.md Phase 2-2)은 톡생성기 "링크 포함하기 >
+    // 추천링크" 체크박스로 대체됐다(task2.md) — 2일차톡 생성 시 그 체크박스가 기본으로
+    // 켜지므로 여기서 다시 덧붙이면 중복된다.
 
     return NextResponse.json(result);
   } catch (err) {

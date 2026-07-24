@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import styles from "./ShareLinkPanel.module.css";
 import ProgramTeachingCreator from "@/components/ProgramTeachingCreator";
 import { getCurrentUserId } from "@/lib/currentUser";
 import { copyToClipboard } from "@/lib/clipboard";
 import { EXAM_TYPE_LABEL, weightCell, gripLabel, hrvSummaryLabel, formatExamDate, type ExaminationRow } from "@/lib/examination-format";
+import { buildReferralShareBlock, REFERRAL_SHARE_LABEL, type ReferralLinkKind } from "@/lib/referral-share-format";
 
 // 링크에 포함된 3개 축(티칭/이벤트/검사결과, task.md) — 서로 독립적으로 0개 이상 조합 가능.
 // 복사 시 어떤 안내문구를 붙일지 결정하는 데 쓰인다.
@@ -44,6 +45,7 @@ export function buildShareLinkIntro(patientName: string, flags: ShareLinkFlags):
 
 type TeachingSummary = { id: number; token: string; programName: string; createdAt: string };
 type EventSummary = { id: number; finalTitle: string };
+type ActiveReferralLinkView = { kind: ReferralLinkKind; token: string; expiresAt: string };
 
 function formatDate(iso: string): string {
   const d = new Date(iso);
@@ -77,13 +79,26 @@ function examRowKey(row: ExaminationRow): string {
 export default function ShareLinkPanel({
   patientId,
   onLinkGenerated,
+  onReferralBlockChange,
+  defaultCheckTrialReferral,
 }: {
   patientId: number;
   onLinkGenerated: (url: string, flags: ShareLinkFlags) => void;
+  // 추천링크 체크박스(task2.md) — 다른 3개(티칭/이벤트/검사)와 달리 "링크 생성" 버튼 없이
+  // 체크 즉시 고정 문구 블록을 부모에 알려준다(이미 발급된 링크를 재사용할 뿐 새로 만들
+  // 게 없어서). 옵션이라 안 넘기면 체크박스는 뜨되 부모에 알릴 방법이 없을 뿐 동작엔 문제없다.
+  onReferralBlockChange?: (block: string | null) => void;
+  // 2일차톡 생성 컨텍스트(TalkGroupManager)에서만 true로 넘어온다 — 기존에 자동삽입되던
+  // TRIAL 추천링크를 이 체크박스가 대체하면서 기본 체크 상태로 시작시키기 위함.
+  defaultCheckTrialReferral?: boolean;
 }) {
   const [includeTeaching, setIncludeTeaching] = useState(false);
   const [includeEvent, setIncludeEvent] = useState(false);
   const [includeExam, setIncludeExam] = useState(false);
+
+  const [referralLinks, setReferralLinks] = useState<ActiveReferralLinkView[] | null>(null);
+  const [checkedReferralKinds, setCheckedReferralKinds] = useState<Set<ReferralLinkKind>>(new Set());
+  const appliedDefaultReferralRef = useRef(false);
 
   const [teachingList, setTeachingList] = useState<TeachingSummary[] | null>(null);
   const [selectedTeachingId, setSelectedTeachingId] = useState<number | null>(null);
@@ -133,6 +148,49 @@ export default function ShareLinkPanel({
         setCheckedExamKeys(defaultChecked);
       });
   }, [includeExam, examRows, patientId]);
+
+  // 추천링크는 티칭/이벤트/검사와 달리 체크박스 노출 여부 자체를 데이터로 결정해야 해서
+  // (활성 링크가 없으면 체크박스를 아예 숨김, task2.md) 체크 여부와 무관하게 처음부터 조회한다.
+  useEffect(() => {
+    fetch(`/api/patients/${patientId}/referral-links`)
+      .then((res) => res.json())
+      .then(setReferralLinks)
+      .catch(() => setReferralLinks([]));
+  }, [patientId]);
+
+  // 2일차톡 컨텍스트면 TRIAL 링크를 기본 체크(task2.md, 기존 자동삽입 대체) — 데이터 로드
+  // 시점에 딱 한 번만 적용하고, 이후 사용자가 직접 껐다 켜는 것은 건드리지 않는다.
+  useEffect(() => {
+    if (appliedDefaultReferralRef.current) return;
+    if (referralLinks === null) return;
+    if (defaultCheckTrialReferral && referralLinks.some((l) => l.kind === "TRIAL")) {
+      setCheckedReferralKinds((prev) => new Set(prev).add("TRIAL"));
+    }
+    appliedDefaultReferralRef.current = true;
+  }, [referralLinks, defaultCheckTrialReferral]);
+
+  // 다른 3개(티칭/이벤트/검사)와 달리 "링크 생성" 버튼 없이 체크 즉시 부모에 알린다 — 이미
+  // 발급된 링크를 그대로 재사용할 뿐이라 새로 만들 게 없다.
+  useEffect(() => {
+    if (!onReferralBlockChange) return;
+    if (!referralLinks || checkedReferralKinds.size === 0) {
+      onReferralBlockChange(null);
+      return;
+    }
+    const blocks = referralLinks
+      .filter((l) => checkedReferralKinds.has(l.kind))
+      .map((l) => buildReferralShareBlock(l.kind, l.token, new Date(l.expiresAt)));
+    onReferralBlockChange(blocks.length > 0 ? blocks.join("\n\n") : null);
+  }, [checkedReferralKinds, referralLinks, onReferralBlockChange]);
+
+  function toggleReferralKind(kind: ReferralLinkKind) {
+    setCheckedReferralKinds((prev) => {
+      const next = new Set(prev);
+      if (next.has(kind)) next.delete(kind);
+      else next.add(kind);
+      return next;
+    });
+  }
 
   function toggleExamRow(key: string) {
     setCheckedExamKeys((prev) => {
@@ -270,6 +328,16 @@ export default function ShareLinkPanel({
           />
           검사결과(검사톡)
         </label>
+        {referralLinks?.map((link) => (
+          <label key={link.kind} className={styles.modeOption}>
+            <input
+              type="checkbox"
+              checked={checkedReferralKinds.has(link.kind)}
+              onChange={() => toggleReferralKind(link.kind)}
+            />
+            {REFERRAL_SHARE_LABEL[link.kind]}
+          </label>
+        ))}
       </div>
 
       {/* 실제 공개페이지(/s/[token]) 표시 순서(검사결과→티칭→이벤트, task.md)와 맞춰

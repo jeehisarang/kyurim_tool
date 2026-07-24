@@ -80,6 +80,8 @@ export default function TalkGroupManager({ patientId, date }: { patientId: numbe
   // 안내문구+URL을 톡 본문 뒤에 붙인다.
   const [shareUrl, setShareUrl] = useState<string | null>(null);
   const [shareLinkFlags, setShareLinkFlags] = useState<ShareLinkFlags | null>(null);
+  // 추천링크 체크박스(task2.md) — program-events/generate가 하던 2일차톡 자동삽입을 대체.
+  const [referralBlock, setReferralBlock] = useState<string | null>(null);
 
   function handleLinkGenerated(url: string, flags: ShareLinkFlags) {
     setShareUrl(url);
@@ -178,10 +180,13 @@ export default function TalkGroupManager({ patientId, date }: { patientId: numbe
     const text = drafts[id]?.message ?? "";
     if (!text) return;
     const patientName = candidates?.find((c) => c.id === id)?.patient.name;
-    const fullText =
-      shareUrl && shareLinkFlags && patientName
-        ? `${text}\n\n${buildShareLinkIntro(patientName, shareLinkFlags)}\n${shareUrl}`
-        : text;
+    let fullText = text;
+    if (shareUrl && shareLinkFlags && patientName) {
+      fullText += `\n\n${buildShareLinkIntro(patientName, shareLinkFlags)}\n${shareUrl}`;
+    }
+    if (referralBlock) {
+      fullText += `\n\n${referralBlock}`;
+    }
     const success = await copyToClipboard(fullText);
     if (!success) {
       alert("복사에 실패했습니다. 텍스트를 직접 선택해서 복사해주세요.");
@@ -259,6 +264,9 @@ export default function TalkGroupManager({ patientId, date }: { patientId: numbe
   if (candidates.length === 0) return <p className={styles.muted}>오늘 해당되는 톡이 없습니다.</p>;
 
   const selectedCandidates = candidates.filter((c) => selected.has(c.id));
+  // 추천링크 기본 체크(task2.md) — 오늘 후보 중 체험 2일차톡이 있으면(기존 자동삽입 대상)
+  // ShareLinkPanel이 TRIAL 추천링크 체크박스를 기본으로 켜준다.
+  const hasTrialDay2Candidate = candidates.some((c) => c.taskType === "TRIAL_DAY2");
 
   return (
     <div>
@@ -307,7 +315,12 @@ export default function TalkGroupManager({ patientId, date }: { patientId: numbe
         })}
       </ul>
 
-      <ShareLinkPanel patientId={patientId} onLinkGenerated={handleLinkGenerated} />
+      <ShareLinkPanel
+        patientId={patientId}
+        onLinkGenerated={handleLinkGenerated}
+        onReferralBlockChange={setReferralBlock}
+        defaultCheckTrialReferral={hasTrialDay2Candidate}
+      />
 
       <button
         type="button"
