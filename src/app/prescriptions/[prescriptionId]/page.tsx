@@ -119,10 +119,17 @@ export default function PrescriptionDetailPage() {
   const [roundOverrideError, setRoundOverrideError] = useState<string | null>(null);
 
   const [referralLinkCopied, setReferralLinkCopied] = useState(false);
+  const [myReferralLinkCopied, setMyReferralLinkCopied] = useState(false);
 
-  // TRIAL(체험)/MAIN(본프로그램, task.md Phase 3-1)에 따라 경로가 다르다.
+  // TRIAL(체험)/MAIN(본프로그램, task.md Phase 3-1)에 따라 경로가 다르다 — 신청폼 직링크
+  // (보조용, task.md). 직원이 특정 지인에게 신청서만 바로 보내고 싶을 때 쓴다.
   function referralPath(kind: string, token: string): string {
     return kind === "MAIN" ? `/refer/main/${token}` : `/refer/trial/${token}`;
+  }
+
+  // "내 현황 페이지" 링크(task.md) — TRIAL/MAIN 공용, 환자에게 안내할 때 기본/강조로 쓰는 링크.
+  function myReferralPath(token: string): string {
+    return `/refer/my/${token}`;
   }
 
   async function handleCopyReferralLink(kind: string, token: string) {
@@ -134,6 +141,17 @@ export default function PrescriptionDetailPage() {
     }
     setReferralLinkCopied(true);
     setTimeout(() => setReferralLinkCopied(false), 1500);
+  }
+
+  async function handleCopyMyReferralLink(token: string) {
+    const url = `${window.location.origin}${myReferralPath(token)}`;
+    const success = await copyToClipboard(url);
+    if (!success) {
+      alert("복사에 실패했습니다. 링크를 직접 선택해서 복사해주세요.");
+      return;
+    }
+    setMyReferralLinkCopied(true);
+    setTimeout(() => setMyReferralLinkCopied(false), 1500);
   }
 
   function refresh() {
@@ -497,7 +515,34 @@ export default function PrescriptionDetailPage() {
               <strong>소개받음 - 3만원 할인 대상</strong>
             </p>
           )}
+
+          {/* 내 현황 페이지 링크(task.md) — 환자에게 안내할 때 기본/강조로 쓰는 링크. */}
           <p className={styles.infoRow}>
+            <span className={styles.infoLabel}>내 현황 페이지</span>
+            <span className={styles.mono}>
+              {typeof window !== "undefined" ? window.location.origin : ""}
+              {myReferralPath(data.referralLink.token)}
+            </span>
+          </p>
+          <div className={styles.actionsRow}>
+            <button
+              type="button"
+              className={styles.actionButton}
+              onClick={() => handleCopyMyReferralLink(data.referralLink!.token)}
+            >
+              {myReferralLinkCopied ? "복사됨" : "링크 복사"}
+            </button>
+            <span className={styles.mono}>
+              {data.referralLink.isActive && new Date(data.referralLink.expiresAt).getTime() > Date.now()
+                ? `${formatDate(data.referralLink.expiresAt)}까지 유효`
+                : "만료됨"}
+            </span>
+          </div>
+
+          {/* 신청폼 직링크(task.md, 보조용) — 직원이 특정 지인에게 신청서만 바로 보내고
+              싶을 때 쓴다. */}
+          <p className={`${styles.infoRow} ${styles.muted}`}>
+            <span className={styles.infoLabel}>신청폼 직링크</span>
             <span className={styles.mono}>
               {typeof window !== "undefined" ? window.location.origin : ""}
               {referralPath(data.referralLink.kind, data.referralLink.token)}
@@ -511,12 +556,8 @@ export default function PrescriptionDetailPage() {
             >
               {referralLinkCopied ? "복사됨" : "링크 복사"}
             </button>
-            <span className={styles.mono}>
-              {data.referralLink.isActive && new Date(data.referralLink.expiresAt).getTime() > Date.now()
-                ? `${formatDate(data.referralLink.expiresAt)}까지 유효`
-                : "만료됨"}
-            </span>
           </div>
+
           {/* 적립 현황(task.md 보완 5항, Phase 3-1에서 MAIN까지 확장) — Phase 3-3 전체 환자
               통합 조회 화면(/settings/referral-credits)과 별개로 이 링크 1개 기준의 요약. */}
           <p className={styles.infoRow}>
@@ -524,7 +565,7 @@ export default function PrescriptionDetailPage() {
           </p>
           {typeof window !== "undefined" && (
             <QrCodeImage
-              value={`${window.location.origin}${referralPath(data.referralLink.kind, data.referralLink.token)}`}
+              value={`${window.location.origin}${myReferralPath(data.referralLink.token)}`}
               filename={`referral-qr-${data.patient.name}.png`}
             />
           )}

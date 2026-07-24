@@ -179,7 +179,7 @@ export default function ShareLinkPanel({
     }
     const blocks = referralLinks
       .filter((l) => checkedReferralKinds.has(l.kind))
-      .map((l) => buildReferralShareBlock(l.kind, l.token, new Date(l.expiresAt)));
+      .map((l) => buildReferralShareBlock(l.kind, l.token));
     onReferralBlockChange(blocks.length > 0 ? blocks.join("\n\n") : null);
   }, [checkedReferralKinds, referralLinks, onReferralBlockChange]);
 

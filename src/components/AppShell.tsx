@@ -28,10 +28,15 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     (pathname?.startsWith("/patient-view") ||
       pathname?.startsWith("/p/") ||
       pathname?.startsWith("/s/") ||
-      // 킬팻캡슐 3일체험 추천 이벤트(task.md) 공개 신청페이지 — /refer/ 전체가 아니라
-      // /refer/trial만(그 아래는 전부 공개 페이지). 직원용 화면이 /refer/ 하위에 생기더라도
-      // 이 접두사와 겹치지 않게 주의할 것.
-      pathname?.startsWith("/refer/trial")) ??
+      // 킬팻캡슐 3일체험 추천 이벤트(task.md) 공개 페이지들 — /refer/ 전체가 아니라
+      // trial(신청폼)/exit(마감설문)/my(내 추천 현황)만(그 아래는 전부 공개 페이지).
+      // /refer/exit는 이 목록에서 누락돼 있던 걸 이번에 함께 발견해 고쳤다(/refer/my
+      // 추가 작업 중 확인 — 그동안 마감설문 공개페이지에 직원용 사이드바+실시간
+      // 활동피드가 그대로 노출되고 있었다). 직원용 화면이 /refer/ 하위에 생기더라도
+      // 이 접두사들과 겹치지 않게 주의할 것.
+      pathname?.startsWith("/refer/trial") ||
+      pathname?.startsWith("/refer/exit") ||
+      pathname?.startsWith("/refer/my")) ??
     false;
   const isStandaloneStaffPage = pathname?.startsWith("/consult-mode") ?? false;
 

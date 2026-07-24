@@ -377,6 +377,49 @@ export async function getActiveReferralLinksForPatient(patientId: number): Promi
   return [...byKind.values()];
 }
 
+export type ReferralLinkStatus = {
+  token: string;
+  kind: "TRIAL" | "MAIN";
+  expiresAt: Date;
+  isActive: boolean;
+  creditCount: number;
+  creditTotalAmount: number;
+};
+
+/**
+ * "내 추천 현황" 공개페이지(/refer/my/[token], task.md) 전용 — TRIAL/MAIN 공용, token만으로
+ * 조회한다. 집계 방식은 prescriptions.ts getPrescriptionDetail의 동일 로직을 그대로 따른다:
+ * TRIAL은 실제 신청폼 제출 시 쓰인 링크 토큰으로 집계되지만, MAIN_SIGNUP은 confirmMainReferral이
+ * "실제 쓰인 코드" 없이 직원이 수동 확정하는 방식이라 링크 토큰이 아니라 소유자 patientId로
+ * 저장돼 있어(MANUAL_MAIN_REFERRAL_TOKEN) 그 기준으로 집계해야 한다.
+ */
+export async function getReferralLinkStatusByToken(token: string): Promise<ReferralLinkStatus | null> {
+  const link = await prisma.referralLink.findUnique({ where: { token } });
+  if (!link) return null;
+
+  const creditAgg =
+    link.kind === REFERRAL_KIND_MAIN
+      ? await prisma.referralCreditEntry.aggregate({
+          where: { patientId: link.patientId, kind: CREDIT_KIND_MAIN_SIGNUP },
+          _count: true,
+          _sum: { amount: true },
+        })
+      : await prisma.referralCreditEntry.aggregate({
+          where: { linkToken: link.token, kind: CREDIT_KIND_TRIAL_SIGNUP },
+          _count: true,
+          _sum: { amount: true },
+        });
+
+  return {
+    token: link.token,
+    kind: link.kind as "TRIAL" | "MAIN",
+    expiresAt: link.expiresAt,
+    isActive: link.isActive,
+    creditCount: creditAgg._count,
+    creditTotalAmount: creditAgg._sum.amount ?? 0,
+  };
+}
+
 export function listUnconvertedTrialApplications() {
   return prisma.trialApplication.findMany({
     where: { convertedPrescriptionId: null },

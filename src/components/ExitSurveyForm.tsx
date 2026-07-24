@@ -1,10 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import styles from "./ExitSurveyForm.module.css";
-import { copyToClipboard } from "@/lib/clipboard";
-import { MAIN_REFERRAL_DISCOUNT_AMOUNT, TRIAL_REFERRAL_BONUS_AMOUNT } from "@/lib/referral-config";
-import KakaoShareButton from "@/components/KakaoShareButton";
+import { MAIN_REFERRAL_DISCOUNT_AMOUNT } from "@/lib/referral-config";
 import {
   CHANGE_OPTIONS,
   CHANGE_OTHER_VALUE,
@@ -27,77 +26,13 @@ type PageData = {
   referralStatus: ReferralStatus | null;
 };
 
-function formatDate(iso: string): string {
-  return iso.slice(0, 10);
-}
-
-// "내 추천 현황" 배너(task.md Phase 2-1) — 제출 전/완료 화면 양쪽에서 재사용한다.
-function ReferralBanner({ status, extraNotice }: { status: ReferralStatus | null; extraNotice?: string }) {
+// "내 추천 현황 보기" 링크(task.md) — 코드/적립현황/복사/카톡공유 전체는 전용 공개페이지
+// (/refer/my/[token])로 옮겼다. 여기(마감설문)는 진입 지점만 남겨둔다.
+function ReferralLinkOut({ token }: { token: string }) {
   return (
-    <div className={styles.referralBanner}>
-      <div className={styles.referralBannerTitle}>내 추천 현황</div>
-      {status && status.creditCount > 0 ? (
-        <div className={styles.referralStatsRow}>
-          <div className={styles.referralStatCard}>
-            <span className={styles.referralStatLabel}>진행중 인원</span>
-            <span className={styles.referralStatValue}>{status.creditCount}명</span>
-          </div>
-          <div className={styles.referralStatCard}>
-            <span className={styles.referralStatLabel}>적립금</span>
-            <span className={styles.referralStatValue}>{status.creditTotalAmount.toLocaleString()}원</span>
-          </div>
-        </div>
-      ) : (
-        <p className={styles.referralWarning}>
-          아직 추천으로 오신 분이 없어요.
-          {status && ` ${formatDate(status.expiresAt)}까지`} 이 링크로 친구가 신청하면 적립금이 쌓여요.
-        </p>
-      )}
-      <p className={styles.referralSafeNotice}>
-        이 코드는 회원님만의 고유 코드이며, 개인정보가 없어 SNS·단톡방에 자유롭게 공유해도 안전합니다.
-      </p>
-      {extraNotice && <p className={styles.referralExtraNotice}>{extraNotice}</p>}
-    </div>
-  );
-}
-
-function ReferralCopyLink({ token }: { token: string }) {
-  const [copied, setCopied] = useState(false);
-
-  async function handleCopy() {
-    const baseUrl = process.env.NEXT_PUBLIC_SHARE_BASE_URL || window.location.origin;
-    const url = `${baseUrl}/refer/trial/${token}`;
-    const success = await copyToClipboard(url);
-    if (!success) {
-      alert("복사에 실패했습니다. 링크를 직접 선택해서 복사해주세요.");
-      return;
-    }
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1500);
-  }
-
-  return (
-    <button type="button" className={styles.copyButton} onClick={handleCopy}>
-      {copied ? "복사됨!" : "내 추천링크 복사하기"}
-    </button>
-  );
-}
-
-// "링크 복사" 버튼 옆에 나란히 배치하는 카카오톡 공유 버튼(task.md Phase 4-2) — 링크는
-// ReferralCopyLink와 동일하게 이 환자 본인의 추천링크로 고정한다.
-function ReferralActions({ token }: { token: string }) {
-  const baseUrl = process.env.NEXT_PUBLIC_SHARE_BASE_URL || (typeof window !== "undefined" ? window.location.origin : "");
-  const url = `${baseUrl}/refer/trial/${token}`;
-
-  return (
-    <div className={styles.referralActionsRow}>
-      <ReferralCopyLink token={token} />
-      <KakaoShareButton
-        title="킬팻캡슐 3일체험 추천"
-        description={`이 링크로 친구가 신청하면 적립금 ${TRIAL_REFERRAL_BONUS_AMOUNT.toLocaleString()}원이 쌓여요!`}
-        link={url}
-      />
-    </div>
+    <Link href={`/refer/my/${token}`} className={styles.referralLinkOut}>
+      내 추천 현황 보기 →
+    </Link>
   );
 }
 
@@ -190,11 +125,10 @@ export default function ExitSurveyForm({ prescriptionId }: { prescriptionId: num
       <div className={styles.page}>
         <div className={styles.card}>
           <p className={styles.completeText}>마감설문 제출이 완료되었습니다. 수고 많으셨어요!</p>
-          <ReferralBanner
-            status={pageData.referralStatus}
-            extraNotice={`${MAIN_REFERRAL_DISCOUNT_AMOUNT.toLocaleString()}원 할인이 본프로그램 신청 시 적용됩니다.`}
-          />
-          {pageData.referralStatus && <ReferralActions token={pageData.referralStatus.token} />}
+          <p className={styles.referralExtraNotice}>
+            {MAIN_REFERRAL_DISCOUNT_AMOUNT.toLocaleString()}원 할인이 본프로그램 신청 시 적용됩니다.
+          </p>
+          {pageData.referralStatus && <ReferralLinkOut token={pageData.referralStatus.token} />}
         </div>
       </div>
     );
@@ -205,8 +139,7 @@ export default function ExitSurveyForm({ prescriptionId }: { prescriptionId: num
       <div className={styles.card}>
         <h1 className={styles.headline}>3일체험 마감설문</h1>
 
-        <ReferralBanner status={pageData.referralStatus} />
-        {pageData.referralStatus && <ReferralActions token={pageData.referralStatus.token} />}
+        {pageData.referralStatus && <ReferralLinkOut token={pageData.referralStatus.token} />}
 
         <form onSubmit={handleSubmit} className={styles.form}>
           <label className={styles.field}>

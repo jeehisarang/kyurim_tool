@@ -28,107 +28,24 @@
   text-align: center;
 }
 
-.referralBanner {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  background: rgba(110, 148, 140, 0.12);
-  border-radius: 8px;
-  padding: 16px;
-  margin-bottom: 12px;
-}
-
-.referralBannerTitle {
-  font-size: 15px;
-  font-weight: 700;
-  color: var(--color-celadon-dark);
-  text-align: center;
-}
-
-.referralWarning {
-  margin: 0;
-  font-size: 14px;
-  line-height: 1.6;
-  color: var(--color-seal);
-  text-align: center;
-}
-
-.referralStatsRow {
-  display: flex;
-  gap: 8px;
-}
-
-.referralStatCard {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-  background: var(--color-hanji-card);
-  border-radius: 8px;
-  padding: 12px 8px;
-}
-
-.referralStatLabel {
-  font-size: 12px;
-  color: var(--color-ink);
-  opacity: 0.65;
-}
-
-.referralStatValue {
-  font-size: 18px;
-  font-weight: 700;
-  color: var(--color-ink);
-}
-
-.referralSafeNotice {
-  margin: 0;
-  font-size: 12px;
-  line-height: 1.5;
-  color: var(--color-ink);
-  opacity: 0.6;
-  text-align: center;
-}
-
 .referralExtraNotice {
-  margin: 0;
+  margin: 0 0 12px;
   font-size: 13px;
   font-weight: 600;
   color: var(--color-celadon-dark);
   text-align: center;
 }
 
-.copyButton {
-  width: 100%;
-  border: 1px solid var(--color-celadon);
-  border-radius: 8px;
-  background: var(--color-hanji-card);
-  color: var(--color-celadon-dark);
-  padding: 12px;
-  font-size: 15px;
+/* "내 추천 현황 보기" 진입 링크(task.md) — 배너 전체가 /refer/my/[token]로 옮겨가면서
+   여기(마감설문)엔 링크 하나만 남는다. */
+.referralLinkOut {
+  display: block;
+  text-align: center;
+  font-size: 14px;
   font-weight: 600;
-  font-family: var(--font-body);
-  cursor: pointer;
+  color: var(--color-celadon-dark);
+  text-decoration: underline;
   margin-bottom: 24px;
-  transition: background-color 0.15s ease;
-}
-
-.copyButton:hover {
-  background: rgba(110, 148, 140, 0.12);
-}
-
-.referralActionsRow {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  margin-bottom: 24px;
-}
-
-.referralActionsRow > button {
-  flex: 1;
-  min-width: 140px;
-  width: auto;
-  margin-bottom: 0;
 }
 
 .form {
