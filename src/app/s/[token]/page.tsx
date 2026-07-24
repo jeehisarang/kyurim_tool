@@ -1,166 +1,30 @@
-"use client";
+import type { Metadata } from "next";
+import ShareLinkPublicPage from "@/components/ShareLinkPublicPage";
+import { getShareLinkOgImagePath } from "@/lib/share-links";
+import { buildOgMetadata } from "@/lib/og-image";
 
-import { useEffect, useState } from "react";
-import { useParams } from "next/navigation";
-import styles from "./page.module.css";
-import TeachingPageContent, { type TeachingPageContentView } from "@/components/TeachingPageContent";
-import ExamShareSections from "@/components/ExamShareSections";
-import type { ShareLinkExamEntry } from "@/lib/share-links";
+// OG 이미지 우선순위(task.md) — 이 링크가 이벤트 섹션(EventImage)을 포함하면 그 합성
+// 이미지를 자체 히어로 이미지로 쓰고, 없으면(프로그램티칭/검사톡만 있는 링크) 공통
+// 로고로 폴백한다. 조회수 증가 등 부수효과가 있는 getShareLinkByToken을 여기서 재사용하면
+// 메타데이터 생성 때마다 조회수가 부풀려질 수 있어 순수 조회 함수를 따로 쓴다.
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ token: string }>;
+}): Promise<Metadata> {
+  const { token } = await params;
+  const ownImagePath = await getShareLinkOgImagePath(token);
+  return buildOgMetadata({
+    title: "규림한의원",
+    description: "규림한의원에서 보내드린 맞춤 안내를 확인해보세요.",
+    ownImagePath,
+  });
+}
 
-// TeachingPageContent.tsx와 동일한 채널(task.md) — 클라이언트 컴포넌트에서 읽어야 해서
-// NEXT_PUBLIC_ 접두사가 필요하다.
-const KAKAO_CHANNEL_CHAT_URL =
-  process.env.NEXT_PUBLIC_KAKAO_CHANNEL_CHAT_URL ?? "https://pf.kakao.com/_FVxlGT/chat";
-
-type ShareLinkView = {
-  teaching: (TeachingPageContentView & { token: string }) | null;
-  event: { finalTitle: string; compositeImagePath: string; finalCopy: string } | null;
-  exams: ShareLinkExamEntry[];
-};
-
-/**
- * 환자별 통합 공유링크(14-11) 공개 페이지 — 프로그램티칭/이벤트/검사결과를 하나의 링크로
- * 묶어서 톡생성기에서 발송한다. 표시 순서는 항상 검사결과 → 프로그램티칭 → 이벤트로
- * 고정한다 — 포함된 조합이 무엇이든 이 순서를 그대로 적용하고, 없는 섹션은 건너뛴다.
- * 상담설문(TCM 체크리스트) 섹션은 실사용 중 발견된 문제로 완전히 제거됐다(task.md,
- * 2026-07-07 — "프로그램티칭"만 체크했는데도 자동 노출되어 환자에게 상담설문 내용이
- * 보이면 안 된다는 원장 확인). 원장 전용 화면(/consultation-survey, 검사등록 등)에서
- * 조회/입력하는 기능 자체는 그대로 유지되고, 이 공개 페이지 노출만 없앤 것.
- */
-export default function ShareLinkPublicPage() {
-  const params = useParams<{ token: string }>();
-  const { token } = params;
-
-  const [view, setView] = useState<ShareLinkView | null>(null);
-  const [loadError, setLoadError] = useState(false);
-
-  // "이벤트문의하기" 버튼 상태 — TeachingPageContent의 handleCtaClick과 동일한 패턴
-  // (window.open을 클릭 핸들러 내 동기적으로 먼저 호출 → cta-click 로그 + 문의 요청
-  // 병렬 fetch, task.md 지시). 이벤트는 EventImage 자체가 아니라 공유링크(token) 기준으로
-  // 조회되므로 여기 페이지에서 직접 상태를 들고 있는다.
-  const [eventCtaClicked, setEventCtaClicked] = useState(false);
-  const [eventCtaSubmitting, setEventCtaSubmitting] = useState(false);
-
-  // "상담예약하기" 버튼 상태(task.md PART C) — 이벤트문의하기와 동일한 패턴이지만 별도 상태로
-  // 관리한다(통합 링크에서 두 버튼이 병렬로 노출될 수 있어 서로 독립적으로 동작해야 함).
-  const [examConsultClicked, setExamConsultClicked] = useState(false);
-  const [examConsultSubmitting, setExamConsultSubmitting] = useState(false);
-
-  useEffect(() => {
-    setLoadError(false);
-    fetch(`/api/share-links/${token}`)
-      .then((res) => (res.ok ? res.json() : Promise.reject(res)))
-      .then(setView)
-      .catch(() => setLoadError(true));
-  }, [token]);
-
-  async function handleEventCtaClick() {
-    window.open(KAKAO_CHANNEL_CHAT_URL, "_blank", "noopener,noreferrer");
-    setEventCtaSubmitting(true);
-    try {
-      await Promise.all([
-        fetch(`/api/share-links/${token}/event-cta-click`, { method: "POST" }),
-        fetch(`/api/share-links/${token}/event-consult-request`, { method: "POST" }),
-      ]);
-      setEventCtaClicked(true);
-    } catch {
-      // 환자용 공개 페이지라 실패해도 별도 에러 문구 없이 조용히 무시 — 버튼은 다시 누를 수 있다.
-    } finally {
-      setEventCtaSubmitting(false);
-    }
-  }
-
-  async function handleExamConsultClick() {
-    window.open(KAKAO_CHANNEL_CHAT_URL, "_blank", "noopener,noreferrer");
-    setExamConsultSubmitting(true);
-    try {
-      await fetch(`/api/share-links/${token}/exam-consult-request`, { method: "POST" });
-      setExamConsultClicked(true);
-    } catch {
-      // 환자용 공개 페이지라 실패해도 별도 에러 문구 없이 조용히 무시 — 버튼은 다시 누를 수 있다.
-    } finally {
-      setExamConsultSubmitting(false);
-    }
-  }
-
-  if (loadError) {
-    return (
-      <div className={styles.page}>
-        <div className={styles.card}>
-          <p className={styles.errorText}>페이지를 찾을 수 없습니다.</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (!view) {
-    return (
-      <div className={styles.page}>
-        <div className={styles.card}>
-          <p className={styles.loadingText}>불러오는 중...</p>
-        </div>
-      </div>
-    );
-  }
-
-  const hasExams = view.exams.length > 0;
-  const hasTeaching = view.teaching !== null;
-  const hasEvent = view.event !== null;
-
-  return (
-    <div className={styles.page}>
-      <div className={styles.card}>
-        {hasExams && <ExamShareSections exams={view.exams} />}
-        {hasExams && (hasTeaching || hasEvent) && <hr className={styles.sectionDivider} />}
-
-        {view.teaching && <TeachingPageContent token={view.teaching.token} view={view.teaching} />}
-        {hasTeaching && hasEvent && <hr className={styles.sectionDivider} />}
-
-        {view.event && (
-          <div>
-            {view.event.finalTitle && <p className={styles.eventTitle}>{view.event.finalTitle}</p>}
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={view.event.compositeImagePath} alt="" className={styles.eventImage} />
-            {view.event.finalCopy && <p className={styles.eventCopy}>{view.event.finalCopy}</p>}
-
-            {eventCtaClicked ? (
-              <p className={styles.ctaConfirmText}>카카오톡으로 상담 가능하십니다</p>
-            ) : (
-              <button
-                type="button"
-                className={styles.ctaButton}
-                onClick={handleEventCtaClick}
-                disabled={eventCtaSubmitting}
-              >
-                이벤트문의하기
-              </button>
-            )}
-          </div>
-        )}
-
-        {/* "상담예약하기"(task.md PART C) — 검사기록이 포함된 링크 전용, 페이지 맨 하단.
-            기존 프로그램문의/이벤트문의 버튼과 배타적이지 않고 나란히 노출된다. */}
-        {hasExams && (
-          <>
-            <hr className={styles.sectionDivider} />
-            <div>
-              <p className={styles.examConsultIntro}>내원하셔서 보다 자세한 상담 도와드리겠습니다</p>
-              {examConsultClicked ? (
-                <p className={styles.ctaConfirmText}>카카오톡으로 상담 가능하십니다</p>
-              ) : (
-                <button
-                  type="button"
-                  className={styles.ctaButton}
-                  onClick={handleExamConsultClick}
-                  disabled={examConsultSubmitting}
-                >
-                  상담예약하기
-                </button>
-              )}
-            </div>
-          </>
-        )}
-      </div>
-    </div>
-  );
+// 환자별 통합 공유링크(14-11) 공개 페이지. generateMetadata를 쓰려면 서버 컴포넌트여야
+// 해서(task.md OG 이미지 작업) 실제 화면 로직은 클라이언트 컴포넌트(ShareLinkPublicPage)로
+// 옮기고 이 파일은 token만 넘겨주는 얇은 서버 래퍼로 바꿨다.
+export default async function ShareLinkPage({ params }: { params: Promise<{ token: string }> }) {
+  const { token } = await params;
+  return <ShareLinkPublicPage token={token} />;
 }

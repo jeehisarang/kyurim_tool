@@ -257,6 +257,20 @@ export async function getShareLinkByToken(token: string): Promise<PublicShareLin
 }
 
 /**
+ * og:image 우선순위 판단 전용 조회(task.md 공통 기본 공유 이미지) — getShareLinkByToken과
+ * 달리 조회수 증가/열람 활동피드 기록 등 부수효과가 전혀 없다. generateMetadata는 실제
+ * 페이지 렌더와 별도로(때로는 중복) 호출될 수 있어, 부수효과가 있는 함수를 그대로 재사용하면
+ * 조회수가 실제 방문 수보다 부풀려질 위험이 있어 순수 조회 함수로 따로 둔다.
+ */
+export async function getShareLinkOgImagePath(token: string): Promise<string | null> {
+  const link = await prisma.patientShareLink.findUnique({
+    where: { token },
+    select: { eventImage: { select: { compositeImagePath: true } } },
+  });
+  return link?.eventImage?.compositeImagePath ?? null;
+}
+
+/**
  * "상담예약하기"(task.md PART C) — 검사기록이 포함된 공유링크 전용 상담 요청. 이벤트문의하기의
  * requestEventInquiryCallback(event-images.ts)/프로그램문의하기의 requestConsultCallback
  * (teaching-pages.ts)과 동일한 패턴(당일+동일환자 중복방지, 담당자 지정 없는 공용 업무) —

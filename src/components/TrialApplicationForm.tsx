@@ -41,8 +41,8 @@ const REST_TEXT_FIELDS: TextFieldDef[] = [
   },
 ];
 
-const DEFAULT_HEADLINE = "킬팻캡슐 3일체험, 지금 신청하세요";
-const DEFAULT_DESCRIPTION = "간단한 정보만 남겨주시면 확인 후 직접 연락드릴게요!";
+export const DEFAULT_HEADLINE = "킬팻캡슐 3일체험, 지금 신청하세요";
+export const DEFAULT_DESCRIPTION = "간단한 정보만 남겨주시면 확인 후 직접 연락드릴게요!";
 
 export default function TrialApplicationForm({ referralToken }: { referralToken?: string }) {
   const [campaign, setCampaign] = useState<CampaignSettings | null>(null);
