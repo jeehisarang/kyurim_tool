@@ -1,0 +1,23 @@
+.shareButton {
+  width: 100%;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 8px;
+  background: #fee500;
+  color: #191919;
+  padding: 12px;
+  font-size: 15px;
+  font-weight: 600;
+  font-family: var(--font-body);
+  cursor: pointer;
+  transition: opacity 0.15s ease;
+}
+
+.shareButton:hover {
+  opacity: 0.9;
+}
+
+.shareButton:disabled {
+  opacity: 0.5;
+  cursor: default;
+}

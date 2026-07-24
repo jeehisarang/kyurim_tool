@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import styles from "./TrialApplicationForm.module.css";
 import { BODY_TYPE_QUESTIONS, BODY_TYPE_OTHER_VALUE, BODY_TYPE_MAX_SELECTIONS } from "@/lib/trial-application-format";
+import KakaoShareButton from "@/components/KakaoShareButton";
+import KakaoChannelButton from "@/components/KakaoChannelButton";
 
 // TeachingPageContent.tsx/s/[token]/page.tsx와 동일한 채널(task.md 보완 2항).
 const KAKAO_CHANNEL_CHAT_URL =
@@ -129,6 +131,13 @@ export default function TrialApplicationForm({ referralToken }: { referralToken?
   }
 
   if (submitted) {
+    // 이 시점엔 아직 이 신청자 본인의 추천링크가 없다(추천링크는 나중에 직원이 처방을
+    // 등록할 때 발급됨, referrals.ts issueTrialReferralLink) — 그래서 공유 대상은 개인화
+    // 링크가 아니라 캠페인 신청페이지 자체(비개인화)로 한다.
+    const baseUrl = process.env.NEXT_PUBLIC_SHARE_BASE_URL || (typeof window !== "undefined" ? window.location.origin : "");
+    const campaignLink = `${baseUrl}/refer/trial`;
+    const campaignImageUrl = campaign?.heroImagePath ? `${baseUrl}${campaign.heroImagePath}` : undefined;
+
     return (
       <div className={styles.page}>
         <div className={styles.card}>
@@ -137,6 +146,24 @@ export default function TrialApplicationForm({ referralToken }: { referralToken?
             <br />
             확인 후 직접 연락드릴게요!
           </p>
+
+          <KakaoShareButton
+            title={campaign?.headline || DEFAULT_HEADLINE}
+            description={campaign?.description || DEFAULT_DESCRIPTION}
+            link={campaignLink}
+            imageUrl={campaignImageUrl}
+          />
+
+          <div className={styles.kakaoActionRow}>
+            <button
+              type="button"
+              className={styles.kakaoChatButton}
+              onClick={() => window.open(KAKAO_CHANNEL_CHAT_URL, "_blank", "noopener,noreferrer")}
+            >
+              카카오톡 채팅 문의
+            </button>
+            <KakaoChannelButton />
+          </div>
         </div>
       </div>
     );

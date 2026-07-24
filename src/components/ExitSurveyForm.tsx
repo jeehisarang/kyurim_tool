@@ -3,7 +3,8 @@
 import { useEffect, useState } from "react";
 import styles from "./ExitSurveyForm.module.css";
 import { copyToClipboard } from "@/lib/clipboard";
-import { MAIN_REFERRAL_DISCOUNT_AMOUNT } from "@/lib/referral-config";
+import { MAIN_REFERRAL_DISCOUNT_AMOUNT, TRIAL_REFERRAL_BONUS_AMOUNT } from "@/lib/referral-config";
+import KakaoShareButton from "@/components/KakaoShareButton";
 import {
   CHANGE_OPTIONS,
   CHANGE_OTHER_VALUE,
@@ -79,6 +80,24 @@ function ReferralCopyLink({ token }: { token: string }) {
     <button type="button" className={styles.copyButton} onClick={handleCopy}>
       {copied ? "복사됨!" : "내 추천링크 복사하기"}
     </button>
+  );
+}
+
+// "링크 복사" 버튼 옆에 나란히 배치하는 카카오톡 공유 버튼(task.md Phase 4-2) — 링크는
+// ReferralCopyLink와 동일하게 이 환자 본인의 추천링크로 고정한다.
+function ReferralActions({ token }: { token: string }) {
+  const baseUrl = process.env.NEXT_PUBLIC_SHARE_BASE_URL || (typeof window !== "undefined" ? window.location.origin : "");
+  const url = `${baseUrl}/refer/trial/${token}`;
+
+  return (
+    <div className={styles.referralActionsRow}>
+      <ReferralCopyLink token={token} />
+      <KakaoShareButton
+        title="킬팻캡슐 3일체험 추천"
+        description={`이 링크로 친구가 신청하면 적립금 ${TRIAL_REFERRAL_BONUS_AMOUNT.toLocaleString()}원이 쌓여요!`}
+        link={url}
+      />
+    </div>
   );
 }
 
@@ -175,7 +194,7 @@ export default function ExitSurveyForm({ prescriptionId }: { prescriptionId: num
             status={pageData.referralStatus}
             extraNotice={`${MAIN_REFERRAL_DISCOUNT_AMOUNT.toLocaleString()}원 할인이 본프로그램 신청 시 적용됩니다.`}
           />
-          {pageData.referralStatus && <ReferralCopyLink token={pageData.referralStatus.token} />}
+          {pageData.referralStatus && <ReferralActions token={pageData.referralStatus.token} />}
         </div>
       </div>
     );
@@ -187,7 +206,7 @@ export default function ExitSurveyForm({ prescriptionId }: { prescriptionId: num
         <h1 className={styles.headline}>3일체험 마감설문</h1>
 
         <ReferralBanner status={pageData.referralStatus} />
-        {pageData.referralStatus && <ReferralCopyLink token={pageData.referralStatus.token} />}
+        {pageData.referralStatus && <ReferralActions token={pageData.referralStatus.token} />}
 
         <form onSubmit={handleSubmit} className={styles.form}>
           <label className={styles.field}>
