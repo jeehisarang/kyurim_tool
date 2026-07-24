@@ -177,6 +177,19 @@ export default function TrialApplicationForm({ referralToken }: { referralToken?
             확인 후 직접 연락드릴게요!
           </p>
 
+          <div className={styles.kakaoGuideBox}>
+            <p className={styles.kakaoGuideTitle}>카카오톡 채팅창이 열립니다.</p>
+            <p className={styles.kakaoGuideNote}>아래 중 아무거나 한 가지만 해주세요:</p>
+            <ul className={styles.kakaoGuideList}>
+              <li>&quot;관리자에게 문의하기&quot; 누르기</li>
+              <li>메뉴에 뜨는 &quot;킬팻캡슐 3일 체험 신청&quot; 누르기</li>
+              <li>채팅창에 직접 아무 메시지나 입력하기</li>
+            </ul>
+            <p className={styles.kakaoGuideNote}>
+              이 중 하나만 하시면 저희가 신청 내용을 확인하고 연락드릴 수 있어요!
+            </p>
+          </div>
+
           <KakaoShareButton
             title={campaign?.headline || DEFAULT_HEADLINE}
             description={campaign?.description || DEFAULT_DESCRIPTION}
