@@ -14,6 +14,11 @@
      써서 이 차트가 다른 카드의 정상/위험 강조와 혼동되지 않게 한다. hanji 배경 위 대비
      확인(밝은 배경 #F6F1E7/#FBF8F2 대비 약 6.3:1, WCAG AA 통과). */
   --color-info: #2A5FA8;
+  /* 체험신청폼(task2.md) 강조 버튼/선택 전용 색 — 기존 celadon(안내/보조 액션)과 구분해
+     "지금 행동"을 유도하는 CTA·선택카드에만 쓰는 진한 적갈색 계열. 크림 배경(--color-hanji-*)
+     위 대비 확인, on-accent(크림)와 짝지어 쓰면 11:1 이상(WCAG AAA 통과). */
+  --fill-accent: #4A1B0C;
+  --on-accent: #FBF8F2;
 }
 
 html {

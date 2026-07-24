@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import styles from "./TrialApplicationForm.module.css";
 import { BODY_TYPE_QUESTIONS, BODY_TYPE_OTHER_VALUE, BODY_TYPE_MAX_SELECTIONS } from "@/lib/trial-application-format";
+import { parseCampaignDescription } from "@/lib/trial-campaign-description";
 import KakaoShareButton from "@/components/KakaoShareButton";
 import KakaoChannelButton from "@/components/KakaoChannelButton";
 
@@ -21,9 +22,12 @@ type TextFieldKey =
   | "familyHistory"
   | "dietExperience";
 
-const TEXT_FIELDS: { key: TextFieldKey; label: string; placeholder: string; multiline?: boolean }[] = [
-  { key: "heightWeight", label: "키 / 체중", placeholder: "예: 160cm / 62kg" },
-  { key: "weightGoalKg", label: "감량 목표(kg)", placeholder: "예: 3kg" },
+type TextFieldDef = { key: TextFieldKey; label: string; placeholder: string; multiline?: boolean };
+
+// 키/체중 + 감량목표는 짧은 값이라 2열로 나란히 배치(task2.md 2항), 나머지는 기존처럼 세로 배치.
+const HEIGHT_WEIGHT_FIELD: TextFieldDef = { key: "heightWeight", label: "키 / 체중", placeholder: "예: 160cm / 62kg" };
+const WEIGHT_GOAL_FIELD: TextFieldDef = { key: "weightGoalKg", label: "감량 목표(kg)", placeholder: "예: 3kg" };
+const REST_TEXT_FIELDS: TextFieldDef[] = [
   { key: "weightChange6mo", label: "최근 6개월 체중 변화", placeholder: "예: 변화 없음 / 3kg 증가 등" },
   { key: "currentMeds", label: "현재 복용 중인 약물", placeholder: "없으면 비워두세요" },
   { key: "pastHistory", label: "과거 병력", placeholder: "없으면 비워두세요" },
@@ -89,6 +93,31 @@ export default function TrialApplicationForm({ referralToken }: { referralToken?
     return true;
   });
   const canSubmit = name.trim() && phone.trim() && allBodyTypesAnswered && !submitting;
+
+  function renderTextField(field: TextFieldDef) {
+    return (
+      <label key={field.key} className={styles.field}>
+        <span className={styles.fieldLabel}>{field.label}</span>
+        {field.multiline ? (
+          <textarea
+            className={styles.textareaInput}
+            rows={3}
+            value={textValues[field.key]}
+            onChange={(e) => setTextValues((prev) => ({ ...prev, [field.key]: e.target.value }))}
+            placeholder={field.placeholder}
+          />
+        ) : (
+          <input
+            className={styles.textInput}
+            type="text"
+            value={textValues[field.key]}
+            onChange={(e) => setTextValues((prev) => ({ ...prev, [field.key]: e.target.value }))}
+            placeholder={field.placeholder}
+          />
+        )}
+      </label>
+    );
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -169,6 +198,8 @@ export default function TrialApplicationForm({ referralToken }: { referralToken?
     );
   }
 
+  const parsedDescription = parseCampaignDescription(campaign?.description || DEFAULT_DESCRIPTION);
+
   return (
     <div className={styles.page}>
       <div className={styles.card}>
@@ -184,60 +215,84 @@ export default function TrialApplicationForm({ referralToken }: { referralToken?
           <img src={campaign.heroImagePath} alt="" className={styles.heroImage} />
         )}
         <h1 className={styles.headline}>{campaign?.headline || DEFAULT_HEADLINE}</h1>
-        <p className={styles.description}>{campaign?.description || DEFAULT_DESCRIPTION}</p>
+
+        <div className={styles.descriptionBlock}>
+          {parsedDescription.intro.map((para, i) => (
+            <p key={`intro-${i}`} className={styles.descIntro}>
+              {para}
+            </p>
+          ))}
+          {parsedDescription.body.map((para, i) => (
+            <p key={`body-${i}`} className={styles.descBody}>
+              {para}
+            </p>
+          ))}
+          {parsedDescription.checklist.length > 0 && (
+            <ul className={styles.descChecklist}>
+              {parsedDescription.checklist.map((line, i) => (
+                <li key={i} className={styles.descChecklistItem}>
+                  <span className={styles.descCheckIcon} aria-hidden>
+                    ✓
+                  </span>
+                  <span>{line}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+          {parsedDescription.closing && <p className={styles.descClosing}>{parsedDescription.closing}</p>}
+        </div>
 
         <form onSubmit={handleSubmit} className={styles.form}>
-          <label className={styles.field}>
-            <span className={styles.fieldLabel}>이름 *</span>
-            <input
-              className={styles.textInput}
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="이름을 입력해주세요"
-            />
-          </label>
-          <label className={styles.field}>
-            <span className={styles.fieldLabel}>연락처 *</span>
-            <input
-              className={styles.textInput}
-              type="tel"
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              placeholder="010-0000-0000"
-            />
-          </label>
-
-          {TEXT_FIELDS.map((field) => (
-            <label key={field.key} className={styles.field}>
-              <span className={styles.fieldLabel}>{field.label}</span>
-              {field.multiline ? (
-                <textarea
-                  className={styles.textareaInput}
-                  rows={3}
-                  value={textValues[field.key]}
-                  onChange={(e) => setTextValues((prev) => ({ ...prev, [field.key]: e.target.value }))}
-                  placeholder={field.placeholder}
-                />
-              ) : (
-                <input
-                  className={styles.textInput}
-                  type="text"
-                  value={textValues[field.key]}
-                  onChange={(e) => setTextValues((prev) => ({ ...prev, [field.key]: e.target.value }))}
-                  placeholder={field.placeholder}
-                />
-              )}
+          <div className={styles.sectionCard}>
+            <div className={styles.sectionTitle}>기본 정보</div>
+            <label className={styles.field}>
+              <span className={styles.fieldLabel}>이름 *</span>
+              <input
+                className={styles.textInput}
+                type="text"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="이름을 입력해주세요"
+              />
             </label>
-          ))}
+            <label className={styles.field}>
+              <span className={styles.fieldLabel}>연락처 *</span>
+              <input
+                className={styles.textInput}
+                type="tel"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                placeholder="010-0000-0000"
+              />
+            </label>
+
+            <div className={styles.fieldRow}>
+              {renderTextField(HEIGHT_WEIGHT_FIELD)}
+              {renderTextField(WEIGHT_GOAL_FIELD)}
+            </div>
+
+            {REST_TEXT_FIELDS.map(renderTextField)}
+          </div>
 
           {BODY_TYPE_QUESTIONS.map((q, index) => {
             const selected = bodyTypeAnswers[q.key] ?? [];
+            const otherSelected = selected.includes(BODY_TYPE_OTHER_VALUE);
+            const progressPercent = ((index + 1) / BODY_TYPE_QUESTIONS.length) * 100;
             return (
               <div key={q.key} className={styles.bodyTypeBlock}>
+                <div className={styles.bodyTypeProgressRow}>
+                  <span className={styles.bodyTypeProgressLabel}>
+                    {index + 1} / {BODY_TYPE_QUESTIONS.length}
+                  </span>
+                  <div className={styles.bodyTypeProgressTrack}>
+                    <div className={styles.bodyTypeProgressFill} style={{ width: `${progressPercent}%` }} />
+                  </div>
+                </div>
                 <span className={styles.fieldLabel}>
-                  {index + 1}. {q.question} * <span className={styles.bodyTypeHint}>(최대 2개)</span>
+                  {index + 1}. {q.question} *
                 </span>
+                <span className={styles.maxSelectPill}>최대 2개 선택</span>
+
                 <div className={styles.optionGrid}>
                   {q.options.map((option) => (
                     <button
@@ -245,27 +300,25 @@ export default function TrialApplicationForm({ referralToken }: { referralToken?
                       type="button"
                       className={
                         selected.includes(option.value)
-                          ? `${styles.optionButton} ${styles.optionButtonSelected}`
-                          : styles.optionButton
+                          ? `${styles.optionCard} ${styles.optionCardSelected}`
+                          : styles.optionCard
                       }
                       onClick={() => toggleBodyTypeOption(q.key, option.value)}
                     >
-                      {option.value}. {option.label}
+                      <span className={styles.optionBadge}>{option.value}</span>
+                      <span>{option.label}</span>
                     </button>
                   ))}
-                  <button
-                    type="button"
-                    className={
-                      selected.includes(BODY_TYPE_OTHER_VALUE)
-                        ? `${styles.optionButton} ${styles.optionButtonSelected}`
-                        : styles.optionButton
-                    }
-                    onClick={() => toggleBodyTypeOption(q.key, BODY_TYPE_OTHER_VALUE)}
-                  >
-                    기타
-                  </button>
                 </div>
-                {selected.includes(BODY_TYPE_OTHER_VALUE) && (
+
+                <button
+                  type="button"
+                  className={otherSelected ? `${styles.otherTrigger} ${styles.otherTriggerActive}` : styles.otherTrigger}
+                  onClick={() => toggleBodyTypeOption(q.key, BODY_TYPE_OTHER_VALUE)}
+                >
+                  {otherSelected ? "✓ 기타 선택됨 (해제하려면 클릭)" : "+ 기타 직접 입력"}
+                </button>
+                {otherSelected && (
                   <input
                     className={styles.textInput}
                     type="text"

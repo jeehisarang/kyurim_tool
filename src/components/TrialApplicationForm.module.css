@@ -55,17 +55,72 @@
   font-size: 22px;
   line-height: 1.4;
   color: var(--color-ink);
-  margin: 0 0 8px;
+  margin: 0 0 12px;
   text-align: center;
 }
 
-.description {
+/* 설명 문구 재구성(task2.md 1항) — 캐치프레이즈/중간설명/체크리스트/마무리문장 4단
+   시각계층. white-space: pre-line으로 원장이 입력한 줄바꿈을 그대로 반영한다(줄바꿈 버그 수정). */
+.descriptionBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-bottom: 24px;
+}
+
+.descIntro {
+  margin: 0;
+  font-style: italic;
+  font-weight: 500;
   font-size: 15px;
-  line-height: 1.6;
+  line-height: 1.7;
+  color: #712b13;
+  text-align: center;
+  white-space: pre-line;
+}
+
+.descBody {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.7;
   color: var(--color-ink);
   opacity: 0.75;
+  white-space: pre-line;
+}
+
+.descChecklist {
+  list-style: none;
+  margin: 0;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: #faeeda;
+  border-radius: 10px;
+}
+
+.descChecklistItem {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 14px;
+  line-height: 1.5;
+  color: #633806;
+}
+
+.descCheckIcon {
+  color: #ba7517;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.descClosing {
+  margin: 0;
   text-align: center;
-  margin: 0 0 24px;
+  font-weight: 500;
+  font-size: 15px;
+  line-height: 1.6;
+  color: #4a1b0c;
 }
 
 .form {
@@ -74,22 +129,41 @@
   gap: 20px;
 }
 
+/* 기본정보 섹션 카드(task2.md 2항) — 페이지 배경(--color-hanji-bg)과 톤을 맞춰 카드 안의
+   또 다른 카드처럼 은은하게 구분한다. */
+.sectionCard {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  background: var(--color-hanji-bg);
+  border: 1px solid rgba(110, 148, 140, 0.25);
+  border-radius: 12px;
+  padding: 20px 16px;
+}
+
+.sectionTitle {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--color-celadon-dark);
+}
+
+.fieldRow {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+
 .field {
   display: flex;
   flex-direction: column;
   gap: 8px;
+  min-width: 0;
 }
 
 .fieldLabel {
   font-size: 16px;
   font-weight: 600;
   color: var(--color-ink);
-}
-
-.bodyTypeHint {
-  font-size: 13px;
-  font-weight: 400;
-  opacity: 0.6;
 }
 
 .textInput,
@@ -121,55 +195,136 @@
   gap: 10px;
 }
 
+/* 몸타입 문항 진행표시(task2.md 3항) — 문항마다 자기 순번을 고정으로 표시해서, 스크롤로
+   문항을 지나칠 때마다 다른 채움 비율의 바가 자연스럽게 이어진다(별도 스크롤 감지 불필요). */
+.bodyTypeProgressRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.bodyTypeProgressLabel {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--color-celadon-dark);
+  white-space: nowrap;
+}
+
+.bodyTypeProgressTrack {
+  flex: 1;
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(110, 148, 140, 0.2);
+  overflow: hidden;
+}
+
+.bodyTypeProgressFill {
+  height: 100%;
+  background: var(--fill-accent);
+  border-radius: 2px;
+  transition: width 0.2s ease;
+}
+
+.maxSelectPill {
+  align-self: flex-start;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-celadon-dark);
+  background: rgba(110, 148, 140, 0.15);
+  border-radius: 999px;
+  padding: 3px 10px;
+}
+
 .optionGrid {
   display: flex;
   flex-direction: column;
   gap: 8px;
 }
 
-.optionButton {
+.optionCard {
+  display: flex;
+  align-items: center;
+  gap: 12px;
   width: 100%;
   box-sizing: border-box;
   text-align: left;
   border: 1px solid rgba(110, 148, 140, 0.35);
-  border-radius: 8px;
+  border-radius: 10px;
   background: var(--color-hanji-card);
   color: var(--color-ink);
-  padding: 14px 16px;
-  font-size: 16px;
+  padding: 12px 14px;
+  font-size: 15px;
   font-family: var(--font-body);
   cursor: pointer;
   transition: background-color 0.15s ease, border-color 0.15s ease;
 }
 
-.optionButton:hover {
+.optionCard:hover {
   border-color: var(--color-celadon);
 }
 
-.optionButtonSelected {
-  background: var(--color-celadon);
-  border-color: var(--color-celadon);
-  color: var(--color-hanji-card);
+.optionBadge {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 700;
+  border: 1.5px solid rgba(110, 148, 140, 0.45);
+  color: var(--color-ink);
+  opacity: 0.7;
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease, opacity 0.15s ease;
+}
+
+.optionCardSelected {
+  border-color: var(--fill-accent);
+  background: rgba(74, 27, 12, 0.06);
+}
+
+.optionCardSelected .optionBadge {
+  background: var(--fill-accent);
+  border-color: var(--fill-accent);
+  color: var(--on-accent);
+  opacity: 1;
+}
+
+/* "기타"는 평소엔 작은 링크로만 노출하고, 선택됐을 때만 입력창이 나타난다(task2.md 3항). */
+.otherTrigger {
+  align-self: flex-start;
+  background: none;
+  border: none;
+  padding: 4px 0;
+  font-size: 13px;
   font-weight: 600;
+  color: var(--color-celadon-dark);
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.otherTriggerActive {
+  color: var(--fill-accent);
 }
 
 .submitButton {
   width: 100%;
   border: none;
   border-radius: 8px;
-  background: var(--color-celadon);
-  color: var(--color-hanji-card);
+  background: var(--fill-accent);
+  color: var(--on-accent);
   padding: 16px;
   font-size: 17px;
   font-weight: 600;
   font-family: var(--font-body);
   cursor: pointer;
   margin-top: 4px;
-  transition: background-color 0.15s ease;
+  transition: filter 0.15s ease;
 }
 
 .submitButton:hover {
-  background: var(--color-celadon-dark);
+  filter: brightness(1.12);
 }
 
 .submitButton:disabled {
@@ -218,4 +373,10 @@
 
 .kakaoChatButton:hover {
   background: rgba(110, 148, 140, 0.12);
+}
+
+@media (max-width: 380px) {
+  .fieldRow {
+    grid-template-columns: 1fr;
+  }
 }
