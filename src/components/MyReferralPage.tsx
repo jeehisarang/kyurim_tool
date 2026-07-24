@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import styles from "./MyReferralPage.module.css";
 import { copyToClipboard } from "@/lib/clipboard";
 import KakaoShareButton from "@/components/KakaoShareButton";
-import { TRIAL_REFERRAL_BONUS_AMOUNT } from "@/lib/referral-config";
+import { getShareBaseUrl } from "@/lib/share-base-url";
 
 type ReferralStatus = {
   token: string;
@@ -64,12 +64,11 @@ export default function MyReferralPage({ token }: { token: string }) {
     );
   }
 
-  const baseUrl = process.env.NEXT_PUBLIC_SHARE_BASE_URL || (typeof window !== "undefined" ? window.location.origin : "");
   // 공유/복사 대상은 항상 신청폼(/refer/trial/[token]) 주소다 — 이 추천링크가 TRIAL/MAIN
   // 어느 kind든, 신청폼 제출 시 referralToken 검증은 kind를 가리지 않고 이 token 하나로
   // 동작한다(referrals.ts createTrialApplication). 친구가 이 링크로 신청하면 항상
   // TRIAL_SIGNUP 적립이 발생한다(MAIN 적립은 별도로 직원이 처방등록 화면에서 수동 확정).
-  const applyUrl = `${baseUrl}/refer/trial/${status.token}`;
+  const applyUrl = `${getShareBaseUrl()}/refer/trial/${status.token}`;
 
   async function handleCopy() {
     const success = await copyToClipboard(applyUrl);
@@ -114,8 +113,8 @@ export default function MyReferralPage({ token }: { token: string }) {
             {copied ? "복사됨!" : "내 추천링크 복사하기"}
           </button>
           <KakaoShareButton
-            title="킬팻캡슐 3일체험 추천"
-            description={`이 링크로 친구가 신청하면 적립금 ${TRIAL_REFERRAL_BONUS_AMOUNT.toLocaleString()}원이 쌓여요!`}
+            title="규림한의원 킬팻캡슐 3일체험"
+            description="저도 해본 킬팻캡슐 3일체험, 부담없이 한번 받아보세요! 규림한의원에서 무료로 체험하실 수 있어요."
             link={applyUrl}
           />
         </div>

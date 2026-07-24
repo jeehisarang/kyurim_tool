@@ -1,16 +1,11 @@
+import { getShareBaseUrl } from "@/lib/share-base-url";
+
 export type ReferralLinkKind = "TRIAL" | "MAIN";
 
 export const REFERRAL_SHARE_LABEL: Record<ReferralLinkKind, string> = {
   TRIAL: "추천링크(체험)",
   MAIN: "추천링크(본프로그램)",
 };
-
-function shareBaseUrl(): string {
-  return (
-    process.env.NEXT_PUBLIC_SHARE_BASE_URL ||
-    (typeof window !== "undefined" ? window.location.origin : "https://link.kyurim.kr")
-  );
-}
 
 // "내 추천 현황" 공개페이지(/refer/my/[token], task.md) — TRIAL/MAIN 둘 다 여기로 통일한다.
 // 예전엔 kind별로 /refer/trial 또는 /refer/main(신청폼 자체)을 직접 공유해서, 톡을 받은
@@ -27,7 +22,7 @@ export function referralSharePath(_kind: ReferralLinkKind, token: string): strin
  * 대체하며, 링크 목적지를 신청폼에서 "내 추천 현황" 페이지로 바꾼 문구로 갱신했다(task.md).
  */
 export function buildReferralShareBlock(kind: ReferralLinkKind, token: string): string {
-  const url = `${shareBaseUrl()}${referralSharePath(kind, token)}`;
+  const url = `${getShareBaseUrl()}${referralSharePath(kind, token)}`;
   const headline = kind === "MAIN" ? "🎁 킬팻캡슐, 주변에도 추천해보세요!" : "🎁 3일체험, 주변에도 추천해보세요!";
 
   return (

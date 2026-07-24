@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import styles from "./TrialApplicationForm.module.css";
 import { BODY_TYPE_QUESTIONS, BODY_TYPE_OTHER_VALUE, BODY_TYPE_MAX_SELECTIONS } from "@/lib/trial-application-format";
 import { parseCampaignDescription } from "@/lib/trial-campaign-description";
+import { getShareBaseUrl } from "@/lib/share-base-url";
 import KakaoShareButton from "@/components/KakaoShareButton";
 import KakaoChannelButton from "@/components/KakaoChannelButton";
 
@@ -163,7 +164,7 @@ export default function TrialApplicationForm({ referralToken }: { referralToken?
     // 이 시점엔 아직 이 신청자 본인의 추천링크가 없다(추천링크는 나중에 직원이 처방을
     // 등록할 때 발급됨, referrals.ts issueTrialReferralLink) — 그래서 공유 대상은 개인화
     // 링크가 아니라 캠페인 신청페이지 자체(비개인화)로 한다.
-    const baseUrl = process.env.NEXT_PUBLIC_SHARE_BASE_URL || (typeof window !== "undefined" ? window.location.origin : "");
+    const baseUrl = getShareBaseUrl();
     const campaignLink = `${baseUrl}/refer/trial`;
     const campaignImageUrl = campaign?.heroImagePath ? `${baseUrl}${campaign.heroImagePath}` : undefined;
 

@@ -13,6 +13,7 @@ import {
 } from "@/lib/program-categories";
 import { copyToClipboard } from "@/lib/clipboard";
 import QrCodeImage from "@/components/QrCodeImage";
+import { getShareBaseUrl } from "@/lib/share-base-url";
 
 type RoundEntry = {
   round: number;
@@ -133,7 +134,7 @@ export default function PrescriptionDetailPage() {
   }
 
   async function handleCopyReferralLink(kind: string, token: string) {
-    const url = `${window.location.origin}${referralPath(kind, token)}`;
+    const url = `${getShareBaseUrl()}${referralPath(kind, token)}`;
     const success = await copyToClipboard(url);
     if (!success) {
       alert("복사에 실패했습니다. 링크를 직접 선택해서 복사해주세요.");
@@ -144,7 +145,7 @@ export default function PrescriptionDetailPage() {
   }
 
   async function handleCopyMyReferralLink(token: string) {
-    const url = `${window.location.origin}${myReferralPath(token)}`;
+    const url = `${getShareBaseUrl()}${myReferralPath(token)}`;
     const success = await copyToClipboard(url);
     if (!success) {
       alert("복사에 실패했습니다. 링크를 직접 선택해서 복사해주세요.");
@@ -520,7 +521,7 @@ export default function PrescriptionDetailPage() {
           <p className={styles.infoRow}>
             <span className={styles.infoLabel}>내 현황 페이지</span>
             <span className={styles.mono}>
-              {typeof window !== "undefined" ? window.location.origin : ""}
+              {getShareBaseUrl()}
               {myReferralPath(data.referralLink.token)}
             </span>
           </p>
@@ -544,7 +545,7 @@ export default function PrescriptionDetailPage() {
           <p className={`${styles.infoRow} ${styles.muted}`}>
             <span className={styles.infoLabel}>신청폼 직링크</span>
             <span className={styles.mono}>
-              {typeof window !== "undefined" ? window.location.origin : ""}
+              {getShareBaseUrl()}
               {referralPath(data.referralLink.kind, data.referralLink.token)}
             </span>
           </p>
@@ -565,7 +566,7 @@ export default function PrescriptionDetailPage() {
           </p>
           {typeof window !== "undefined" && (
             <QrCodeImage
-              value={`${window.location.origin}${myReferralPath(data.referralLink.token)}`}
+              value={`${getShareBaseUrl()}${myReferralPath(data.referralLink.token)}`}
               filename={`referral-qr-${data.patient.name}.png`}
             />
           )}
