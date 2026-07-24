@@ -16,8 +16,10 @@ import {
 type ReferralStatus = {
   token: string;
   expiresAt: string;
-  creditCount: number;
-  creditTotalAmount: number;
+  maxCount: number;
+  maxAmount: number;
+  confirmedCount: number;
+  confirmedAmount: number;
 };
 
 type PageData = {

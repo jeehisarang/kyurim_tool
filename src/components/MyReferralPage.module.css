@@ -74,6 +74,14 @@
   color: var(--color-ink);
 }
 
+.referralFootnote {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--color-celadon-dark);
+  text-align: center;
+}
+
 .referralSafeNotice {
   margin: 0;
   font-size: 12px;

@@ -425,17 +425,20 @@ export type PrescriptionDetail = {
   events: PrescriptionEventEntry[] | null;
   taskHistory: PrescriptionTaskHistoryEntry[];
   // 추천 이벤트(task.md) — FIXED_SEQUENCE 처방은 TRIAL(issueTrialReferralLink), 킬팻캡슐
-  // 본프로그램(SPLIT) 처방은 MAIN(issueMainReferralLink) 링크가 각각 존재한다. creditCount/
-  // creditTotalAmount는 이 링크의 kind에 맞는 ReferralCreditEntry(TRIAL_SIGNUP|MAIN_SIGNUP)
-  // 집계(task.md 보완 5항 — Phase 3 전체화면 이전 임시 표시, Phase 3-1에서 MAIN까지 확장).
+  // 본프로그램(SPLIT) 처방은 MAIN(issueMainReferralLink) 링크가 각각 존재한다. max/confirmed는
+  // 이 링크의 kind에 맞는 ReferralCreditEntry(TRIAL_SIGNUP|MAIN_SIGNUP) 집계(task.md 보완
+  // 5항 — Phase 3 전체화면 이전 임시 표시, Phase 3-1에서 MAIN까지 확장, "최대/확정" 이원화로
+  // 재확장).
   referralLink:
     | {
         token: string;
         kind: string;
         expiresAt: Date;
         isActive: boolean;
-        creditCount: number;
-        creditTotalAmount: number;
+        maxCount: number;
+        maxAmount: number;
+        confirmedCount: number;
+        confirmedAmount: number;
       }
     | null;
   // "소개받음 - 3만원 할인 대상" 표시(task.md Phase 3-2) — 이 처방이 MAIN_SIGNUP 적립의
@@ -561,25 +564,29 @@ export async function getPrescriptionDetail(prescriptionId: number): Promise<Pre
       // 코드"가 없는 수동 확정이라 링크 토큰이 아니라 patientId(추천인=링크 소유자)로
       // 저장돼 있어(referrals.ts MANUAL_MAIN_REFERRAL_TOKEN 참고) 여기서도 patientId로
       // 집계해야 한다.
-      const creditAgg =
+      const credits =
         link.kind === "MAIN"
-          ? await prisma.referralCreditEntry.aggregate({
+          ? await prisma.referralCreditEntry.findMany({
               where: { patientId: link.patientId, kind: "MAIN_SIGNUP" },
-              _count: true,
-              _sum: { amount: true },
+              select: { amount: true, status: true },
             })
-          : await prisma.referralCreditEntry.aggregate({
+          : await prisma.referralCreditEntry.findMany({
               where: { linkToken: link.token, kind: "TRIAL_SIGNUP" },
-              _count: true,
-              _sum: { amount: true },
+              select: { amount: true, status: true },
             });
+      // "최대/확정" 이원화(task.md) — MAIN_SIGNUP은 항상 status=CONFIRMED로 생성되므로
+      // max/confirmed가 자연히 같은 값이 된다(referrals.ts getReferralLinkStatusByToken과
+      // 동일 원칙).
+      const confirmedCredits = credits.filter((c) => c.status === "CONFIRMED");
       referralLink = {
         token: link.token,
         kind: link.kind,
         expiresAt: link.expiresAt,
         isActive: link.isActive,
-        creditCount: creditAgg._count,
-        creditTotalAmount: creditAgg._sum.amount ?? 0,
+        maxCount: credits.length,
+        maxAmount: credits.reduce((sum, c) => sum + c.amount, 0),
+        confirmedCount: confirmedCredits.length,
+        confirmedAmount: confirmedCredits.reduce((sum, c) => sum + c.amount, 0),
       };
     }
   }

@@ -58,15 +58,18 @@ type PrescriptionDetail = {
   events: EventEntry[] | null;
   taskHistory: TaskHistoryEntry[];
   // 추천 이벤트(task.md) — FIXED_SEQUENCE 처방은 TRIAL, 킬팻캡슐 본프로그램(SPLIT) 처방은
-  // MAIN 링크(task.md Phase 3-1).
+  // MAIN 링크(task.md Phase 3-1). "최대/확정" 이원화(task.md) — max는 신청 즉시 반영,
+  // confirmed는 실제 등록(TRIAL) 또는 직원 확정(MAIN) 시점에만 반영.
   referralLink:
     | {
         token: string;
         kind: string;
         expiresAt: string;
         isActive: boolean;
-        creditCount: number;
-        creditTotalAmount: number;
+        maxCount: number;
+        maxAmount: number;
+        confirmedCount: number;
+        confirmedAmount: number;
       }
     | null;
   // "소개받음 - 3만원 할인 대상"(task.md Phase 3-2).
@@ -559,10 +562,14 @@ export default function PrescriptionDetailPage() {
             </button>
           </div>
 
-          {/* 적립 현황(task.md 보완 5항, Phase 3-1에서 MAIN까지 확장) — Phase 3-3 전체 환자
-              통합 조회 화면(/settings/referral-credits)과 별개로 이 링크 1개 기준의 요약. */}
+          {/* 적립 현황(task.md 보완 5항, Phase 3-1에서 MAIN까지 확장, "최대/확정" 이원화로
+              재확장) — Phase 3-3 전체 환자 통합 조회 화면(/settings/referral-credits)과
+              별개로 이 링크 1개 기준의 요약. */}
           <p className={styles.infoRow}>
-            적립 현황: {data.referralLink.creditCount}건 · {data.referralLink.creditTotalAmount.toLocaleString()}원
+            최대 적립금: {data.referralLink.maxCount}건 · {data.referralLink.maxAmount.toLocaleString()}원
+          </p>
+          <p className={styles.infoRow}>
+            확정 적립금: {data.referralLink.confirmedCount}건 · {data.referralLink.confirmedAmount.toLocaleString()}원
           </p>
           {typeof window !== "undefined" && (
             <QrCodeImage

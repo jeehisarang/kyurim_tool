@@ -16,6 +16,10 @@ const REFERRAL_KIND_TRIAL = "TRIAL";
 const CREDIT_KIND_TRIAL_SIGNUP = "TRIAL_SIGNUP";
 const REFERRAL_KIND_MAIN = "MAIN";
 const CREDIT_KIND_MAIN_SIGNUP = "MAIN_SIGNUP";
+// 체험 추천 적립금 "최대/확정" 이원화(task.md) — TRIAL_SIGNUP만 PENDING으로 시작해 실제
+// 등록 시 CONFIRMED로 전환된다. MAIN_SIGNUP은 스키마 기본값(CONFIRMED)을 그대로 쓴다.
+const CREDIT_STATUS_PENDING = "PENDING";
+const CREDIT_STATUS_CONFIRMED = "CONFIRMED";
 // MAIN_SIGNUP 적립(task.md Phase 3-2)은 공개 신청폼을 거치지 않고 직원이 처방등록 화면에서
 // 환자를 검색해 직접 확정하는 방식이라(TRIAL_SIGNUP처럼 실제로 "쓰인 코드"가 없음), linkToken에
 // 넣을 실제 코드가 없다. ReferralCreditEntry.linkToken이 FK가 아니라 감사용 문자열이라는
@@ -134,13 +138,16 @@ export type ReferralCreditPatientSummary = {
   patientId: number;
   patientName: string;
   chartNumber: string;
-  trialTotal: number;
-  mainTotal: number;
-  total: number;
+  // "최대/확정" 이원화(task.md) — maxTotal은 kind/status 무관 전체 합("쌓이는 재미"),
+  // confirmedTotal은 status=CONFIRMED만의 합("실제 사용 가능한 금액"). MAIN_SIGNUP은
+  // 항상 CONFIRMED로 생성되므로 별도 분기 없이 이 필드 하나로 TRIAL/MAIN 둘 다 계산된다.
+  maxTotal: number;
+  confirmedTotal: number;
   entries: {
     id: number;
     kind: string;
     amount: number;
+    status: string;
     referredName: string;
     createdAt: Date;
     confirmedByStaffName: string | null;
@@ -165,27 +172,26 @@ export async function listReferralCreditSummary(): Promise<ReferralCreditPatient
         patientId: entry.patientId,
         patientName: entry.patient.name,
         chartNumber: entry.patient.chartNumber,
-        trialTotal: 0,
-        mainTotal: 0,
-        total: 0,
+        maxTotal: 0,
+        confirmedTotal: 0,
         entries: [],
       };
       byPatient.set(entry.patientId, summary);
     }
-    if (entry.kind === CREDIT_KIND_TRIAL_SIGNUP) summary.trialTotal += entry.amount;
-    else if (entry.kind === CREDIT_KIND_MAIN_SIGNUP) summary.mainTotal += entry.amount;
-    summary.total += entry.amount;
+    summary.maxTotal += entry.amount;
+    if (entry.status === CREDIT_STATUS_CONFIRMED) summary.confirmedTotal += entry.amount;
     summary.entries.push({
       id: entry.id,
       kind: entry.kind,
       amount: entry.amount,
+      status: entry.status,
       referredName: entry.referredName,
       createdAt: entry.createdAt,
       confirmedByStaffName: entry.confirmedByStaff?.name ?? null,
     });
   }
 
-  return [...byPatient.values()].sort((a, b) => b.total - a.total);
+  return [...byPatient.values()].sort((a, b) => b.maxTotal - a.maxTotal);
 }
 
 export type TrialApplicationInput = {
@@ -312,6 +318,9 @@ export async function createTrialApplication(input: TrialApplicationInput) {
           amount: TRIAL_REFERRAL_BONUS_AMOUNT,
           referredName: input.name,
           referredTrialApplicationId: application.id,
+          // 신청 즉시는 "최대 적립금"에만 반영 — 실제 3일체험 등록 시
+          // linkTrialApplicationToPrescription이 CONFIRMED로 전환한다(task.md).
+          status: CREDIT_STATUS_PENDING,
         },
       });
     }
@@ -324,8 +333,10 @@ export type TrialReferralStatus = {
   token: string;
   expiresAt: Date;
   isActive: boolean;
-  creditCount: number;
-  creditTotalAmount: number;
+  maxCount: number;
+  maxAmount: number;
+  confirmedCount: number;
+  confirmedAmount: number;
 };
 
 /**
@@ -340,18 +351,20 @@ export async function getTrialReferralStatus(prescriptionId: number): Promise<Tr
   });
   if (!link) return null;
 
-  const creditAgg = await prisma.referralCreditEntry.aggregate({
+  const credits = await prisma.referralCreditEntry.findMany({
     where: { linkToken: link.token, kind: CREDIT_KIND_TRIAL_SIGNUP },
-    _count: true,
-    _sum: { amount: true },
+    select: { amount: true, status: true },
   });
+  const confirmed = credits.filter((c) => c.status === CREDIT_STATUS_CONFIRMED);
 
   return {
     token: link.token,
     expiresAt: link.expiresAt,
     isActive: link.isActive,
-    creditCount: creditAgg._count,
-    creditTotalAmount: creditAgg._sum.amount ?? 0,
+    maxCount: credits.length,
+    maxAmount: credits.reduce((sum, c) => sum + c.amount, 0),
+    confirmedCount: confirmed.length,
+    confirmedAmount: confirmed.reduce((sum, c) => sum + c.amount, 0),
   };
 }
 
@@ -382,8 +395,10 @@ export type ReferralLinkStatus = {
   kind: "TRIAL" | "MAIN";
   expiresAt: Date;
   isActive: boolean;
-  creditCount: number;
-  creditTotalAmount: number;
+  maxCount: number;
+  maxAmount: number;
+  confirmedCount: number;
+  confirmedAmount: number;
 };
 
 /**
@@ -391,32 +406,35 @@ export type ReferralLinkStatus = {
  * 조회한다. 집계 방식은 prescriptions.ts getPrescriptionDetail의 동일 로직을 그대로 따른다:
  * TRIAL은 실제 신청폼 제출 시 쓰인 링크 토큰으로 집계되지만, MAIN_SIGNUP은 confirmMainReferral이
  * "실제 쓰인 코드" 없이 직원이 수동 확정하는 방식이라 링크 토큰이 아니라 소유자 patientId로
- * 저장돼 있어(MANUAL_MAIN_REFERRAL_TOKEN) 그 기준으로 집계해야 한다.
+ * 저장돼 있어(MANUAL_MAIN_REFERRAL_TOKEN) 그 기준으로 집계해야 한다. "최대/확정" 이원화
+ * (task.md) — MAIN_SIGNUP은 항상 status=CONFIRMED로 생성되므로 max/confirmed가 자연히
+ * 같은 값이 되고, kind별 분기 없이 status 필터 하나로 TRIAL/MAIN 둘 다 처리된다.
  */
 export async function getReferralLinkStatusByToken(token: string): Promise<ReferralLinkStatus | null> {
   const link = await prisma.referralLink.findUnique({ where: { token } });
   if (!link) return null;
 
-  const creditAgg =
+  const credits =
     link.kind === REFERRAL_KIND_MAIN
-      ? await prisma.referralCreditEntry.aggregate({
+      ? await prisma.referralCreditEntry.findMany({
           where: { patientId: link.patientId, kind: CREDIT_KIND_MAIN_SIGNUP },
-          _count: true,
-          _sum: { amount: true },
+          select: { amount: true, status: true },
         })
-      : await prisma.referralCreditEntry.aggregate({
+      : await prisma.referralCreditEntry.findMany({
           where: { linkToken: link.token, kind: CREDIT_KIND_TRIAL_SIGNUP },
-          _count: true,
-          _sum: { amount: true },
+          select: { amount: true, status: true },
         });
+  const confirmed = credits.filter((c) => c.status === CREDIT_STATUS_CONFIRMED);
 
   return {
     token: link.token,
     kind: link.kind as "TRIAL" | "MAIN",
     expiresAt: link.expiresAt,
     isActive: link.isActive,
-    creditCount: creditAgg._count,
-    creditTotalAmount: creditAgg._sum.amount ?? 0,
+    maxCount: credits.length,
+    maxAmount: credits.reduce((sum, c) => sum + c.amount, 0),
+    confirmedCount: confirmed.length,
+    confirmedAmount: confirmed.reduce((sum, c) => sum + c.amount, 0),
   };
 }
 
@@ -436,6 +454,13 @@ export function getTrialApplicationById(id: number) {
   return prisma.trialApplication.findUnique({ where: { id } });
 }
 
+/**
+ * 신청 목록에서 직원이 "이 신청으로 3일체험 등록"을 실행하는 시점(task.md "최대/확정"
+ * 이원화) — 신청 제출 때 PENDING으로 만들어둔 TRIAL_SIGNUP 크레딧을 여기서 CONFIRMED로
+ * 전환한다. referralToken 없이 들어온 신청(크레딧 엔트리 자체가 없음)은 updateMany가
+ * 0건 갱신하고 조용히 넘어간다. 확정 시점은 추천링크의 7일 유효기간과 무관 — 신청
+ * 자체가 유효기간 내에 들어왔으면 확정은 그 이후 아무 때나 일어나도 된다(task.md).
+ */
 export async function linkTrialApplicationToPrescription(
   trialApplicationId: number,
   prescriptionId: number,
@@ -443,5 +468,14 @@ export async function linkTrialApplicationToPrescription(
   await prisma.trialApplication.update({
     where: { id: trialApplicationId },
     data: { convertedPrescriptionId: prescriptionId },
+  });
+
+  await prisma.referralCreditEntry.updateMany({
+    where: {
+      referredTrialApplicationId: trialApplicationId,
+      kind: CREDIT_KIND_TRIAL_SIGNUP,
+      status: CREDIT_STATUS_PENDING,
+    },
+    data: { status: CREDIT_STATUS_CONFIRMED, referredPrescriptionId: prescriptionId },
   });
 }

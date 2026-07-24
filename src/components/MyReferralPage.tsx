@@ -11,8 +11,10 @@ type ReferralStatus = {
   kind: "TRIAL" | "MAIN";
   expiresAt: string;
   isActive: boolean;
-  creditCount: number;
-  creditTotalAmount: number;
+  maxCount: number;
+  maxAmount: number;
+  confirmedCount: number;
+  confirmedAmount: number;
 };
 
 function formatDate(iso: string): string {
@@ -86,17 +88,34 @@ export default function MyReferralPage({ token }: { token: string }) {
         <h1 className={styles.headline}>내 추천 현황</h1>
 
         <div className={styles.referralBanner}>
-          {status.creditCount > 0 ? (
-            <div className={styles.referralStatsRow}>
-              <div className={styles.referralStatCard}>
-                <span className={styles.referralStatLabel}>진행중 인원</span>
-                <span className={styles.referralStatValue}>{status.creditCount}명</span>
+          {status.maxCount > 0 ? (
+            <>
+              <div className={styles.referralStatsRow}>
+                <div className={styles.referralStatCard}>
+                  <span className={styles.referralStatLabel}>신청 인원</span>
+                  <span className={styles.referralStatValue}>{status.maxCount}명</span>
+                </div>
+                <div className={styles.referralStatCard}>
+                  <span className={styles.referralStatLabel}>최대 적립금</span>
+                  <span className={styles.referralStatValue}>{status.maxAmount.toLocaleString()}원</span>
+                </div>
               </div>
-              <div className={styles.referralStatCard}>
-                <span className={styles.referralStatLabel}>적립금</span>
-                <span className={styles.referralStatValue}>{status.creditTotalAmount.toLocaleString()}원</span>
+              {status.kind === "TRIAL" && (
+                <p className={styles.referralFootnote}>
+                  * 실제 체험 진행 시 확정되며, 확정 적립금만 본프로그램 신청 시 사용 가능해요.
+                </p>
+              )}
+              <div className={styles.referralStatsRow}>
+                <div className={styles.referralStatCard}>
+                  <span className={styles.referralStatLabel}>확정 인원</span>
+                  <span className={styles.referralStatValue}>{status.confirmedCount}명</span>
+                </div>
+                <div className={styles.referralStatCard}>
+                  <span className={styles.referralStatLabel}>확정 적립금</span>
+                  <span className={styles.referralStatValue}>{status.confirmedAmount.toLocaleString()}원</span>
+                </div>
               </div>
-            </div>
+            </>
           ) : (
             <p className={styles.referralWarning}>
               아직 추천으로 오신 분이 없어요. {formatDate(status.expiresAt)}까지 이 링크로 친구가 신청하면

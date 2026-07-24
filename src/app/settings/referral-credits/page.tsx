@@ -9,6 +9,7 @@ type CreditEntry = {
   id: number;
   kind: string;
   amount: number;
+  status: string;
   referredName: string;
   createdAt: string;
   confirmedByStaffName: string | null;
@@ -18,13 +19,13 @@ type PatientSummary = {
   patientId: number;
   patientName: string;
   chartNumber: string;
-  trialTotal: number;
-  mainTotal: number;
-  total: number;
+  maxTotal: number;
+  confirmedTotal: number;
   entries: CreditEntry[];
 };
 
 const KIND_LABEL: Record<string, string> = { TRIAL_SIGNUP: "체험 추천", MAIN_SIGNUP: "본프로그램 추천" };
+const STATUS_LABEL: Record<string, string> = { PENDING: "대기중", CONFIRMED: "확정" };
 
 function formatDate(iso: string): string {
   const d = new Date(iso);
@@ -49,9 +50,8 @@ export default function ReferralCreditsSettingsPage() {
       .then(setSummary);
   }, [isDirector]);
 
-  const grandTotal = summary?.reduce((sum, p) => sum + p.total, 0) ?? 0;
-  const grandTrialTotal = summary?.reduce((sum, p) => sum + p.trialTotal, 0) ?? 0;
-  const grandMainTotal = summary?.reduce((sum, p) => sum + p.mainTotal, 0) ?? 0;
+  const grandMaxTotal = summary?.reduce((sum, p) => sum + p.maxTotal, 0) ?? 0;
+  const grandConfirmedTotal = summary?.reduce((sum, p) => sum + p.confirmedTotal, 0) ?? 0;
 
   return (
     <div className={styles.container}>
@@ -71,9 +71,8 @@ export default function ReferralCreditsSettingsPage() {
           <div className={styles.section}>
             <div className={styles.sectionTitle}>전체 합계</div>
             <div className={styles.summaryRow}>
-              <span>체험 추천(TRIAL_SIGNUP): {grandTrialTotal.toLocaleString()}원</span>
-              <span>본프로그램 추천(MAIN_SIGNUP): {grandMainTotal.toLocaleString()}원</span>
-              <strong>총합: {grandTotal.toLocaleString()}원</strong>
+              <span>최대 적립금 합계: {grandMaxTotal.toLocaleString()}원</span>
+              <strong>확정 적립금 합계: {grandConfirmedTotal.toLocaleString()}원</strong>
             </div>
           </div>
 
@@ -83,9 +82,8 @@ export default function ReferralCreditsSettingsPage() {
               <thead>
                 <tr>
                   <th>환자</th>
-                  <th>체험 추천</th>
-                  <th>본프로그램 추천</th>
-                  <th>합계</th>
+                  <th>최대 적립금 합계</th>
+                  <th>확정 적립금 합계</th>
                   <th />
                 </tr>
               </thead>
@@ -96,9 +94,8 @@ export default function ReferralCreditsSettingsPage() {
                       <td>
                         {p.patientName} (<span className={styles.mono}>{p.chartNumber}</span>)
                       </td>
-                      <td className={styles.mono}>{p.trialTotal.toLocaleString()}원</td>
-                      <td className={styles.mono}>{p.mainTotal.toLocaleString()}원</td>
-                      <td className={styles.mono}>{p.total.toLocaleString()}원</td>
+                      <td className={styles.mono}>{p.maxTotal.toLocaleString()}원</td>
+                      <td className={styles.mono}>{p.confirmedTotal.toLocaleString()}원</td>
                       <td>
                         <button
                           type="button"
@@ -113,11 +110,12 @@ export default function ReferralCreditsSettingsPage() {
                     </tr>
                     {expandedPatientId === p.patientId && (
                       <tr>
-                        <td colSpan={5}>
+                        <td colSpan={4}>
                           <table className={styles.detailTable}>
                             <thead>
                               <tr>
                                 <th>구분</th>
+                                <th>상태</th>
                                 <th>추천받은 사람</th>
                                 <th>금액</th>
                                 <th>확정 직원</th>
@@ -128,6 +126,7 @@ export default function ReferralCreditsSettingsPage() {
                               {p.entries.map((entry) => (
                                 <tr key={entry.id}>
                                   <td>{KIND_LABEL[entry.kind] ?? entry.kind}</td>
+                                  <td>{STATUS_LABEL[entry.status] ?? entry.status}</td>
                                   <td>{entry.referredName}</td>
                                   <td className={styles.mono}>{entry.amount.toLocaleString()}원</td>
                                   <td>{entry.confirmedByStaffName ?? "-"}</td>
