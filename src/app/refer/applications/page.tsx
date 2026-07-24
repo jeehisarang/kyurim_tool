@@ -17,6 +17,9 @@ type TrialApplicationRow = TrialApplicationForFormat & {
   submittedAt: string;
   referralToken: string | null;
   convertedPrescriptionId: number | null;
+  // 추천인 실명 표시(task2.md) — referralToken이 없으면 null, 있는데 매칭되는
+  // ReferralLink를 못 찾은 예외 케이스도 null(화면에서 "환자 정보 없음"으로 처리).
+  referrerPatientName: string | null;
 };
 
 function formatSubmittedAt(iso: string): string {
@@ -144,7 +147,10 @@ export default function TrialApplicationsPage() {
                     {app.referralToken && (
                       <div className={styles.detailRow}>
                         <span className={styles.detailLabel}>추천코드</span>
-                        <span className={styles.mono}>{app.referralToken}</span>
+                        <span className={styles.mono}>
+                          {app.referralToken} (
+                          {app.referrerPatientName ? `${app.referrerPatientName}님` : "환자 정보 없음"})
+                        </span>
                       </div>
                     )}
                     <div className={styles.detailRow}>

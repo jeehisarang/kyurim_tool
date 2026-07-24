@@ -446,8 +446,23 @@ export function listUnconvertedTrialApplications() {
 }
 
 // 신청 응답 전체보기(task.md 보완 1항, /refer/applications) — 전환 여부 무관 전체 목록.
-export function listAllTrialApplications() {
-  return prisma.trialApplication.findMany({ orderBy: { submittedAt: "desc" } });
+// referrerPatientName은 추천인 실명 표시(task2.md) — 만료/비활성 링크도 내부 확인
+// 목적상 이름은 그대로 보여줘야 해서 isActive/expiresAt 필터 없이 token만으로 조회한다.
+// referralToken이 없으면(원내 QR) null, 있는데 매칭되는 ReferralLink가 없는 예외
+// 케이스도 null로 반환하고 화면에서 "환자 정보 없음"으로 안전하게 표시한다.
+export async function listAllTrialApplications() {
+  const applications = await prisma.trialApplication.findMany({ orderBy: { submittedAt: "desc" } });
+
+  const tokens = [...new Set(applications.map((a) => a.referralToken).filter((t): t is string => Boolean(t)))];
+  const links = tokens.length
+    ? await prisma.referralLink.findMany({ where: { token: { in: tokens } }, include: { patient: true } })
+    : [];
+  const referrerNameByToken = new Map(links.map((l) => [l.token, l.patient.name]));
+
+  return applications.map((a) => ({
+    ...a,
+    referrerPatientName: a.referralToken ? (referrerNameByToken.get(a.referralToken) ?? null) : null,
+  }));
 }
 
 export function getTrialApplicationById(id: number) {
