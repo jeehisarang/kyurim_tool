@@ -18,6 +18,32 @@
   overflow-wrap: break-word;
 }
 
+/* 추천코드 노출 통일(task.md) — TrialApplicationForm.module.css의 referralBadge와
+   동일한 스타일. */
+.referralBadge {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  background: rgba(110, 148, 140, 0.12);
+  border-radius: 8px;
+  padding: 14px 16px;
+  margin-bottom: 20px;
+  text-align: center;
+}
+
+.referralBadgeMain {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--color-celadon-dark);
+}
+
+.referralBadgeCode {
+  font-size: 13px;
+  color: var(--color-ink);
+  opacity: 0.65;
+}
+
 .headline {
   font-family: var(--font-display);
   font-weight: 700;

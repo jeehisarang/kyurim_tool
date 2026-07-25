@@ -8,6 +8,20 @@ type Mode = "choice" | "trial" | "directForm" | "directDone";
 
 type RefereeDiscounts = { oneMonth: number; threeMonth: number };
 
+// 추천코드 노출 통일(task.md) — 기존 TRIAL 체험유도 화면(TrialApplicationForm)의
+// referralBadge와 동일한 문구/스타일. 코드는 비식별 토큰이라 노출해도 개인정보 문제
+// 없다는 원칙이 확정돼(task.md), 이 분기 화면과 그 하위(선택 전/바로등록 폼/완료) 전부에
+// 동일하게 노출한다 — "3일 체험" 선택 후에는 TrialApplicationForm 자체가 이미 동일 배지를
+// 보여주므로 별도 처리 불필요.
+function ReferralCodeBadge({ token }: { token: string }) {
+  return (
+    <div className={styles.referralBadge}>
+      <span className={styles.referralBadgeMain}>🎁 친구의 추천으로 오셨네요!</span>
+      <span className={styles.referralBadgeCode}>추천코드: {token}</span>
+    </div>
+  );
+}
+
 /**
  * MAIN 등급 추천링크 랜딩페이지 분기 화면(task.md 추천 이벤트 개선 3) — /refer/trial/[token]이
  * tier="MAIN"인 링크로 진입했을 때 대신 렌더링된다. "3일 무료체험 먼저 해보기"를 고르면
@@ -62,6 +76,7 @@ export default function MainTierLandingChoice({
     return (
       <div className={styles.page}>
         <div className={styles.card}>
+          <ReferralCodeBadge token={token} />
           <p className={styles.completeText}>
             신청 완료되었습니다.
             <br />
@@ -76,6 +91,7 @@ export default function MainTierLandingChoice({
     return (
       <div className={styles.page}>
         <div className={styles.card}>
+          <ReferralCodeBadge token={token} />
           <h1 className={styles.headline}>바로 등록하고 할인받기</h1>
           <p className={styles.discountNotice}>
             친구 소개 혜택으로 1개월 등록 시 {refereeDiscounts.oneMonth.toLocaleString()}원, 3개월 등록 시{" "}
@@ -122,8 +138,9 @@ export default function MainTierLandingChoice({
   return (
     <div className={styles.page}>
       <div className={styles.card}>
+        <ReferralCodeBadge token={token} />
         <h1 className={styles.headline}>어떻게 시작해볼까요?</h1>
-        <p className={styles.subText}>친구의 추천으로 오셨네요! 둘 중 편하신 방법을 골라주세요.</p>
+        <p className={styles.subText}>둘 중 편하신 방법을 골라주세요.</p>
 
         <div className={styles.choiceGrid}>
           <button type="button" className={styles.choiceCard} onClick={() => setMode("trial")}>

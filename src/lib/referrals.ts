@@ -448,6 +448,9 @@ export type ReferralLinkStatus = {
   maxAmount: number;
   confirmedCount: number;
   confirmedAmount: number;
+  // "OO님의 추천 현황" 개인화 표시용(task.md) — 링크 소유자 이름만 노출, 연락처 등
+  // 민감정보는 이 조회에 포함하지 않는다(공개 페이지라 최소한만 반환).
+  patientName: string;
 };
 
 /**
@@ -460,7 +463,7 @@ export type ReferralLinkStatus = {
  * 같은 값이 되고, kind별 분기 없이 status 필터 하나로 TRIAL/MAIN 둘 다 처리된다.
  */
 export async function getReferralLinkStatusByToken(token: string): Promise<ReferralLinkStatus | null> {
-  const link = await prisma.referralLink.findUnique({ where: { token } });
+  const link = await prisma.referralLink.findUnique({ where: { token }, include: { patient: true } });
   if (!link) return null;
 
   const credits =
@@ -484,6 +487,7 @@ export async function getReferralLinkStatusByToken(token: string): Promise<Refer
     maxAmount: credits.reduce((sum, c) => sum + c.amount, 0),
     confirmedCount: confirmed.length,
     confirmedAmount: confirmed.reduce((sum, c) => sum + c.amount, 0),
+    patientName: link.patient.name,
   };
 }
 

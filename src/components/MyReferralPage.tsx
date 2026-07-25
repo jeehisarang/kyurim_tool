@@ -15,6 +15,7 @@ type ReferralStatus = {
   maxAmount: number;
   confirmedCount: number;
   confirmedAmount: number;
+  patientName: string;
 };
 
 function formatDate(iso: string): string {
@@ -85,7 +86,7 @@ export default function MyReferralPage({ token }: { token: string }) {
   return (
     <div className={styles.page}>
       <div className={styles.card}>
-        <h1 className={styles.headline}>내 추천 현황</h1>
+        <h1 className={styles.headline}>{status.patientName}님의 추천 현황</h1>
 
         <div className={styles.referralBanner}>
           {status.maxCount > 0 ? (
