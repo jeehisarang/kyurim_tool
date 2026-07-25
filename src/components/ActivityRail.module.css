@@ -27,7 +27,8 @@
 }
 
 .itemStaff,
-.itemPatient {
+.itemPatient,
+.itemEmphasized {
   display: flex;
   flex-direction: column;
   gap: 2px;
@@ -44,6 +45,15 @@
 /* PATIENT(환자 행동) 항목 강조 — 원장님 반응이 좋아 더 눈에 띄게(task.md 배경) 글자를
    키우고 이모티콘을 붙인다. 기존 빨간 글씨(--color-seal)는 그대로 유지. */
 .itemPatient .label {
+  color: var(--color-seal);
+  font-size: 14px;
+  font-weight: 500;
+}
+
+/* 본프로그램 바로등록 문의 강조표시(task.md) — 실매출로 이어질 수 있는 중요 이벤트라
+   PATIENT 항목과 동일한 강조 패턴(🔴 마크 + 빨간 굵은 글씨)을 그대로 재사용한다. 이
+   행위 자체는 STAFF/SYSTEM 액터라 확인 체크 버튼(checkRow)은 붙이지 않는다. */
+.itemEmphasized .label {
   color: var(--color-seal);
   font-size: 14px;
   font-weight: 500;

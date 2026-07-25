@@ -17,6 +17,16 @@ type ActivityLogRow = {
 
 const POLL_INTERVAL_MS = 7000;
 
+// 본프로그램 바로등록 문의 강조표시(task.md) — 실제 매출로 이어질 수 있는 중요 이벤트라
+// 다른 일반 WORK_CREATE 알림과 시각적으로 구분해야 한다. ActivityLog에는 이 이벤트만
+// 구분할 별도 필드가 없어(actorId는 시스템 생성 WorkTask 전부가 동일한 "시스템" 계정을
+// 공유해 구분 불가), requestMainDirectRegistrationCallback(referrals.ts)이 title에 쓰는
+// 이 문구를 유일한 식별자로 삼는다 — 다른 어떤 업무 제목에도 등장하지 않는 문자열이라
+// 오탐 위험은 낮지만, referrals.ts의 해당 문구를 바꾸면 이 매칭도 함께 갱신해야 한다.
+function isMainDirectRegistrationInquiry(row: { actionType: string; label: string }): boolean {
+  return row.actionType === "WORK_CREATE" && row.label.includes("본프로그램 바로등록 문의");
+}
+
 function formatTime(iso: string): string {
   const d = new Date(iso);
   return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
@@ -90,34 +100,38 @@ export default function ActivityRail() {
       <div className={styles.list}>
         {rows === null && <p className={styles.empty}>불러오는 중...</p>}
         {rows !== null && rows.length === 0 && <p className={styles.empty}>최근 활동이 없습니다.</p>}
-        {rows?.map((row) => (
-          <div
-            key={row.id}
-            className={row.actorType === "PATIENT" ? styles.itemPatient : styles.itemStaff}
-          >
-            <span className={styles.time}>{formatTime(row.createdAt)}</span>
-            <span className={styles.label}>
-              {row.actorType === "PATIENT" && <span className={styles.patientMark}>🔴</span>}
-              {row.label}
-            </span>
-            {row.actorType === "PATIENT" && (
-              <span className={styles.checkRow}>
-                {row.isChecked ? (
-                  <span className={styles.checkedLabel}>✓ {row.checkedByStaffName ?? "-"}님 확인</span>
-                ) : (
-                  <button
-                    type="button"
-                    className={styles.checkButton}
-                    disabled={!currentUser || checkingId !== null}
-                    onClick={() => handleCheck(row.id)}
-                  >
-                    확인
-                  </button>
-                )}
+        {rows?.map((row) => {
+          const isPatient = row.actorType === "PATIENT";
+          const isEmphasized = isPatient || isMainDirectRegistrationInquiry(row);
+          return (
+            <div
+              key={row.id}
+              className={isPatient ? styles.itemPatient : isEmphasized ? styles.itemEmphasized : styles.itemStaff}
+            >
+              <span className={styles.time}>{formatTime(row.createdAt)}</span>
+              <span className={styles.label}>
+                {isEmphasized && <span className={styles.patientMark}>🔴</span>}
+                {row.label}
               </span>
-            )}
-          </div>
-        ))}
+              {isPatient && (
+                <span className={styles.checkRow}>
+                  {row.isChecked ? (
+                    <span className={styles.checkedLabel}>✓ {row.checkedByStaffName ?? "-"}님 확인</span>
+                  ) : (
+                    <button
+                      type="button"
+                      className={styles.checkButton}
+                      disabled={!currentUser || checkingId !== null}
+                      onClick={() => handleCheck(row.id)}
+                    >
+                      확인
+                    </button>
+                  )}
+                </span>
+              )}
+            </div>
+          );
+        })}
       </div>
     </aside>
   );
