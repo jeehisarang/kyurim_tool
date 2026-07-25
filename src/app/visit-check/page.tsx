@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, Suspense, useEffect, useState } from "react";
+import { Fragment, Suspense, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import styles from "./page.module.css";
@@ -19,10 +19,13 @@ type Patient = { id: number; chartNumber: string; name: string };
 type TreatmentCategory = { id: number; name: string };
 type VisitType = { id: number; name: string };
 type StaffUser = { id: number; name: string; role: string };
+// 카톡연결(채널 대화창 형성) 상태(task.md) — Patient 단위 필드라 검색 대상 Patient 타입과
+// 별개로 목록 행에서만 쓰는 확장 타입을 둔다.
+type VisitPatient = Patient & { kakaoChannelConnected: boolean };
 type VisitRecord = {
   id: number;
   isReserved: boolean;
-  patient: Patient;
+  patient: VisitPatient;
   treatmentCategory: TreatmentCategory;
   visitType: VisitType;
   checkedByUser: StaffUser | null;
@@ -115,6 +118,10 @@ function VisitCheckPageInner() {
   const [editVisitSaving, setEditVisitSaving] = useState(false);
   const [editVisitError, setEditVisitError] = useState<string | null>(null);
   const [togglingReservedId, setTogglingReservedId] = useState<number | null>(null);
+  const [togglingKakaoPatientId, setTogglingKakaoPatientId] = useState<number | null>(null);
+  // 체크된 내원 목록 검색(task.md 전체 목록 화면 공통 검색기능) — 이미 불러온 하루치
+  // 목록을 이름/차트번호로만 추가로 좁힌다(날짜 필터는 그대로 유지, 서버 재조회 없음).
+  const [listQuery, setListQuery] = useState("");
 
   useEffect(() => {
     setCurrentUserIdState(getCurrentUserId());
@@ -329,6 +336,36 @@ function VisitCheckPageInner() {
     }
   }
 
+  /**
+   * 카톡연결(채널 대화창 형성) 상태 토글(task.md) — Patient 단위 필드라, 같은 환자가
+   * 이 날짜의 목록에 여러 건으로 잡혀 있을 가능성에 대비해 patient.id가 같은 모든 행을
+   * 함께 갱신한다(Visit 단위가 아니므로).
+   */
+  async function handleToggleKakaoConnected(patientId: number) {
+    setTogglingKakaoPatientId(patientId);
+    try {
+      const res = await fetch(`/api/patients/${patientId}/kakao-channel`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ staffUserId: currentUserId }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        alert(data.error ?? "처리에 실패했습니다. 다시 시도해주세요.");
+        return;
+      }
+      setVisits((prev) =>
+        prev.map((v) =>
+          v.patient.id === patientId ? { ...v, patient: { ...v.patient, kakaoChannelConnected: data.kakaoChannelConnected } } : v,
+        ),
+      );
+    } catch {
+      alert("서버에 연결하지 못했습니다. 다시 시도해주세요.");
+    } finally {
+      setTogglingKakaoPatientId(null);
+    }
+  }
+
   async function handleDeleteVisit(id: number) {
     if (
       !window.confirm(
@@ -349,10 +386,18 @@ function VisitCheckPageInner() {
     }
   }
 
+  // 체크된 내원 목록 검색(task.md) — 날짜 필터(selectedDate)는 그대로 유지한 채 이름/
+  // 차트번호로만 추가로 좁힌다(/examinations의 client-side 필터와 동일 패턴).
+  const filteredVisits = useMemo(() => {
+    const q = listQuery.trim();
+    if (!q) return visits;
+    return visits.filter((v) => v.patient.name.includes(q) || v.patient.chartNumber.includes(q));
+  }, [visits, listQuery]);
+
   const isToday = isSameDate(selectedDate, startOfDay(new Date()));
   const listTitle = isToday
-    ? `오늘 체크된 내원 목록 (${visits.length}건)`
-    : `${selectedDate.getMonth() + 1}월 ${selectedDate.getDate()}일 체크된 내원 목록 (${visits.length}건)`;
+    ? `오늘 체크된 내원 목록 (${filteredVisits.length}건${listQuery ? ` / 전체 ${visits.length}건` : ""})`
+    : `${selectedDate.getMonth() + 1}월 ${selectedDate.getDate()}일 체크된 내원 목록 (${filteredVisits.length}건${listQuery ? ` / 전체 ${visits.length}건` : ""})`;
 
   return (
     <div className={styles.container}>
@@ -516,8 +561,19 @@ function VisitCheckPageInner() {
 
       <div className={styles.section}>
         <div className={styles.sectionTitle}>{listTitle}</div>
+        {visits.length > 0 && (
+          <input
+            type="text"
+            className={styles.listSearchInput}
+            placeholder="차트번호 또는 이름으로 목록 검색"
+            value={listQuery}
+            onChange={(e) => setListQuery(e.target.value)}
+          />
+        )}
         {visits.length === 0 ? (
           <p className={styles.muted}>체크된 내원이 없습니다.</p>
+        ) : filteredVisits.length === 0 ? (
+          <p className={styles.muted}>검색 결과가 없습니다.</p>
         ) : (
           <table className={styles.table}>
             <thead>
@@ -526,13 +582,14 @@ function VisitCheckPageInner() {
                 <th>진료분야</th>
                 <th>진료구분</th>
                 <th>예약여부</th>
+                <th>카톡연결</th>
                 <th>체크한 사람</th>
                 <th>메모</th>
                 <th>관리</th>
               </tr>
             </thead>
             <tbody>
-              {visits.map((v) => (
+              {filteredVisits.map((v) => (
                 <Fragment key={v.id}>
                   <tr>
                     <td>
@@ -563,6 +620,16 @@ function VisitCheckPageInner() {
                         disabled={togglingReservedId === v.id}
                       >
                         {v.isReserved ? "예약함" : "예약안함"}
+                      </button>
+                    </td>
+                    <td>
+                      <button
+                        type="button"
+                        className={v.patient.kakaoChannelConnected ? styles.reservedButtonOn : styles.reservedButtonOff}
+                        onClick={() => handleToggleKakaoConnected(v.patient.id)}
+                        disabled={togglingKakaoPatientId === v.patient.id}
+                      >
+                        {v.patient.kakaoChannelConnected ? "카톡연결" : "카톡미연결"}
                       </button>
                     </td>
                     <td>{v.checkedByUser?.name ?? "-"}</td>
@@ -603,14 +670,14 @@ function VisitCheckPageInner() {
                   </tr>
                   {expandedNotePatientId === v.patient.id && (
                     <tr>
-                      <td colSpan={7}>
+                      <td colSpan={8}>
                         <PatientNotes patientId={v.patient.id} />
                       </td>
                     </tr>
                   )}
                   {editingVisitId === v.id && (
                     <tr>
-                      <td colSpan={7}>
+                      <td colSpan={8}>
                         <div className={styles.editRow}>
                           <select
                             value={editVisitCategoryId}

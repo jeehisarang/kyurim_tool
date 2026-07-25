@@ -575,3 +575,15 @@ export function splitByDateScope(
     dueOnDate: tasks.filter((t) => !isOverdueTask(t, referenceDate) || isResolved(t)),
   };
 }
+
+/**
+ * 이름/차트번호 검색(task.md 전체 목록 화면 공통 검색기능) — /todo, /home이 공유한다.
+ * 기존 날짜/담당자 필터로 이미 좁혀진 tasks 위에 추가로 적용하는 client-side 필터.
+ * 환자와 무관한 업무(WORK, patient:null)는 검색어와 무관하게 항상 남긴다 — 특정 환자를
+ * 찾는 중이라고 해서 전체공통/자율 업무까지 숨기면 오히려 놓치기 쉬워진다.
+ */
+export function filterTasksByPatientQuery(tasks: TodoTask[], query: string): TodoTask[] {
+  const q = query.trim();
+  if (!q) return tasks;
+  return tasks.filter((t) => !t.patient || t.patient.name.includes(q) || t.patient.chartNumber.includes(q));
+}

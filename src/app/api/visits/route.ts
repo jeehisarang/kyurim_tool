@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 
+// 카톡연결 상태 리셋 대상 진료구분(task.md) — VisitTypeTag.tsx의 isInitialVisit과 동일한
+// 이름 기반 판별(별도 enum/플래그 없이 VisitType.name 문자열로 구분하는 기존 관례).
+const INITIAL_VISIT_TYPE_NAMES = ["초진", "재초진"];
+
 function startOfToday(): Date {
   const now = new Date();
   return new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -54,6 +58,18 @@ export async function POST(request: Request) {
     },
     include: { patient: true, treatmentCategory: true, visitType: true, checkedByUser: true },
   });
+
+  // 카톡연결(채널 대화창 형성) 상태 리셋(task.md) — "신규 체크 등록"(이 POST 경로)에서만
+  // 발동. 초진/재초진이면 무조건 false로 리셋(연결 정보도 함께 지움), 재진이면 건드리지
+  // 않는다. PATCH /api/visits/[id](수정)에는 이 로직이 없다 — 진료구분을 사후 정정해도
+  // 리셋이 재발동되지 않도록 의도적으로 분리했다.
+  if (INITIAL_VISIT_TYPE_NAMES.includes(visit.visitType.name)) {
+    const resetPatient = await prisma.patient.update({
+      where: { id: visit.patientId },
+      data: { kakaoChannelConnected: false, kakaoChannelConnectedByStaffId: null, kakaoChannelConnectedAt: null },
+    });
+    visit.patient = resetPatient;
+  }
 
   return NextResponse.json(visit, { status: 201 });
 }

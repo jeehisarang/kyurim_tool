@@ -9,6 +9,7 @@ import {
   buildTaskRows,
   isRowResolved,
   splitByDateScope,
+  filterTasksByPatientQuery,
   SHARED_TASK_VALUE,
   type Patient,
   type StaffUser,
@@ -68,6 +69,8 @@ function TodoPageInner() {
   const [selectedDate, setSelectedDate] = useState(() => parseDateParam(searchParams.get("date")));
   const [staffUsers, setStaffUsers] = useState<StaffUser[]>([]);
   const [filterStaffId, setFilterStaffId] = useState<string>("");
+  // 이름/차트번호 검색(task.md 전체 목록 화면 공통 검색기능) — 담당자 필터와 함께 동작.
+  const [searchQuery, setSearchQuery] = useState("");
   const [tasks, setTasks] = useState<TodoTask[] | null>(null);
   const [weeklySummary, setWeeklySummary] = useState<WeeklySummary | null>(null);
   const [stampTaskId, setStampTaskId] = useState<number | null>(null);
@@ -200,8 +203,9 @@ function TodoPageInner() {
     }
   }
 
+  const searchedTasks = filterTasksByPatientQuery(tasks ?? [], searchQuery);
   const { overdueUnresolved: overdueTasks, dueOnDate: todayTasks } = splitByDateScope(
-    tasks ?? [],
+    searchedTasks,
     selectedDate,
   );
   const isToday = isSameDate(selectedDate, startOfDay(new Date()));
@@ -282,6 +286,17 @@ function TodoPageInner() {
           )}
         </div>
       )}
+
+      <div className={styles.section}>
+        <div className={styles.sectionTitle}>검색</div>
+        <input
+          type="text"
+          className={styles.select}
+          placeholder="차트번호 또는 이름"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+        />
+      </div>
 
       <div className={styles.section}>
         <div className={styles.sectionTitle}>담당자 필터</div>

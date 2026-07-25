@@ -12,6 +12,7 @@ import TodoTaskTable, {
   buildTaskRows,
   isRowResolved,
   splitByDateScope,
+  filterTasksByPatientQuery,
   type Patient,
   type TodoTask,
 } from "@/components/TodoTaskTable";
@@ -131,6 +132,8 @@ function HomePageInner() {
   const [retryKey, setRetryKey] = useState(0);
   const [staffUsers, setStaffUsers] = useState<StaffUser[]>([]);
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
+  // 이름/차트번호 검색(task.md 전체 목록 화면 공통 검색기능) — 오늘 할 일 섹션에 적용.
+  const [todoSearchQuery, setTodoSearchQuery] = useState("");
   // 환자별 진행중 치료처방 배지 표시용 — /prescriptions 목록과 동일한 데이터 재사용.
   const activePrescByPatientId = useActivePrescriptionsByPatient();
 
@@ -241,7 +244,7 @@ function HomePageInner() {
   // /api/todo-tasks 응답은 완료 여부와 무관하게 dueDate < 선택일 전부를 반환하므로,
   // 그대로 쓰면 과거에 이미 완료된 건까지 섞여 나온다(실사용 버그로 확인됨).
   const { overdueUnresolved, dueOnDate } = splitByDateScope(todoTasks ?? [], selectedDate);
-  const scopedTodoTasks = [...overdueUnresolved, ...dueOnDate];
+  const scopedTodoTasks = filterTasksByPatientQuery([...overdueUnresolved, ...dueOnDate], todoSearchQuery);
   const todoDoneCount = scopedTodoTasks.filter((t) => t.isDone).length;
   const todoTotalCount = scopedTodoTasks.length;
 
@@ -338,6 +341,16 @@ function HomePageInner() {
             <div className={styles.sectionTitle}>
               {todoSectionTitle} ({todoTotalCount}건)
             </div>
+
+            {todoTasks !== null && todoTasks.length > 0 && (
+              <input
+                type="text"
+                className={styles.todoSearchInput}
+                placeholder="차트번호 또는 이름으로 검색"
+                value={todoSearchQuery}
+                onChange={(e) => setTodoSearchQuery(e.target.value)}
+              />
+            )}
 
             {todoTasks !== null && todoRows.length === 0 && (
               <p className={styles.muted}>처리할 항목이 없습니다.</p>

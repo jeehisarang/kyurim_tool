@@ -288,6 +288,20 @@
   margin-bottom: 8px;
 }
 
+/* 오늘 할 일 검색(task.md 전체 목록 화면 공통 검색기능). */
+.todoSearchInput {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid rgba(110, 148, 140, 0.4);
+  border-radius: 4px;
+  background: var(--color-hanji-bg);
+  color: var(--color-ink);
+  padding: 8px 12px;
+  font-size: 14px;
+  font-family: var(--font-body);
+  margin-bottom: 10px;
+}
+
 .allDoneBanner {
   text-align: center;
   padding: 20px 12px;

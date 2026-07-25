@@ -226,6 +226,21 @@
   transition: background-color 0.15s ease;
 }
 
+/* 체크된 내원 목록 검색(task.md 전체 목록 화면 공통 검색기능) — 위 .row input과 동일 톤,
+   폭만 목록 섹션에 맞게 넓게. */
+.listSearchInput {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid rgba(110, 148, 140, 0.4);
+  border-radius: 4px;
+  background: var(--color-hanji-bg);
+  color: var(--color-ink);
+  padding: 8px 12px;
+  font-size: 14px;
+  font-family: var(--font-body);
+  margin-bottom: 10px;
+}
+
 .row button:hover {
   background: var(--color-celadon-dark);
 }

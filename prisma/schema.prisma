@@ -29,6 +29,17 @@ model Patient {
   height                      Float?
   // MALE | FEMALE — SMI 근감소증 판정(exam-thresholds.ts)에 필요. height와 동일한 고정값 패턴.
   gender                      String?
+  // 카톡연결(채널 대화창 형성) 상태 관리(task.md) — 내원체크 "신규 체크 등록"(POST
+  // /api/visits) 시점에만 진료구분이 초진/재초진이면 무조건 false로 리셋되고, 재진이면
+  // 그대로 유지된다. 기존 체크 건 "수정"(PATCH /api/visits/[id])에서는 절대 건드리지
+  // 않는다 — 리셋은 신규 Visit 생성 경로에서만 발동(task.md 리셋 로직 참고).
+  kakaoChannelConnected          Boolean   @default(false)
+  // "누가 언제 연결 처리했는지"(선택사항, task.md) — ActivityLog.checkedByStaffId/checkedAt과
+  // 동일한 모양. 리셋 시(위 로직) 둘 다 null로 함께 지운다 — 이전 연결 정보가 새 내원
+  // 건에는 더 이상 유효하지 않으므로.
+  kakaoChannelConnectedByStaffId Int?
+  kakaoChannelConnectedByStaff   StaffUser? @relation("KakaoChannelConnectedBy", fields: [kakaoChannelConnectedByStaffId], references: [id])
+  kakaoChannelConnectedAt        DateTime?
   createdAt                   DateTime                @default(now())
   updatedAt                   DateTime                @updatedAt
   visits                      Visit[]
@@ -126,6 +137,7 @@ model StaffUser {
   resolvedHrvImportPendings HrvImportPending[]
   tcmChecklistResponses     TcmChecklistResponse[]
   confirmedReferralCredits ReferralCreditEntry[]
+  kakaoChannelConnectedPatients Patient[] @relation("KakaoChannelConnectedBy")
 }
 
 model Program {

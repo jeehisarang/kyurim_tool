@@ -80,6 +80,9 @@ export default function PrescriptionListPage() {
   const [stats, setStats] = useState<PrescriptionStats | null>(null);
   const [filter, setFilter] = useState<Filter | null>(null);
   const [staffUsers, setStaffUsers] = useState<StaffUser[]>([]);
+  // 이름/차트번호 검색(task.md 전체 목록 화면 공통 검색기능) — 기존 카테고리/프로그램
+  // 필터와 함께 동작.
+  const [searchQuery, setSearchQuery] = useState("");
 
   const [editingPrescriptionId, setEditingPrescriptionId] = useState<number | null>(null);
   const [editStaffUserId, setEditStaffUserId] = useState("");
@@ -178,9 +181,16 @@ export default function PrescriptionListPage() {
 
   const filteredGroups = useMemo(() => {
     if (!groups) return [];
-    if (!filter) return groups;
-    return groups.filter((g) => g.prescriptions.some((row) => matchesFilter(row, filter)));
-  }, [groups, filter]);
+    let result = groups;
+    if (filter) {
+      result = result.filter((g) => g.prescriptions.some((row) => matchesFilter(row, filter)));
+    }
+    const q = searchQuery.trim();
+    if (q) {
+      result = result.filter((g) => g.patient.name.includes(q) || g.patient.chartNumber.includes(q));
+    }
+    return result;
+  }, [groups, filter, searchQuery]);
 
   function goToPrescriptionDetail(row: PrescriptionRow) {
     router.push(`/prescriptions/${row.prescriptionId}`);
@@ -250,6 +260,14 @@ export default function PrescriptionListPage() {
           ))}
         </div>
       )}
+
+      <input
+        type="text"
+        className={styles.searchInput}
+        placeholder="차트번호 또는 이름으로 검색"
+        value={searchQuery}
+        onChange={(e) => setSearchQuery(e.target.value)}
+      />
 
       <div className={styles.filterRow}>
         <button
