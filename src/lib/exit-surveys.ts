@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db";
 import { getTrialReferralStatus, type TrialReferralStatus } from "@/lib/referrals";
+import { getMainReferralAmounts } from "@/lib/trial-campaign";
 import { startOfDay, getSystemStaffUserId } from "@/lib/teaching-pages";
 import { createWorkTask } from "@/lib/work-tasks";
 import { WORK_TASK_TYPE } from "@/lib/task-types";
@@ -14,6 +15,10 @@ export type ExitSurveyPageData = {
   patientName: string;
   alreadySubmitted: boolean;
   referralStatus: TrialReferralStatus | null;
+  // 본프로그램 추천 적립금 차등화(task.md) — 마감설문 완료 화면에서 "친구를 소개하면
+  // 본프로그램 등록 시 이만큼 할인된다"는 안내에 쓴다. 어느 프로그램으로 등록할지 아직
+  // 모르는 시점이라 1개월/3개월 두 값 다 내려준다(설정 가능값, getMainReferralAmounts).
+  mainRefereeDiscounts: { oneMonth: number; threeMonth: number };
 };
 
 // 공개 마감설문 페이지(/refer/exit/[prescriptionId], task.md Phase 2-1) 조회 — 인증 없음,
@@ -26,12 +31,17 @@ export async function getExitSurveyPageData(prescriptionId: number): Promise<Exi
   });
   if (!prescription) return null;
 
-  const referralStatus = await getTrialReferralStatus(prescriptionId);
+  const [referralStatus, oneMonth, threeMonth] = await Promise.all([
+    getTrialReferralStatus(prescriptionId),
+    getMainReferralAmounts("ONE_MONTH"),
+    getMainReferralAmounts("THREE_MONTH"),
+  ]);
 
   return {
     patientName: prescription.patient.name,
     alreadySubmitted: Boolean(prescription.exitSurveyResponse),
     referralStatus,
+    mainRefereeDiscounts: { oneMonth: oneMonth.refereeAmount, threeMonth: threeMonth.refereeAmount },
   };
 }
 

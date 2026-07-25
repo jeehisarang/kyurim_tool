@@ -8,7 +8,22 @@ import QrCodeImage from "@/components/QrCodeImage";
 import { useCurrentUserContext } from "@/lib/CurrentUserContext";
 import { getShareBaseUrl } from "@/lib/share-base-url";
 
-type CampaignSettings = { heroImagePath: string | null; headline: string | null; description: string | null };
+type CampaignSettings = {
+  heroImagePath: string | null;
+  headline: string | null;
+  description: string | null;
+  mainReferrerAmount1mo: number | null;
+  mainRefereeAmount1mo: number | null;
+  mainReferrerAmount3mo: number | null;
+  mainRefereeAmount3mo: number | null;
+};
+
+const MAIN_REFERRAL_AMOUNT_DEFAULTS = {
+  mainReferrerAmount1mo: 35000,
+  mainRefereeAmount1mo: 15000,
+  mainReferrerAmount3mo: 70000,
+  mainRefereeAmount3mo: 30000,
+};
 
 /**
  * 킬팻캡슐 3일체험 추천 이벤트(task.md 1-5) 원장 전용 설정화면 — 공개 신청페이지
@@ -24,6 +39,12 @@ export default function TrialCampaignSettingsPage() {
   const [description, setDescription] = useState("");
   const [heroFile, setHeroFile] = useState<File | null>(null);
   const [heroPreview, setHeroPreview] = useState<string | null>(null);
+  // 본프로그램 추천 적립금(task.md 추천 이벤트 개선 1-2) — 비워두면(빈 문자열) 기본값을
+  // 그대로 쓴다는 뜻이라 숫자 0과 구분해서 문자열로 들고 있는다.
+  const [mainReferrerAmount1mo, setMainReferrerAmount1mo] = useState("");
+  const [mainRefereeAmount1mo, setMainRefereeAmount1mo] = useState("");
+  const [mainReferrerAmount3mo, setMainReferrerAmount3mo] = useState("");
+  const [mainRefereeAmount3mo, setMainRefereeAmount3mo] = useState("");
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
@@ -35,6 +56,10 @@ export default function TrialCampaignSettingsPage() {
         setSettings(data);
         setHeadline(data.headline ?? "");
         setDescription(data.description ?? "");
+        setMainReferrerAmount1mo(data.mainReferrerAmount1mo != null ? String(data.mainReferrerAmount1mo) : "");
+        setMainRefereeAmount1mo(data.mainRefereeAmount1mo != null ? String(data.mainRefereeAmount1mo) : "");
+        setMainReferrerAmount3mo(data.mainReferrerAmount3mo != null ? String(data.mainReferrerAmount3mo) : "");
+        setMainRefereeAmount3mo(data.mainRefereeAmount3mo != null ? String(data.mainRefereeAmount3mo) : "");
       });
   }, []);
 
@@ -55,6 +80,10 @@ export default function TrialCampaignSettingsPage() {
       formData.set("staffUserId", String(currentUser.id));
       formData.set("headline", headline);
       formData.set("description", description);
+      formData.set("mainReferrerAmount1mo", mainReferrerAmount1mo);
+      formData.set("mainRefereeAmount1mo", mainRefereeAmount1mo);
+      formData.set("mainReferrerAmount3mo", mainReferrerAmount3mo);
+      formData.set("mainRefereeAmount3mo", mainRefereeAmount3mo);
       if (heroFile) formData.set("heroImage", heroFile);
 
       const res = await fetch("/api/trial-campaign", { method: "POST", body: formData });
@@ -117,6 +146,68 @@ export default function TrialCampaignSettingsPage() {
                 placeholder="예: 간단한 정보만 남겨주시면 확인 후 직접 연락드릴게요!"
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
+                disabled={!isDirector}
+              />
+            </label>
+            <button type="submit" disabled={!isDirector || saving}>
+              {saving ? "저장 중..." : saved ? "저장됨" : "저장"}
+            </button>
+            {saveError && <p className={styles.errorText}>{saveError}</p>}
+          </form>
+        )}
+      </div>
+
+      <div className={styles.section}>
+        <div className={styles.sectionTitle}>본프로그램 추천 적립금</div>
+        <p className={styles.muted}>
+          비워두면 기본값(1개월: 소개자 35,000원 / 피소개자 15,000원, 3개월: 소개자 70,000원 /
+          피소개자 30,000원)이 적용됩니다.
+        </p>
+        {settings === null ? (
+          <p className={styles.muted}>불러오는 중...</p>
+        ) : (
+          <form className={styles.formGrid} onSubmit={handleSave}>
+            <label className={styles.fieldLabel}>
+              1개월 · 소개자 적립금(원)
+              <input
+                type="number"
+                min={0}
+                placeholder={String(MAIN_REFERRAL_AMOUNT_DEFAULTS.mainReferrerAmount1mo)}
+                value={mainReferrerAmount1mo}
+                onChange={(e) => setMainReferrerAmount1mo(e.target.value)}
+                disabled={!isDirector}
+              />
+            </label>
+            <label className={styles.fieldLabel}>
+              1개월 · 피소개자 할인(원)
+              <input
+                type="number"
+                min={0}
+                placeholder={String(MAIN_REFERRAL_AMOUNT_DEFAULTS.mainRefereeAmount1mo)}
+                value={mainRefereeAmount1mo}
+                onChange={(e) => setMainRefereeAmount1mo(e.target.value)}
+                disabled={!isDirector}
+              />
+            </label>
+            <label className={styles.fieldLabel}>
+              3개월 · 소개자 적립금(원)
+              <input
+                type="number"
+                min={0}
+                placeholder={String(MAIN_REFERRAL_AMOUNT_DEFAULTS.mainReferrerAmount3mo)}
+                value={mainReferrerAmount3mo}
+                onChange={(e) => setMainReferrerAmount3mo(e.target.value)}
+                disabled={!isDirector}
+              />
+            </label>
+            <label className={styles.fieldLabel}>
+              3개월 · 피소개자 할인(원)
+              <input
+                type="number"
+                min={0}
+                placeholder={String(MAIN_REFERRAL_AMOUNT_DEFAULTS.mainRefereeAmount3mo)}
+                value={mainRefereeAmount3mo}
+                onChange={(e) => setMainRefereeAmount3mo(e.target.value)}
                 disabled={!isDirector}
               />
             </label>

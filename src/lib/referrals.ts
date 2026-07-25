@@ -2,10 +2,12 @@ import { prisma } from "@/lib/db";
 import { createWithShortToken } from "@/lib/short-token";
 import {
   TRIAL_REFERRAL_BONUS_AMOUNT,
-  MAIN_REFERRAL_BONUS_AMOUNT,
   computeTrialReferralExpiry,
-  computeMainReferralExpiry,
+  computePromotedLinkExpiry,
+  getMainProgramDurationTier,
+  type MainProgramDurationTier,
 } from "@/lib/referral-config";
+import { getMainReferralAmounts } from "@/lib/trial-campaign";
 import { logActivity } from "@/lib/activity-log";
 import { createWorkTask } from "@/lib/work-tasks";
 import { startOfDay, getSystemStaffUserId } from "@/lib/teaching-pages";
@@ -51,16 +53,35 @@ export async function issueTrialReferralLink(prescription: {
 }
 
 /**
- * 킬팻캡슐 본프로그램(1개월/3개월, SPLIT) Prescription 등록 시 자동 발급되는 추천링크
- * (task.md Phase 3-1) — issueTrialReferralLink와 동일한 후킹 패턴. 만료일은 이 처방의
- * 종료예정일(startDate+totalDurationDays)로, TRIAL의 고정 7일과 다르다.
+ * 링크 승격(TRIAL→MAIN, task.md 추천 이벤트 개선 2) — 본프로그램(1개월/3개월) Prescription
+ * 등록 완료 시 호출한다. "환자당 링크는 항상 1개만 존재" 원칙(task.md)에 따라, 이 환자의
+ * 기존 ReferralLink(TRIAL이든 이미 MAIN이든)가 있으면 kind/expiresAt만 갱신하고 토큰·
+ * sourcePrescriptionId는 그대로 둔다(이미 공유된 URL을 무효화하지 않기 위함). 기존 링크가
+ * 전혀 없는 환자(체험 없이 바로 본프로그램 등록)만 새로 발급한다 — 이때만
+ * sourcePrescriptionId가 이번 본프로그램 처방을 가리킨다. 만료일은 처방 종료예정일이 아니라
+ * 승격 시점 기준 +3개월(1개월 프로그램)/+6개월(3개월 프로그램).
  */
-export async function issueMainReferralLink(prescription: {
+export async function promoteOrIssueMainReferralLink(prescription: {
   id: number;
   patientId: number;
-  startDate: Date;
   totalDurationDays: number;
 }): Promise<void> {
+  const tier = getMainProgramDurationTier(prescription.totalDurationDays);
+  const expiresAt = computePromotedLinkExpiry(new Date(), tier);
+
+  const existing = await prisma.referralLink.findFirst({
+    where: { patientId: prescription.patientId },
+    orderBy: { issuedAt: "desc" },
+  });
+
+  if (existing) {
+    await prisma.referralLink.update({
+      where: { id: existing.id },
+      data: { kind: REFERRAL_KIND_MAIN, expiresAt, isActive: true },
+    });
+    return;
+  }
+
   await createWithShortToken((token) =>
     prisma.referralLink.create({
       data: {
@@ -68,33 +89,54 @@ export async function issueMainReferralLink(prescription: {
         patientId: prescription.patientId,
         kind: REFERRAL_KIND_MAIN,
         sourcePrescriptionId: prescription.id,
-        expiresAt: computeMainReferralExpiry(prescription.startDate, prescription.totalDurationDays),
+        expiresAt,
       },
     }),
   );
 }
 
 /**
- * 처방등록 화면 "소개 확인" 섹션(task.md Phase 3-2) 확정 처리 — 추천인에게 70,000원
- * MAIN_SIGNUP 적립을 생성한다. 확정은 직원이 검색으로 추천인을 직접 지목하는 수동 절차라
+ * 처방등록 화면 "소개 확인" 섹션(task.md Phase 3-2, 추천 이벤트 개선 4-2로 재구성) 확정
+ * 처리 — 추천인에게 프로그램 기간별 적립금(1개월 35,000원/3개월 70,000원, 설정 가능)을
+ * PENDING 상태로 생성한다. 확정은 직원이 검색으로 추천인을 직접 지목하는 수동 절차라
  * TRIAL_SIGNUP과 달리 실제 소비된 링크 토큰이 없어 MANUAL_MAIN_REFERRAL_TOKEN을 쓴다.
+ * status는 여기서 CONFIRMED로 바로 세팅하지 않는다 — "결제 완료 확인"(confirmReferralCreditEntry)
+ * 이 별도 액션으로 처리한다(task.md 4-2, 등록≠결제확정).
  */
 export async function confirmMainReferral(input: {
   referrerPatientId: number;
   referredPatientName: string;
   referredPrescriptionId: number;
-  confirmedByStaffId: number;
+  tier: MainProgramDurationTier;
 }) {
+  const { referrerAmount } = await getMainReferralAmounts(input.tier);
   return prisma.referralCreditEntry.create({
     data: {
       patientId: input.referrerPatientId,
       linkToken: MANUAL_MAIN_REFERRAL_TOKEN,
       kind: CREDIT_KIND_MAIN_SIGNUP,
-      amount: MAIN_REFERRAL_BONUS_AMOUNT,
+      amount: referrerAmount,
       referredName: input.referredPatientName,
       referredPrescriptionId: input.referredPrescriptionId,
-      confirmedByStaffId: input.confirmedByStaffId,
+      status: CREDIT_STATUS_PENDING,
     },
+  });
+}
+
+/**
+ * "결제 완료 확인"(task.md 추천 이벤트 개선 4-2) — MAIN_SIGNUP 적립을 PENDING에서
+ * CONFIRMED로 전환한다. TRIAL_SIGNUP의 linkTrialApplicationToPrescription(등록 시점 자동
+ * 전환)과 달리, MAIN_SIGNUP은 "본프로그램 등록"과 "결제 완료"가 분리된 이벤트라 직원이
+ * /settings/referral-credits에서 수동으로 확정한다. 이미 CONFIRMED거나 존재하지 않으면
+ * 조용히 null 반환(중복 클릭 방지 — 별도 에러로 취급하지 않음).
+ */
+export async function confirmReferralCreditEntry(entryId: number, staffId: number) {
+  const entry = await prisma.referralCreditEntry.findUnique({ where: { id: entryId } });
+  if (!entry || entry.status === CREDIT_STATUS_CONFIRMED) return null;
+
+  return prisma.referralCreditEntry.update({
+    where: { id: entryId },
+    data: { status: CREDIT_STATUS_CONFIRMED, confirmedByStaffId: staffId },
   });
 }
 
@@ -436,6 +478,54 @@ export async function getReferralLinkStatusByToken(token: string): Promise<Refer
     confirmedCount: confirmed.length,
     confirmedAmount: confirmed.reduce((sum, c) => sum + c.amount, 0),
   };
+}
+
+// 랜딩페이지 분기(task.md 추천 이벤트 개선 3) 전용 — /refer/trial/[token] 진입 시 이
+// 토큰의 tier(=kind)만 가볍게 조회한다. 없는 토큰(예: 원내 QR로 들어온 /refer/trial 자체는
+// 애초에 이 함수를 호출하지 않음)은 null.
+export async function getReferralLinkTierByToken(token: string): Promise<"TRIAL" | "MAIN" | null> {
+  const link = await prisma.referralLink.findUnique({ where: { token }, select: { kind: true } });
+  return (link?.kind as "TRIAL" | "MAIN" | undefined) ?? null;
+}
+
+/**
+ * MAIN 등급 랜딩페이지 "바로 등록하고 할인받기"(task.md 추천 이벤트 개선 3, 4-2) — 아직
+ * Patient가 아닌 익명 방문자의 상담 신청. requestTrialApplicationCallback과 동일하게
+ * 전화번호로 당일 중복방지한다. 업무 제목에 추천인 이름을 포함시켜 직원이 실제 등록
+ * 처리 시(/prescriptions/new "소개 확인") 누구를 검색해서 연결해야 하는지 바로 알 수
+ * 있게 한다 — 이 신청 자체가 자동으로 Prescription이나 추천인을 연결하지는 않는다(그
+ * 연결은 여전히 직원이 소개확인 UI에서 수동으로 확정, confirmMainReferral).
+ */
+export async function requestMainDirectRegistrationCallback(input: {
+  name: string;
+  phone: string;
+  referrerToken: string;
+}): Promise<{ referrerPatientName: string } | null> {
+  const link = await prisma.referralLink.findUnique({
+    where: { token: input.referrerToken },
+    include: { patient: true },
+  });
+  if (!link) return null;
+
+  const existingOpen = await prisma.todoTask.findFirst({
+    where: {
+      taskType: WORK_TASK_TYPE,
+      isDone: false,
+      createdAt: { gte: startOfDay(new Date()) },
+      workTask: { title: { contains: input.phone } },
+    },
+  });
+  if (!existingOpen) {
+    const systemStaffId = await getSystemStaffUserId();
+    await createWorkTask({
+      title: `${input.name}님 본프로그램 바로등록 문의 — ${link.patient.name}님 추천 (${input.phone})`,
+      creatorId: systemStaffId,
+      isSharedTask: true,
+      dueDate: null,
+    });
+  }
+
+  return { referrerPatientName: link.patient.name };
 }
 
 export function listUnconvertedTrialApplications() {

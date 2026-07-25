@@ -42,13 +42,43 @@ export default function ReferralCreditsSettingsPage() {
 
   const [summary, setSummary] = useState<PatientSummary[] | null>(null);
   const [expandedPatientId, setExpandedPatientId] = useState<number | null>(null);
+  const [confirmingId, setConfirmingId] = useState<number | null>(null);
 
-  useEffect(() => {
-    if (!isDirector) return;
+  function loadSummary() {
     fetch("/api/referral-credits")
       .then((res) => res.json())
       .then(setSummary);
+  }
+
+  useEffect(() => {
+    if (!isDirector) return;
+    loadSummary();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isDirector]);
+
+  // "결제 완료 확인"(task.md 추천 이벤트 개선 4-2) — MAIN_SIGNUP PENDING 적립을 CONFIRMED로
+  // 전환. TRIAL_SIGNUP은 등록 시점에 자동 전환되므로 여기서 다루지 않는다.
+  async function handleConfirm(entryId: number) {
+    if (!currentUser) return;
+    setConfirmingId(entryId);
+    try {
+      const res = await fetch(`/api/referral-credits/${entryId}/confirm`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ staffUserId: currentUser.id }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        alert(data.error ?? "확정 처리에 실패했습니다.");
+        return;
+      }
+      loadSummary();
+    } catch {
+      alert("서버에 연결하지 못했습니다. 다시 시도해주세요.");
+    } finally {
+      setConfirmingId(null);
+    }
+  }
 
   const grandMaxTotal = summary?.reduce((sum, p) => sum + p.maxTotal, 0) ?? 0;
   const grandConfirmedTotal = summary?.reduce((sum, p) => sum + p.confirmedTotal, 0) ?? 0;
@@ -120,6 +150,7 @@ export default function ReferralCreditsSettingsPage() {
                                 <th>금액</th>
                                 <th>확정 직원</th>
                                 <th>일시</th>
+                                <th />
                               </tr>
                             </thead>
                             <tbody>
@@ -131,6 +162,18 @@ export default function ReferralCreditsSettingsPage() {
                                   <td className={styles.mono}>{entry.amount.toLocaleString()}원</td>
                                   <td>{entry.confirmedByStaffName ?? "-"}</td>
                                   <td className={styles.mono}>{formatDate(entry.createdAt)}</td>
+                                  <td>
+                                    {entry.kind === "MAIN_SIGNUP" && entry.status === "PENDING" && (
+                                      <button
+                                        type="button"
+                                        className={styles.expandButton}
+                                        disabled={confirmingId === entry.id}
+                                        onClick={() => handleConfirm(entry.id)}
+                                      >
+                                        {confirmingId === entry.id ? "처리 중..." : "결제 완료 확인"}
+                                      </button>
+                                    )}
+                                  </td>
                                 </tr>
                               ))}
                             </tbody>

@@ -887,8 +887,11 @@ model TcmCategoryScore {
 
 // 킬팻캡슐 3일체험 추천 이벤트(task.md) — 체험 참가자가 발급받는 개인 추천링크.
 // 3일체험(FIXED_SEQUENCE) 처방 등록 시 자동 발급된다(prescriptions.ts createPrescription).
-// kind는 이번 Phase에서는 TRIAL만 발급하고, MAIN(본프로그램 전환 후 발급)은 스키마만
-// 준비해두고 발급 로직은 이후 단계에서 추가한다.
+// kind는 "이 링크가 현재 어느 등급인지"를 나타내는 승격형 필드다(task.md 추천 이벤트
+// 개선 1-1·2, referrals.ts promoteOrIssueMainReferralLink 참고) — 환자당 링크는 항상
+// 1개만 존재하고, 본프로그램(1개월/3개월) 등록 시 기존 TRIAL 링크의 이 필드가 그대로
+// MAIN으로 바뀐다(토큰/sourcePrescriptionId는 유지). 체험 없이 바로 본프로그램에 등록한
+// 환자만 kind=MAIN으로 신규 발급된다.
 model ReferralLink {
   id                   Int          @id @default(autoincrement())
   token                String       @unique
@@ -971,15 +974,19 @@ model ReferralCreditEntry {
   referredPrescriptionId      Int?
   referredPrescription        Prescription?     @relation(fields: [referredPrescriptionId], references: [id])
   createdAt                   DateTime          @default(now())
-  // MAIN_SIGNUP은 직원이 확정한 사람을 기록, TRIAL_SIGNUP은 자동 생성이라 항상 null.
+  // "결제 완료 확인"(task.md 추천 이벤트 개선 4-2) 처리한 직원 — 생성 시점(PENDING)엔
+  // 항상 null이고, confirmReferralCreditEntry가 CONFIRMED로 전환할 때만 채워진다.
+  // TRIAL_SIGNUP은 linkTrialApplicationToPrescription이 시스템 자동으로 전환하므로 항상 null.
   confirmedByStaffId           Int?
   confirmedByStaff             StaffUser?        @relation(fields: [confirmedByStaffId], references: [id])
-  // 체험 추천 적립금 "최대/확정" 이원화(task.md) — PENDING | CONFIRMED. MAIN_SIGNUP은
-  // confirmMainReferral이 이미 확정된 순간에만 엔트리를 만드는 방식이라 기본값 CONFIRMED가
-  // 곧 정답이고 이번 변경과 무관하다(referrals.ts 참고). TRIAL_SIGNUP만 신청 즉시 PENDING으로
-  // 생성됐다가, 해당 신청이 실제 Prescription으로 전환되는 시점(linkTrialApplicationToPrescription)에
-  // CONFIRMED로 바뀐다 — "최대 적립금"은 kind/status 무관 전체 합, "확정 적립금"은
-  // status=CONFIRMED만의 합으로 두 화면 모두 동일한 필드 하나로 계산한다.
+  // 체험/본프로그램 추천 적립금 "최대/확정" 이원화(task.md, 추천 이벤트 개선 4-2로 MAIN까지
+  // 확장) — PENDING | CONFIRMED. 기본값 CONFIRMED는 이 필드 도입 이전 레거시 데이터(항상
+  // 즉시확정)와의 하위호환용일 뿐, 신규 엔트리는 TRIAL_SIGNUP/MAIN_SIGNUP 둘 다 생성 시점에
+  // 명시적으로 PENDING을 넣는다. TRIAL_SIGNUP은 신청이 실제 Prescription으로 전환되는
+  // 시점(linkTrialApplicationToPrescription)에, MAIN_SIGNUP은 직원이 결제 완료를 확인하는
+  // 시점(confirmReferralCreditEntry)에 CONFIRMED로 바뀐다 — "최대 적립금"은 kind/status
+  // 무관 전체 합, "확정 적립금"은 status=CONFIRMED만의 합으로 두 화면 모두 동일한 필드
+  // 하나로 계산한다.
   status                       String            @default("CONFIRMED")
 }
 
@@ -991,5 +998,13 @@ model TrialCampaignSettings {
   heroImagePath String?
   headline      String?
   description   String?
+  // 본프로그램 추천 적립금 차등화(task.md 추천 이벤트 개선 1-2) — 1개월/3개월 프로그램별
+  // 소개자/피소개자 금액을 원장이 조정할 수 있게 한다. 전부 nullable — 저장 전(기존 row
+  // 그대로)이거나 일부만 채운 경우 referral-config.ts의 기본값(35000/15000/70000/30000)으로
+  // 폴백한다(heroImagePath 등 기존 필드와 동일한 "row 없으면 기본값" 원칙).
+  mainReferrerAmount1mo Int?
+  mainRefereeAmount1mo  Int?
+  mainReferrerAmount3mo Int?
+  mainRefereeAmount3mo  Int?
   updatedAt     DateTime @updatedAt
 }

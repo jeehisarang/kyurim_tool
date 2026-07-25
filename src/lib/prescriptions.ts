@@ -3,11 +3,13 @@ import { isMessageTaskType } from "@/lib/task-types";
 import {
   issueTrialReferralLink,
   linkTrialApplicationToPrescription,
-  issueMainReferralLink,
+  promoteOrIssueMainReferralLink,
   confirmMainReferral,
   isDiscountEligiblePrescription,
 } from "@/lib/referrals";
 import { isMainProgram } from "@/lib/program-categories";
+import { getMainProgramDurationTier } from "@/lib/referral-config";
+import { getMainReferralAmounts } from "@/lib/trial-campaign";
 
 const PROGRAM_TYPE_FIXED_SEQUENCE_ROW = "FIXED_SEQUENCE";
 
@@ -228,14 +230,16 @@ export async function createPrescription(input: {
     },
   });
 
-  // 킬팻캡슐 본프로그램(1개월/3개월) 추천 이벤트(task.md Phase 3) — TRIAL과 동일하게 등록
-  // 시점에 항상 개인 추천링크를 자동 발급하고, "소개 확인" 섹션에서 추천인이 확정됐으면
-  // 그 추천인에게 즉시 70,000원 적립을 생성한다.
+  // 킬팻캡슐 본프로그램(1개월/3개월) 추천 이벤트(task.md Phase 3, 추천 이벤트 개선 2·4-2로
+  // 재구성) — 이 환자의 기존 추천링크를 MAIN 등급으로 승격(없으면 신규 발급)하고, "소개 확인"
+  // 섹션에서 추천인이 확정됐으면 프로그램 기간별 금액으로 PENDING 적립을 생성한다(결제 완료
+  // 확인은 별도 액션).
   if (isMainProgram(program)) {
-    await issueMainReferralLink({
+    const tier = getMainProgramDurationTier(totalDurationDays);
+
+    await promoteOrIssueMainReferralLink({
       id: prescription.id,
       patientId: input.patientId,
-      startDate: input.startDate,
       totalDurationDays,
     });
 
@@ -245,7 +249,7 @@ export async function createPrescription(input: {
         referrerPatientId: input.referrerPatientId,
         referredPatientName: patient.name,
         referredPrescriptionId: prescription.id,
-        confirmedByStaffId: input.staffUserId,
+        tier,
       });
     }
   }
@@ -424,11 +428,12 @@ export type PrescriptionDetail = {
   singleFollowUp: PrescriptionRoundEntry | null;
   events: PrescriptionEventEntry[] | null;
   taskHistory: PrescriptionTaskHistoryEntry[];
-  // 추천 이벤트(task.md) — FIXED_SEQUENCE 처방은 TRIAL(issueTrialReferralLink), 킬팻캡슐
-  // 본프로그램(SPLIT) 처방은 MAIN(issueMainReferralLink) 링크가 각각 존재한다. max/confirmed는
-  // 이 링크의 kind에 맞는 ReferralCreditEntry(TRIAL_SIGNUP|MAIN_SIGNUP) 집계(task.md 보완
-  // 5항 — Phase 3 전체화면 이전 임시 표시, Phase 3-1에서 MAIN까지 확장, "최대/확정" 이원화로
-  // 재확장).
+  // 추천 이벤트(task.md) — FIXED_SEQUENCE 처방은 issueTrialReferralLink로 TRIAL 링크를
+  // 발급하고, 킬팻캡슐 본프로그램(SPLIT) 처방은 promoteOrIssueMainReferralLink가 이 환자의
+  // 기존 링크를 MAIN으로 승격(없으면 신규 발급)한다(추천 이벤트 개선 2 — "환자당 링크 1개"
+  // 원칙). max/confirmed는 이 링크의 kind에 맞는 ReferralCreditEntry(TRIAL_SIGNUP|
+  // MAIN_SIGNUP) 집계(task.md 보완 5항 — Phase 3 전체화면 이전 임시 표시, Phase 3-1에서
+  // MAIN까지 확장, "최대/확정" 이원화로 재확장).
   referralLink:
     | {
         token: string;
@@ -441,9 +446,10 @@ export type PrescriptionDetail = {
         confirmedAmount: number;
       }
     | null;
-  // "소개받음 - 3만원 할인 대상" 표시(task.md Phase 3-2) — 이 처방이 MAIN_SIGNUP 적립의
-  // referredPrescriptionId로 걸려있으면 true.
-  introducedDiscountEligible: boolean;
+  // "소개받음 - N원 할인 대상" 표시(task.md Phase 3-2, 추천 이벤트 개선으로 금액 차등화) —
+  // 이 처방이 MAIN_SIGNUP 적립의 referredPrescriptionId로 걸려있으면 프로그램 기간에 맞는
+  // 할인액(15,000/30,000), 아니면 null.
+  introducedDiscountAmount: number | null;
 };
 
 // SPLIT 타입 회차 리스트 재구성. 1차는 등록일 당일 처방을 이미 받은 것으로 간주해
@@ -591,7 +597,13 @@ export async function getPrescriptionDetail(prescriptionId: number): Promise<Pre
     }
   }
 
+  // "소개받음 - N원 할인 대상" 배지(task.md Phase 3-2, 추천 이벤트 개선으로 금액 차등화) —
+  // 이 처방 자체의 프로그램 기간(1개월/3개월)에 맞는 피소개자 할인액을 매번 계산한다(별도
+  // 저장 없음, 기존 "저장 안 하고 그때그때 계산" 원칙 그대로 — referrals.ts 참고).
   const introducedDiscountEligible = await isDiscountEligiblePrescription(prescriptionId);
+  const introducedDiscountAmount = introducedDiscountEligible
+    ? (await getMainReferralAmounts(getMainProgramDurationTier(program.totalDurationDays ?? 90))).refereeAmount
+    : null;
 
   if (program.type === PROGRAM_TYPE_SPLIT && prescription.totalRounds != null && prescription.currentRound != null) {
     const overrideRows = await prisma.prescriptionRoundOverride.findMany({ where: { prescriptionId } });
@@ -652,7 +664,7 @@ export async function getPrescriptionDetail(prescriptionId: number): Promise<Pre
     events,
     taskHistory,
     referralLink,
-    introducedDiscountEligible,
+    introducedDiscountAmount,
   };
 }
 

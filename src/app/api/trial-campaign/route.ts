@@ -33,6 +33,23 @@ export async function POST(request: Request) {
     }
   }
 
-  const settings = await upsertTrialCampaignSettings({ headline, description, heroImagePath });
+  // 본프로그램 추천 적립금 설정(task.md 1-2) — 비워두면 null로 저장(기본값 폴백,
+  // getMainReferralAmounts 참고). 하드코딩 금지 요구사항의 저장 지점.
+  function parseAmountField(key: string): number | null {
+    const raw = String(formData.get(key) ?? "").trim();
+    if (!raw) return null;
+    const parsed = Number(raw);
+    return Number.isFinite(parsed) && parsed >= 0 ? Math.round(parsed) : null;
+  }
+
+  const settings = await upsertTrialCampaignSettings({
+    headline,
+    description,
+    heroImagePath,
+    mainReferrerAmount1mo: parseAmountField("mainReferrerAmount1mo"),
+    mainRefereeAmount1mo: parseAmountField("mainRefereeAmount1mo"),
+    mainReferrerAmount3mo: parseAmountField("mainReferrerAmount3mo"),
+    mainRefereeAmount3mo: parseAmountField("mainRefereeAmount3mo"),
+  });
   return NextResponse.json(settings);
 }

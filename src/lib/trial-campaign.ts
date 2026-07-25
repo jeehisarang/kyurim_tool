@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db";
+import { MAIN_REFERRAL_DEFAULTS, type MainProgramDurationTier } from "@/lib/referral-config";
 
 const SETTINGS_ID = 1;
 
@@ -6,6 +7,10 @@ export type TrialCampaignSettingsView = {
   heroImagePath: string | null;
   headline: string | null;
   description: string | null;
+  mainReferrerAmount1mo: number | null;
+  mainRefereeAmount1mo: number | null;
+  mainReferrerAmount3mo: number | null;
+  mainRefereeAmount3mo: number | null;
 };
 
 /**
@@ -19,6 +24,10 @@ export async function getTrialCampaignSettings(): Promise<TrialCampaignSettingsV
     heroImagePath: row?.heroImagePath ?? null,
     headline: row?.headline ?? null,
     description: row?.description ?? null,
+    mainReferrerAmount1mo: row?.mainReferrerAmount1mo ?? null,
+    mainRefereeAmount1mo: row?.mainRefereeAmount1mo ?? null,
+    mainReferrerAmount3mo: row?.mainReferrerAmount3mo ?? null,
+    mainRefereeAmount3mo: row?.mainRefereeAmount3mo ?? null,
   };
 }
 
@@ -26,20 +35,63 @@ export async function upsertTrialCampaignSettings(input: {
   heroImagePath?: string;
   headline: string;
   description: string;
+  mainReferrerAmount1mo?: number | null;
+  mainRefereeAmount1mo?: number | null;
+  mainReferrerAmount3mo?: number | null;
+  mainRefereeAmount3mo?: number | null;
 }): Promise<TrialCampaignSettingsView> {
+  const amountFields = {
+    mainReferrerAmount1mo: input.mainReferrerAmount1mo ?? null,
+    mainRefereeAmount1mo: input.mainRefereeAmount1mo ?? null,
+    mainReferrerAmount3mo: input.mainReferrerAmount3mo ?? null,
+    mainRefereeAmount3mo: input.mainRefereeAmount3mo ?? null,
+  };
   const row = await prisma.trialCampaignSettings.upsert({
     where: { id: SETTINGS_ID },
     update: {
       headline: input.headline,
       description: input.description,
       ...(input.heroImagePath ? { heroImagePath: input.heroImagePath } : {}),
+      ...amountFields,
     },
     create: {
       id: SETTINGS_ID,
       headline: input.headline,
       description: input.description,
       heroImagePath: input.heroImagePath ?? null,
+      ...amountFields,
     },
   });
-  return { heroImagePath: row.heroImagePath, headline: row.headline, description: row.description };
+  return {
+    heroImagePath: row.heroImagePath,
+    headline: row.headline,
+    description: row.description,
+    mainReferrerAmount1mo: row.mainReferrerAmount1mo,
+    mainRefereeAmount1mo: row.mainRefereeAmount1mo,
+    mainReferrerAmount3mo: row.mainReferrerAmount3mo,
+    mainRefereeAmount3mo: row.mainRefereeAmount3mo,
+  };
+}
+
+export type MainReferralAmounts = { referrerAmount: number; refereeAmount: number };
+
+/**
+ * 본프로그램 추천 적립금 설정값 조회(task.md 1-2) — TrialCampaignSettings에 원장이 설정한
+ * 값이 있으면 그걸, 없으면(row 자체가 없거나 해당 필드만 비어있으면) referral-config.ts의
+ * 기본값으로 폴백한다. 하드코딩 금지 요구사항의 실제 적용 지점 — confirmMainReferral(적립
+ * 생성)과 랜딩페이지 할인 문구 양쪽이 이 함수 하나를 공유해서 항상 같은 값을 본다.
+ */
+export async function getMainReferralAmounts(tier: MainProgramDurationTier): Promise<MainReferralAmounts> {
+  const settings = await getTrialCampaignSettings();
+  const defaults = MAIN_REFERRAL_DEFAULTS[tier];
+  if (tier === "ONE_MONTH") {
+    return {
+      referrerAmount: settings.mainReferrerAmount1mo ?? defaults.referrerAmount,
+      refereeAmount: settings.mainRefereeAmount1mo ?? defaults.refereeAmount,
+    };
+  }
+  return {
+    referrerAmount: settings.mainReferrerAmount3mo ?? defaults.referrerAmount,
+    refereeAmount: settings.mainRefereeAmount3mo ?? defaults.refereeAmount,
+  };
 }

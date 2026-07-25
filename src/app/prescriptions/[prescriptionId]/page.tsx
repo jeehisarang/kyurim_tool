@@ -72,8 +72,9 @@ type PrescriptionDetail = {
         confirmedAmount: number;
       }
     | null;
-  // "소개받음 - 3만원 할인 대상"(task.md Phase 3-2).
-  introducedDiscountEligible: boolean;
+  // "소개받음 - N원 할인 대상"(task.md Phase 3-2, 추천 이벤트 개선으로 금액 차등화) —
+  // 대상이 아니면 null, 대상이면 이 처방 기간에 맞는 할인액.
+  introducedDiscountAmount: number | null;
 };
 
 type StaffUser = { id: number; name: string; role: string };
@@ -125,10 +126,12 @@ export default function PrescriptionDetailPage() {
   const [referralLinkCopied, setReferralLinkCopied] = useState(false);
   const [myReferralLinkCopied, setMyReferralLinkCopied] = useState(false);
 
-  // TRIAL(체험)/MAIN(본프로그램, task.md Phase 3-1)에 따라 경로가 다르다 — 신청폼 직링크
-  // (보조용, task.md). 직원이 특정 지인에게 신청서만 바로 보내고 싶을 때 쓴다.
-  function referralPath(kind: string, token: string): string {
-    return kind === "MAIN" ? `/refer/main/${token}` : `/refer/trial/${token}`;
+  // 신청폼 직링크(보조용, task.md) — 직원이 특정 지인에게 신청서만 바로 보내고 싶을 때
+  // 쓴다. TRIAL/MAIN 모두 동일 경로(/refer/trial/[token])를 쓴다 — MAIN 등급 링크는 그
+  // 페이지가 tier를 조회해서 "체험 vs 바로등록" 분기 화면을 대신 보여준다(추천 이벤트
+  // 개선 3, 링크 승격으로 kind가 그대로 tier 역할을 하므로 별도 /refer/main 경로가 없다).
+  function referralPath(token: string): string {
+    return `/refer/trial/${token}`;
   }
 
   // "내 현황 페이지" 링크(task.md) — TRIAL/MAIN 공용, 환자에게 안내할 때 기본/강조로 쓰는 링크.
@@ -136,8 +139,8 @@ export default function PrescriptionDetailPage() {
     return `/refer/my/${token}`;
   }
 
-  async function handleCopyReferralLink(kind: string, token: string) {
-    const url = `${getShareBaseUrl()}${referralPath(kind, token)}`;
+  async function handleCopyReferralLink(token: string) {
+    const url = `${getShareBaseUrl()}${referralPath(token)}`;
     const success = await copyToClipboard(url);
     if (!success) {
       alert("복사에 실패했습니다. 링크를 직접 선택해서 복사해주세요.");
@@ -514,9 +517,9 @@ export default function PrescriptionDetailPage() {
           <div className={styles.sectionTitle}>
             추천링크 {data.referralLink.kind === "MAIN" ? "(본프로그램)" : "(체험)"}
           </div>
-          {data.introducedDiscountEligible && (
+          {data.introducedDiscountAmount != null && (
             <p className={styles.infoRow}>
-              <strong>소개받음 - 3만원 할인 대상</strong>
+              <strong>소개받음 - {data.introducedDiscountAmount.toLocaleString()}원 할인 대상</strong>
             </p>
           )}
 
@@ -549,14 +552,14 @@ export default function PrescriptionDetailPage() {
             <span className={styles.infoLabel}>신청폼 직링크</span>
             <span className={styles.mono}>
               {getShareBaseUrl()}
-              {referralPath(data.referralLink.kind, data.referralLink.token)}
+              {referralPath(data.referralLink.token)}
             </span>
           </p>
           <div className={styles.actionsRow}>
             <button
               type="button"
               className={styles.actionButton}
-              onClick={() => handleCopyReferralLink(data.referralLink!.kind, data.referralLink!.token)}
+              onClick={() => handleCopyReferralLink(data.referralLink!.token)}
             >
               {referralLinkCopied ? "복사됨" : "링크 복사"}
             </button>

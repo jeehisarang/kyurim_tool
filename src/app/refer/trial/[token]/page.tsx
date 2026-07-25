@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import TrialApplicationForm, { DEFAULT_HEADLINE, DEFAULT_DESCRIPTION } from "@/components/TrialApplicationForm";
-import { getTrialCampaignSettings } from "@/lib/trial-campaign";
+import MainTierLandingChoice from "@/components/MainTierLandingChoice";
+import { getTrialCampaignSettings, getMainReferralAmounts } from "@/lib/trial-campaign";
+import { getReferralLinkTierByToken } from "@/lib/referrals";
 import { buildOgMetadata } from "@/lib/og-image";
 
 // generateMetadata가 매 요청마다 최신 캠페인 설정을 반영해야 하므로 정적 프리렌더링으로
@@ -23,11 +25,30 @@ export async function generateMetadata(): Promise<Metadata> {
 // generateMetadata를 쓰려면 서버 컴포넌트여야 해서(task.md OG 이미지 작업) useParams
 // 대신 params prop으로 token을 받도록 바꿨다 — 클라이언트 로직 자체는 그대로
 // TrialApplicationForm(client component)에 위임.
+//
+// 랜딩페이지 분기(task.md 추천 이벤트 개선 3) — 이 토큰의 tier(=ReferralLink.kind)가
+// MAIN이면(본프로그램 등록 후 승격된 링크) 기존 체험 신청 폼 대신 "체험 vs 바로등록"
+// 선택 화면을 보여준다. TRIAL이거나 매칭되는 링크가 없으면(예: 아직 승격 전) 기존 그대로.
 export default async function TrialReferralWithTokenPage({
   params,
 }: {
   params: Promise<{ token: string }>;
 }) {
   const { token } = await params;
+  const tier = await getReferralLinkTierByToken(token);
+
+  if (tier === "MAIN") {
+    const [oneMonth, threeMonth] = await Promise.all([
+      getMainReferralAmounts("ONE_MONTH"),
+      getMainReferralAmounts("THREE_MONTH"),
+    ]);
+    return (
+      <MainTierLandingChoice
+        token={token}
+        refereeDiscounts={{ oneMonth: oneMonth.refereeAmount, threeMonth: threeMonth.refereeAmount }}
+      />
+    );
+  }
+
   return <TrialApplicationForm referralToken={token} />;
 }
