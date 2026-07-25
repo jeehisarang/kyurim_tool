@@ -137,6 +137,15 @@ function TalkStudioInner() {
   // 추천링크 체크박스(task2.md) — 톡 종류 구분 없이 어떤 메시지 타입에도 붙을 수 있다.
   const [referralBlock, setReferralBlock] = useState<string | null>(null);
 
+  // 자유톡(범용 AI 문자생성, task.md) — 기존 statuses 배열(발송이력 추적 대상)과 무관한
+  // 독립 섹션이라 별도 로컬 상태로 관리한다. MessageLog에 기록되지 않으므로 발송확인/
+  // 보류 개념 자체가 없다 — 생성/수정/복사만 지원.
+  const [freeformInstruction, setFreeformInstruction] = useState("");
+  const [freeformDraft, setFreeformDraft] = useState("");
+  const [freeformGenerating, setFreeformGenerating] = useState(false);
+  const [freeformError, setFreeformError] = useState<string | null>(null);
+  const [freeformCopied, setFreeformCopied] = useState(false);
+
   function handleLinkGenerated(url: string, flags: ShareLinkFlags) {
     setShareUrl(url);
     setShareLinkFlags(flags);
@@ -197,6 +206,9 @@ function TalkStudioInner() {
     setShareUrl(null);
     setShareLinkFlags(null);
     setReferralBlock(null);
+    setFreeformInstruction("");
+    setFreeformDraft("");
+    setFreeformError(null);
   }
 
   function clearSelectedPatient() {
@@ -206,6 +218,56 @@ function TalkStudioInner() {
     setShareUrl(null);
     setShareLinkFlags(null);
     setReferralBlock(null);
+    setFreeformInstruction("");
+    setFreeformDraft("");
+    setFreeformError(null);
+  }
+
+  async function handleGenerateFreeform() {
+    if (!selectedPatient || !freeformInstruction.trim()) return;
+    setFreeformGenerating(true);
+    setFreeformError(null);
+    try {
+      const res = await fetch("/api/messages/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          patientId: selectedPatient.id,
+          messageType: "FREEFORM",
+          instruction: freeformInstruction.trim(),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setFreeformError(data.error ?? "문구 생성에 실패했습니다.");
+        return;
+      }
+      setFreeformDraft(data.content);
+    } catch {
+      setFreeformError("서버에 연결하지 못했습니다. 다시 시도해주세요.");
+    } finally {
+      setFreeformGenerating(false);
+    }
+  }
+
+  // 링크 포함하기(추천링크/프로그램티칭/이벤트/검사결과) 재사용 — 기존 handleCopy와
+  // 동일한 접미사 부착 방식(task.md "기존처럼 동일하게 적용 가능하도록 재사용").
+  async function handleCopyFreeform() {
+    if (!freeformDraft) return;
+    let fullText = freeformDraft;
+    if (shareUrl && shareLinkFlags && selectedPatient) {
+      fullText += `\n\n${buildShareLinkIntro(selectedPatient.name, shareLinkFlags)}\n${shareUrl}`;
+    }
+    if (referralBlock) {
+      fullText += `\n\n${referralBlock}`;
+    }
+    const success = await copyToClipboard(fullText);
+    if (!success) {
+      alert("복사에 실패했습니다. 텍스트를 직접 선택해서 복사해주세요.");
+      return;
+    }
+    setFreeformCopied(true);
+    setTimeout(() => setFreeformCopied(false), 1500);
   }
 
   async function handleGenerate(messageType: AiMessageType) {
@@ -395,7 +457,13 @@ function TalkStudioInner() {
           {generateError && <p className={styles.errorText}>{generateError}</p>}
 
           <div className={styles.messageList}>
-            {statuses.map((status) => (
+            {/* 웰컴 메시지/만남톡 UI 숨김(task.md) — 실사용 확인 결과 둘 다 미사용
+                (웰컴톡은 한차트에서 별도 발송, 만남톡도 미사용 확정). DB/API/발송이력
+                로직은 그대로 두고 화면에서만 필터링 — 레거시 데이터 조회는 여전히
+                가능해야 하므로(과거 기록 보존 원칙) statuses 자체는 안 건드린다. */}
+            {statuses
+              .filter((status) => status.messageType !== "WELCOME" && status.messageType !== "MEETING")
+              .map((status) => (
               <div
                 key={status.messageType}
                 className={
@@ -543,6 +611,60 @@ function TalkStudioInner() {
                 </div>
               </div>
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* 자유톡(범용 AI 문자생성, task.md) — 기존 statuses 발송이력 추적과 무관한 독립
+          섹션. "링크 포함하기"(위 ShareLinkPanel)는 화면 공용 상태(shareUrl/referralBlock)를
+          그대로 공유해서 복사 시 동일하게 붙는다. */}
+      {selectedPatient && (
+        <div className={styles.section}>
+          <div className={styles.sectionTitle}>자유톡</div>
+          <p className={styles.muted}>
+            생성하고 싶은 메시지의 목적/내용을 입력하면, 선택된 환자의 메모/이력을 참고해
+            AI가 맞춤 문구를 만들어드립니다.
+          </p>
+
+          <div className={styles.messageCard}>
+            <div className={styles.generationOptions}>
+              <input
+                type="text"
+                className={styles.keywordInput}
+                placeholder='예: "다음주 명절 인사 문자 써줘"'
+                value={freeformInstruction}
+                onChange={(e) => setFreeformInstruction(e.target.value)}
+              />
+            </div>
+
+            {freeformError && <p className={styles.errorText}>{freeformError}</p>}
+
+            <textarea
+              className={styles.messageTextarea}
+              value={freeformDraft}
+              onChange={(e) => setFreeformDraft(e.target.value)}
+              placeholder="목적/내용을 입력하고 생성 버튼을 눌러주세요."
+              rows={3}
+            />
+
+            <div className={styles.messageActions}>
+              <button
+                type="button"
+                className={styles.actionButton}
+                onClick={handleGenerateFreeform}
+                disabled={freeformGenerating || !freeformInstruction.trim()}
+              >
+                {freeformGenerating ? "생성 중..." : "문구 생성"}
+              </button>
+              <button
+                type="button"
+                className={styles.actionButton}
+                onClick={handleCopyFreeform}
+                disabled={!freeformDraft}
+              >
+                {freeformCopied ? "복사됨" : "복사"}
+              </button>
+            </div>
           </div>
         </div>
       )}

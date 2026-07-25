@@ -230,6 +230,76 @@ ${progressLevel ? `- 호전도: ${progressLevelLabel[progressLevel]}` : ""}
   return generateMessage(SYSTEM_PROMPT, userMessage);
 }
 
+// 자유톡(범용 AI 문자생성, task.md) 전용 분량 가이드 — 킬팻캡슐 톡 분량 축소 작업(TRIAL_SYSTEM_PROMPT
+// [3-1. 분량 제한])과 동일한 방향/문구. DAY2/DAY7/THIRD_VISIT이 쓰는 COMMON_SYSTEM_PROMPT
+// 자체에는 아직 이 명시적 400자 상한이 없어(길이는 "4~6줄 내외"로만 안내), 그쪽 프롬프트에
+// 영향을 주지 않도록 COMMON_SYSTEM_PROMPT를 건드리지 않고 자유톡 전용 시스템 프롬프트에만
+// 이어붙인다.
+const FREEFORM_SYSTEM_PROMPT = `${COMMON_SYSTEM_PROMPT}
+
+[분량 제한 — 카카오톡 대화창 "더보기" 방지 (반드시 지킬 것)]
+공백 포함 전체 분량을 400자 이내로 작성해(URL을 그대로 포함해야 하는 요청이면 그 URL
+문자열의 길이도 400자 안에 함께 포함해서 세). 400자는 엄격한 상한선이야 — 넘기지 마.
+분량을 줄일 때는 담당자가 요청한 핵심 목적/내용은 유지하고, 그 대신 수식어·중복 설명·
+부연 문장부터 먼저 쳐내.`;
+
+export type FreeformPatientContext = PatientContext & {
+  // 정확성이 필요한 정보(진행 프로그램/회차 등)는 AI가 추측하지 않고 코드가 채워 넣는다
+  // (task.md 원칙 — "정확성이 필수인 정보는 AI 생성이 아니라 코드에서 값을 채워 전달").
+  // 활성 처방이 없으면 null.
+  activeProgramSummary: string | null;
+};
+
+/**
+ * 자유톡(범용 AI 문자생성, task.md) — 담당자가 자유 텍스트로 적은 목적/내용(instruction)에
+ * 맞춰 문구를 생성한다. DAY2/DAY7/THIRD_VISIT처럼 특정 few-shot 예시(SYSTEM_PROMPT에 포함된
+ * 2일차/3회차 톡 예시)에 구조를 고정시키면 안 되므로, few-shot 예시 없이 톤/자체검토
+ * 원칙만 담은 COMMON_SYSTEM_PROMPT(+분량 제한)를 시스템 프롬프트로 쓴다.
+ */
+export async function generateFreeformMessageDraft(
+  patient: FreeformPatientContext,
+  instruction: string,
+): Promise<string> {
+  const visitHistory =
+    patient.recentVisits.length > 0
+      ? patient.recentVisits
+          .map(
+            (v) =>
+              `- ${v.visitDate.toISOString().slice(0, 10)} ${v.treatmentCategory} (${v.visitType})`,
+          )
+          .join("\n")
+      : "내원 이력 없음";
+
+  const noteHistory =
+    patient.notes.length > 0
+      ? patient.notes
+          .map((n) => `- ${n.createdAt.toISOString().slice(0, 10)} ${n.content}`)
+          .join("\n")
+      : "없음";
+
+  const consultationNoteText = patient.latestConsultationNote
+    ? `(${patient.latestConsultationNote.typeName}) ${patient.latestConsultationNote.text}`
+    : "없음";
+
+  const userMessage = `환자 정보:
+- 이름: ${patient.name}
+- 핵심프로필(원장이 정리한 사실관계 — 과거력/현재질환/주요니즈, 있으면 최우선 참고): ${formatCoreProfile(patient.coreProfile)}
+- 현재 진행 중인 프로그램(정확한 정보 — 회차/기간 등 수치는 여기 있는 값만 인용하고 지어내지 말 것): ${patient.activeProgramSummary ?? "없음"}
+- 최근 상담기록(관련 있을 때만 참고): ${consultationNoteText}
+- 메모(단건): ${patient.memo ?? "없음"}
+- 누적 메모(최근 디테일/뉘앙스 — 관련 있는 것만 선별해서 반영, 전부 나열 금지):
+${noteHistory}
+- 최근 내원 이력:
+${visitHistory}
+
+요청: 아래는 담당자가 직접 적은, 이번에 보낼 메시지의 목적/내용이야. 이 지시를 최우선으로
+따르되, 위 환자 정보를 참고해 이 환자에게 맞는 문구로 자연스럽게 완성해줘. 목적 설명 중에
+없는 구체적 수치/날짜/사실은 지어내지 말고, 필요하면 일반적인 표현으로 대신해:
+"${instruction}"`;
+
+  return generateMessage(FREEFORM_SYSTEM_PROMPT, userMessage);
+}
+
 // 해피톡(처방주기 안내, task.md/13-5) — SPLIT(분할처방) 프로그램의 다음 처방일이 임박한
 // 환자에게 보내는 리마인드 메시지. COMMON_SYSTEM_PROMPT(톤/자체검토/예약링크 마무리)를
 // 그대로 재사용하고 few-shot 예시만 해피톡용으로 추가한다 — DAY2/DAY7/THIRD_VISIT과 같은
