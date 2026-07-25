@@ -58,6 +58,7 @@ model Patient {
   examReminderCycles          ExamReminderCycle[]
   referralLinks               ReferralLink[]
   referralCreditEntries       ReferralCreditEntry[]
+  mainDirectRegistrationRequests MainDirectRegistrationRequest[]
 }
 
 model TreatmentCategory {
@@ -514,6 +515,30 @@ model WorkTask {
   assignee     StaffUser? @relation("WorkTaskAssignee", fields: [assigneeId], references: [id])
   isSharedTask Boolean    @default(false)
   createdAt    DateTime   @default(now())
+  mainDirectRegistrationRequest MainDirectRegistrationRequest?
+}
+
+// MAIN 등급 추천링크 랜딩페이지 "바로 등록하고 할인받기" 신청 영구 기록(task.md) — 기존에는
+// requestMainDirectRegistrationCallback(referrals.ts)이 WorkTask(업무 알림) 하나만 만들고
+// 끝나서, 완료 처리 후에는 신청 이력을 되짚어볼 수 없었다. TrialApplication(체험신청)과
+// 동일한 원칙으로 별도 테이블에 영구 기록하고, WorkTask 생성 로직은 그대로 유지한다(둘 다
+// 함께 만들어짐, workTaskId로 느슨하게 연결). referrerPatientId는 항상 실제 존재하는
+// ReferralLink 소유자라 FK로 직결(TrialApplication.referredName처럼 스냅샷 문자열로 중복
+// 저장하지 않고 관계로 조회) — 추천인 이름이 나중에 바뀌어도 항상 최신 이름을 보여준다.
+model MainDirectRegistrationRequest {
+  id                Int       @id @default(autoincrement())
+  name              String
+  phone             String
+  referrerPatientId Int
+  referrerPatient   Patient   @relation(fields: [referrerPatientId], references: [id])
+  submittedAt       DateTime  @default(now())
+  // PENDING(대기) | CONTACTED(연락완료) | CONVERTED(등록전환) | NOT_CONVERTED(미전환) —
+  // 담당자가 목록 화면에서 수기로 변경한다(체험신청 목록의 "등록완료" 배지와 유사한 개념).
+  status            String    @default("PENDING")
+  // 동일 신청 건에서 함께 생성된 WorkTask — 당일 중복 신청으로 WorkTask 생성 자체가
+  // 스킵된 경우(requestMainDirectRegistrationCallback 기존 dedup 로직) null일 수 있다.
+  workTaskId        Int?      @unique
+  workTask          WorkTask? @relation(fields: [workTaskId], references: [id])
 }
 
 // FIXED_SEQUENCE 프로그램의 톡류 TodoTask 1건과 1:1 대응하는 발송 로그.

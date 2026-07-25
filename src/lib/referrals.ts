@@ -500,9 +500,11 @@ export async function getReferralLinkTierByToken(token: string): Promise<"TRIAL"
 }
 
 /**
- * MAIN 등급 랜딩페이지 "바로 등록하고 할인받기"(task.md 추천 이벤트 개선 3, 4-2) — 아직
- * Patient가 아닌 익명 방문자의 상담 신청. requestTrialApplicationCallback과 동일하게
- * 전화번호로 당일 중복방지한다. 업무 제목에 추천인 이름을 포함시켜 직원이 실제 등록
+ * MAIN 등급 랜딩페이지 "바로 등록하고 할인받기"(task.md 추천 이벤트 개선 3, 4-2 / 영구기록
+ * 신설) — 아직 Patient가 아닌 익명 방문자의 상담 신청. requestTrialApplicationCallback과
+ * 동일하게 전화번호로 당일 WorkTask 중복생성만 방지한다(알림 스팸 방지 목적 — TrialApplication과
+ * 동일하게 MainDirectRegistrationRequest 행 자체는 매 제출마다 항상 새로 남긴다, 신청
+ * 이력을 빠짐없이 추적하기 위함). 업무 제목에 추천인 이름을 포함시켜 직원이 실제 등록
  * 처리 시(/prescriptions/new "소개 확인") 누구를 검색해서 연결해야 하는지 바로 알 수
  * 있게 한다 — 이 신청 자체가 자동으로 Prescription이나 추천인을 연결하지는 않는다(그
  * 연결은 여전히 직원이 소개확인 UI에서 수동으로 확정, confirmMainReferral).
@@ -525,18 +527,59 @@ export async function requestMainDirectRegistrationCallback(input: {
       createdAt: { gte: startOfDay(new Date()) },
       workTask: { title: { contains: input.phone } },
     },
+    include: { workTask: true },
   });
+
+  let workTaskId: number | null = existingOpen?.workTask?.id ?? null;
   if (!existingOpen) {
     const systemStaffId = await getSystemStaffUserId();
-    await createWorkTask({
+    const workTask = await createWorkTask({
       title: `${input.name}님 본프로그램 바로등록 문의 — ${link.patient.name}님 추천 (${input.phone})`,
       creatorId: systemStaffId,
       isSharedTask: true,
       dueDate: null,
     });
+    workTaskId = workTask.id;
   }
 
+  await prisma.mainDirectRegistrationRequest.create({
+    data: {
+      name: input.name,
+      phone: input.phone,
+      referrerPatientId: link.patientId,
+      workTaskId,
+    },
+  });
+
   return { referrerPatientName: link.patient.name };
+}
+
+export function listMainDirectRegistrationRequests() {
+  return prisma.mainDirectRegistrationRequest.findMany({
+    include: { referrerPatient: true },
+    orderBy: { submittedAt: "desc" },
+  });
+}
+
+const MAIN_DIRECT_REGISTRATION_STATUSES = ["PENDING", "CONTACTED", "CONVERTED", "NOT_CONVERTED"];
+
+export class InvalidMainDirectRegistrationStatusError extends Error {
+  constructor() {
+    super(`처리상태는 ${MAIN_DIRECT_REGISTRATION_STATUSES.join("/")} 중 하나여야 합니다.`);
+    this.name = "InvalidMainDirectRegistrationStatusError";
+  }
+}
+
+// 조회 화면에서 담당자가 처리상태를 수기로 변경(task.md) — 체험신청 목록의 "등록완료"
+// 배지와 유사하게, 실제 등록 전환 여부를 직원이 직접 추적할 수 있게 한다.
+export async function updateMainDirectRegistrationStatus(id: number, status: string) {
+  if (!MAIN_DIRECT_REGISTRATION_STATUSES.includes(status)) {
+    throw new InvalidMainDirectRegistrationStatusError();
+  }
+  return prisma.mainDirectRegistrationRequest.update({
+    where: { id },
+    data: { status },
+  });
 }
 
 export function listUnconvertedTrialApplications() {
