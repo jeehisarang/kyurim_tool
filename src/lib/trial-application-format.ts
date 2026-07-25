@@ -80,9 +80,34 @@ export const BODY_TYPE_MAX_SELECTIONS = 2;
 
 export type BodyTypeLetter = "A" | "B" | "C" | "D" | "E";
 
+export const GENDER_LABEL: Record<string, string> = { MALE: "남", FEMALE: "여" };
+
+/**
+ * 출생년도 → 만 나이 근사 계산(task2.md) — 생일 정보 없이 "현재년도 - 출생년도"로만
+ * 계산하는 근사치(실제 만 나이보다 최대 1살 어릴 수 있음, 신청폼 안내와 동일 원칙).
+ * 서버 계산값을 신뢰 소스로 쓰고, 클라이언트는 동일 로직으로 미리보기만 표시한다
+ * (값을 저장하지 않고 매번 재계산 — TrialApplication.birthYear 필드 주석 참고).
+ */
+export function computeAge(birthYear: number | null | undefined, referenceDate: Date = new Date()): number | null {
+  if (!birthYear || birthYear < 1900 || birthYear > referenceDate.getFullYear()) return null;
+  return referenceDate.getFullYear() - birthYear;
+}
+
+// 성별/나이 요약 표시(task2.md) — 신청 목록/상세/피커 화면이 공유한다. 필드 추가 전
+// 신청 레코드는 gender/birthYear가 둘 다 null이라 "정보 없음"으로 안전하게 폴백한다.
+export function formatGenderAge(app: { gender: string | null; birthYear: number | null }): string {
+  const genderLabel = app.gender ? (GENDER_LABEL[app.gender] ?? app.gender) : null;
+  const age = computeAge(app.birthYear);
+  if (!genderLabel && age == null) return "성별/나이 정보 없음";
+  return [genderLabel, age != null ? `만 ${age}세` : null].filter(Boolean).join(" · ");
+}
+
 export type TrialApplicationForFormat = {
   name: string;
   phone: string;
+  // 성별/출생년도(task2.md 신청폼 개선) — 필드 추가 전 기존 신청 레코드는 둘 다 null.
+  gender: string | null;
+  birthYear: number | null;
   heightWeight: string | null;
   weightGoalKg: string | null;
   weightChange6mo: string | null;
@@ -136,9 +161,11 @@ function bodyTypeLine(app: TrialApplicationForFormat, index: number): string {
 
 /** /prescriptions/new 설문 textarea 프리필용 — formatSurveyResponseText와 동일한 역할. */
 export function formatTrialApplicationText(app: TrialApplicationForFormat): string {
+  const age = computeAge(app.birthYear);
   const lines: string[] = [
     `이름: ${app.name}`,
     `연락처: ${app.phone}`,
+    `성별/나이: ${app.gender ? (GENDER_LABEL[app.gender] ?? app.gender) : "없음"}${age != null ? ` / 만 ${age}세` : ""}`,
     `키/체중: ${app.heightWeight || "없음"}`,
     `감량목표(kg): ${app.weightGoalKg || "없음"}`,
     `최근 6개월 체중변화: ${app.weightChange6mo || "없음"}`,

@@ -9,6 +9,7 @@ import {
   parseBodyTypeAnswer,
   computeDominantBodyType,
   formatDominantBodyTypeLabel,
+  formatGenderAge,
   type TrialApplicationForFormat,
 } from "@/lib/trial-application-format";
 
@@ -90,13 +91,17 @@ export default function TrialApplicationsPage() {
                     {app.convertedPrescriptionId && <span className={styles.convertedTag}>등록완료</span>}
                   </span>
                   <span className={styles.itemMeta}>
-                    {app.phone} · {formatSubmittedAt(app.submittedAt)} · 우세타입{" "}
+                    {app.phone} · {formatGenderAge(app)} · {formatSubmittedAt(app.submittedAt)} · 우세타입{" "}
                     {formatDominantBodyTypeLabel(dominant.letters)}
                   </span>
                 </button>
 
                 {isExpanded && (
                   <div className={styles.detail}>
+                    <div className={styles.detailRow}>
+                      <span className={styles.detailLabel}>성별/나이</span>
+                      <span>{formatGenderAge(app)}</span>
+                    </div>
                     <div className={styles.detailRow}>
                       <span className={styles.detailLabel}>키/체중</span>
                       <span>{app.heightWeight || "없음"}</span>

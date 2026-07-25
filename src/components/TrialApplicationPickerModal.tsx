@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import styles from "./TrialApplicationPickerModal.module.css";
-import type { TrialApplicationForFormat } from "@/lib/trial-application-format";
+import { formatGenderAge, type TrialApplicationForFormat } from "@/lib/trial-application-format";
 
 export type TrialApplicationListItem = TrialApplicationForFormat & { id: number; submittedAt: string };
 
@@ -51,7 +51,7 @@ export default function TrialApplicationPickerModal({
               <li key={application.id} className={styles.item} onClick={() => onSelect(application)}>
                 <span className={styles.itemName}>{application.name}</span>
                 <span className={styles.itemMeta}>
-                  {application.phone} · {formatSubmittedAt(application.submittedAt)}
+                  {application.phone} · {formatGenderAge(application)} · {formatSubmittedAt(application.submittedAt)}
                 </span>
               </li>
             ))}

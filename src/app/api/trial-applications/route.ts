@@ -47,6 +47,16 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "필수 항목을 모두 입력해주세요." }, { status: 400 });
     }
   }
+  // 성별/출생년도(task2.md 신청폼 개선) — 신규 제출은 필수. 스키마는 기존 레코드 하위호환을
+  // 위해 nullable이지만, 공개 폼을 통한 신규 제출 경로에서는 서버가 항상 요구한다.
+  if (body.gender !== "MALE" && body.gender !== "FEMALE") {
+    return NextResponse.json({ error: "성별을 선택해주세요." }, { status: 400 });
+  }
+  const currentYear = new Date().getFullYear();
+  const birthYear = Number(body.birthYear);
+  if (!Number.isInteger(birthYear) || birthYear < 1900 || birthYear > currentYear) {
+    return NextResponse.json({ error: "출생년도를 정확히 입력해주세요." }, { status: 400 });
+  }
   for (const field of BODY_TYPE_FIELDS) {
     const values = body[field];
     if (!Array.isArray(values) || values.length < 1 || values.length > BODY_TYPE_MAX_SELECTIONS) {
@@ -60,6 +70,8 @@ export async function POST(request: Request) {
   const input: Record<string, unknown> = {
     name: body.name.trim(),
     phone: body.phone.trim(),
+    gender: body.gender,
+    birthYear,
     bodyType1: body.bodyType1,
     bodyType2: body.bodyType2,
     bodyType3: body.bodyType3,

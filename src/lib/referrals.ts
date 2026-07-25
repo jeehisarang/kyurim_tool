@@ -239,6 +239,11 @@ export async function listReferralCreditSummary(): Promise<ReferralCreditPatient
 export type TrialApplicationInput = {
   name: string;
   phone: string;
+  // 성별/출생년도(task2.md 신청폼 개선) — 신규 신청은 폼에서 필수로 강제하지만, 스키마
+  // 레벨에서는 기존 레코드 하위호환을 위해 nullable이라 여기서도 필수로 타입을 좁히지
+  // 않는다(검증은 API 라우트에서).
+  gender?: string;
+  birthYear?: number;
   heightWeight?: string;
   weightGoalKg?: string;
   weightChange6mo?: string;
@@ -314,6 +319,8 @@ export async function createTrialApplication(input: TrialApplicationInput) {
   const data = {
     name: input.name,
     phone: input.phone,
+    gender: input.gender,
+    birthYear: input.birthYear,
     heightWeight: input.heightWeight,
     weightGoalKg: input.weightGoalKg,
     weightChange6mo: input.weightChange6mo,

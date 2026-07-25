@@ -189,6 +189,45 @@
   resize: vertical;
 }
 
+/* 성별 토글(task2.md 신청폼 개선) — 몸타입 선택지(optionCard)와 동일한 카드형 톤. */
+.genderToggleRow {
+  display: flex;
+  gap: 10px;
+}
+
+.genderToggle {
+  flex: 1;
+  box-sizing: border-box;
+  border: 1px solid rgba(110, 148, 140, 0.35);
+  border-radius: 8px;
+  background: var(--color-hanji-card);
+  color: var(--color-ink);
+  padding: 12px;
+  font-size: 16px;
+  font-weight: 600;
+  font-family: var(--font-body);
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.genderToggle:hover {
+  border-color: var(--color-celadon);
+}
+
+.genderToggleSelected {
+  border-color: var(--fill-accent);
+  background: var(--fill-accent);
+  color: var(--on-accent);
+}
+
+/* 출생년도 입력 옆 실시간 나이 미리보기(task2.md) — 서버 재계산이 신뢰 소스이므로
+   여기는 참고용 표시임을 시각적으로 옅게 처리한다. */
+.agePreview {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-celadon-dark);
+}
+
 .bodyTypeBlock {
   display: flex;
   flex-direction: column;

@@ -914,6 +914,13 @@ model TrialApplication {
   id                      Int           @id @default(autoincrement())
   name                    String
   phone                   String
+  // 성별/출생년도(task2.md 신청폼 개선) — 킬팻캡슐 처방이 성별/체질에 따라 갈리는 부분이
+  // 있어 추가. nullable — 이 필드 추가 전 제출된 기존 신청 레코드는 둘 다 null로 남는다
+  // (신규 제출은 폼에서 필수 입력으로 강제, task2.md). "MALE" | "FEMALE".
+  gender                  String?
+  // 나이는 저장하지 않고 매번 조회 시 재계산한다(trial-application-format.ts computeAge)
+  // — 달력년도가 바뀌면 저장된 값이 그대로 stale해지는 파생값이라 원본(출생년도)만 저장.
+  birthYear               Int?
   heightWeight            String?
   weightGoalKg            String?
   weightChange6mo         String?

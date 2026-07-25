@@ -2,7 +2,12 @@
 
 import { useEffect, useState } from "react";
 import styles from "./TrialApplicationForm.module.css";
-import { BODY_TYPE_QUESTIONS, BODY_TYPE_OTHER_VALUE, BODY_TYPE_MAX_SELECTIONS } from "@/lib/trial-application-format";
+import {
+  BODY_TYPE_QUESTIONS,
+  BODY_TYPE_OTHER_VALUE,
+  BODY_TYPE_MAX_SELECTIONS,
+  computeAge,
+} from "@/lib/trial-application-format";
 import { parseCampaignDescription } from "@/lib/trial-campaign-description";
 import { getShareBaseUrl } from "@/lib/share-base-url";
 import KakaoShareButton from "@/components/KakaoShareButton";
@@ -49,6 +54,11 @@ export default function TrialApplicationForm({ referralToken }: { referralToken?
 
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
+  // 성별/출생년도(task2.md 신청폼 개선) — 성별은 라디오형 필수, 출생년도는 4자리 숫자
+  // 입력 즉시 만 나이를 근사 계산해 미리보기로 보여준다(제출 시 서버가 다시 계산해 신뢰
+  // 소스로 저장 — computeAge, trial-application-format.ts).
+  const [gender, setGender] = useState<"MALE" | "FEMALE" | "">("");
+  const [birthYear, setBirthYear] = useState("");
   const [textValues, setTextValues] = useState<Record<TextFieldKey, string>>({
     heightWeight: "",
     weightGoalKg: "",
@@ -93,7 +103,9 @@ export default function TrialApplicationForm({ referralToken }: { referralToken?
     if (answers.includes(BODY_TYPE_OTHER_VALUE)) return Boolean(bodyTypeOthers[q.key]?.trim());
     return true;
   });
-  const canSubmit = name.trim() && phone.trim() && allBodyTypesAnswered && !submitting;
+  const previewAge = computeAge(birthYear ? Number(birthYear) : null);
+  const canSubmit =
+    name.trim() && phone.trim() && gender && previewAge != null && allBodyTypesAnswered && !submitting;
 
   function renderTextField(field: TextFieldDef) {
     return (
@@ -132,6 +144,8 @@ export default function TrialApplicationForm({ referralToken }: { referralToken?
       const body: Record<string, unknown> = {
         name: name.trim(),
         phone: phone.trim(),
+        gender,
+        birthYear: Number(birthYear),
         ...textValues,
       };
       for (const q of BODY_TYPE_QUESTIONS) {
@@ -278,6 +292,39 @@ export default function TrialApplicationForm({ referralToken }: { referralToken?
                 onChange={(e) => setPhone(e.target.value)}
                 placeholder="010-0000-0000"
               />
+            </label>
+
+            <div className={styles.field}>
+              <span className={styles.fieldLabel}>성별 *</span>
+              <div className={styles.genderToggleRow}>
+                <button
+                  type="button"
+                  className={gender === "MALE" ? `${styles.genderToggle} ${styles.genderToggleSelected}` : styles.genderToggle}
+                  onClick={() => setGender("MALE")}
+                >
+                  남
+                </button>
+                <button
+                  type="button"
+                  className={gender === "FEMALE" ? `${styles.genderToggle} ${styles.genderToggleSelected}` : styles.genderToggle}
+                  onClick={() => setGender("FEMALE")}
+                >
+                  여
+                </button>
+              </div>
+            </div>
+
+            <label className={styles.field}>
+              <span className={styles.fieldLabel}>출생년도 *</span>
+              <input
+                className={styles.textInput}
+                type="number"
+                inputMode="numeric"
+                value={birthYear}
+                onChange={(e) => setBirthYear(e.target.value.slice(0, 4))}
+                placeholder="예: 1990"
+              />
+              {previewAge != null && <span className={styles.agePreview}>만 {previewAge}세</span>}
             </label>
 
             <div className={styles.fieldRow}>
