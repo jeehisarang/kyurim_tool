@@ -559,11 +559,20 @@ export async function getPrescriptionDetail(prescriptionId: number): Promise<Pre
   let events: PrescriptionEventEntry[] | null = null;
   let referralLink: PrescriptionDetail["referralLink"] = null;
 
-  // FIXED_SEQUENCE(체험)는 TRIAL 링크, 킬팻캡슐 본프로그램(SPLIT)은 MAIN 링크 — 한 처방에
-  // 둘 다 존재하는 경우는 없어 kind 필터 없이 sourcePrescriptionId만으로 찾고, 집계는 그
-  // 링크의 실제 kind에 맞는 credit kind로 한다(task.md Phase 3-1).
+  // FIXED_SEQUENCE(체험)는 TRIAL 링크, 킬팻캡슐 본프로그램(SPLIT)은 MAIN 링크. "환자당 링크
+  // 항상 1개" 원칙(task.md 추천 이벤트 개선 2) 도입 이후로는 patientId 기준으로 찾아야 한다
+  // — sourcePrescriptionId는 승격(promoteOrIssueMainReferralLink) 시 의도적으로 갱신하지
+  // 않으므로(기존 링크 URL 유지), 승격된 링크는 원래 발급된 처방(예: 예전 3일체험)의
+  // sourcePrescriptionId를 계속 가리켜 "지금 보고 있는 이 처방"과 더 이상 일치하지 않는다
+  // (실사용 버그로 발견 — 김우석님 3개월 등록 시 추천링크 섹션이 안 보이던 원인). 여러 개
+  // 있을 수 있는 레거시 케이스(예: 체험을 여러 번 등록해 링크가 중복 발급된 경우)에 대비해
+  // 가장 최근 발급된 링크 하나만 쓴다(promoteOrIssueMainReferralLink와 동일한 "최근 것
+  // 기준" 원칙).
   if (program.type === PROGRAM_TYPE_FIXED_SEQUENCE_ROW || isMainProgram(program)) {
-    const link = await prisma.referralLink.findFirst({ where: { sourcePrescriptionId: prescriptionId } });
+    const link = await prisma.referralLink.findFirst({
+      where: { patientId: prescription.patientId },
+      orderBy: { issuedAt: "desc" },
+    });
     if (link) {
       // TRIAL_SIGNUP은 공개 신청폼 제출 시 실제 이 링크의 token을 그대로 저장하므로
       // linkToken으로 정확히 집계된다. MAIN_SIGNUP은 confirmMainReferral이 "실제 쓰인
