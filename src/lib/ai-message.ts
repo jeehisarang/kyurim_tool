@@ -87,7 +87,6 @@ const COMMON_SYSTEM_PROMPT = `너는 규림한의원의 카카오톡 알림톡 �
   메시지 맥락(2일차/7일차/3회차)과 관련 있다면 자연스럽게 녹여서 반영해. 관련 없는 내용이거나
   상담기록 자체가 없으면 억지로 끼워 넣지 말고 그냥 생략해 — 상담기록은 참고용 보조 재료일
   뿐 필수 언급 대상이 아니야.
-- 마지막은 항상 예약 링크 안내로 마무리해 (표현은 자유롭게 바꿔도 됨): "편하실 때 예약 링크로 확인해 주세요. 👉 ${BOOKING_LINK}"
 - 출력은 메시지 본문만. 안내 문구, 따옴표, 마크다운(굵게/목록기호 등) 없이 바로 텍스트로 시작해.
 
 [출력 전 자체 검토 — 반드시 수행]
@@ -102,7 +101,16 @@ const COMMON_SYSTEM_PROMPT = `너는 규림한의원의 카카오톡 알림톡 �
    끼워 넣었다면 제거하고 자연스럽게 다시 써)
 위 5가지 중 하나라도 걸리면 반드시 고친 뒤 최종본만 출력해.`;
 
+// 예약 링크 마무리 지시문(task.md 수정) — 이전에는 COMMON_SYSTEM_PROMPT(모든 프롬프트가
+// 공유)에 있어서 자유톡(FREEFORM, 목적이 매번 달라지는 범용 도구)까지 "내원 유도" 클로징이
+// 섞여 나오는 오염이 있었다. DAY2/DAY7/THIRD_VISIT처럼 "내원 유도"가 실제 목적인 카테고리
+// 프롬프트에만 명시적으로 남기고, 공통 프롬프트에서는 완전히 제거했다.
+const BOOKING_LINK_CLOSING_INSTRUCTION = `[마무리 — 예약 유도]
+마지막은 항상 예약 링크 안내로 마무리해 (표현은 자유롭게 바꿔도 됨): "편하실 때 예약 링크로 확인해 주세요. 👉 ${BOOKING_LINK}"`;
+
 const SYSTEM_PROMPT = `${COMMON_SYSTEM_PROMPT}
+
+${BOOKING_LINK_CLOSING_INSTRUCTION}
 
 [2일차 톡 예시 — 실제 사용 사례]
 입력: 홍성순 79세 / 어제 허리가 아파서 내원 / 거동도 잘 못함 / 강근단 7일치 처방함
@@ -235,6 +243,9 @@ ${progressLevel ? `- 호전도: ${progressLevelLabel[progressLevel]}` : ""}
 // 자체에는 아직 이 명시적 400자 상한이 없어(길이는 "4~6줄 내외"로만 안내), 그쪽 프롬프트에
 // 영향을 주지 않도록 COMMON_SYSTEM_PROMPT를 건드리지 않고 자유톡 전용 시스템 프롬프트에만
 // 이어붙인다.
+// 주의(task.md 수정) — BOOKING_LINK_CLOSING_INSTRUCTION(예약 링크로 항상 마무리하라는 지시)은
+// 절대 여기 붙이지 말 것. 자유톡은 매번 목적이 달라지는 범용 도구라 "내원 유도"를 기본값으로
+// 깔면 안 된다(수정 전엔 이 지시문이 COMMON_SYSTEM_PROMPT에 있어서 자유톡에도 함께 섞여 나왔음).
 const FREEFORM_SYSTEM_PROMPT = `${COMMON_SYSTEM_PROMPT}
 
 [분량 제한 — 카카오톡 대화창 "더보기" 방지 (반드시 지킬 것)]
@@ -301,11 +312,15 @@ ${visitHistory}
 }
 
 // 해피톡(처방주기 안내, task.md/13-5) — SPLIT(분할처방) 프로그램의 다음 처방일이 임박한
-// 환자에게 보내는 리마인드 메시지. COMMON_SYSTEM_PROMPT(톤/자체검토/예약링크 마무리)를
-// 그대로 재사용하고 few-shot 예시만 해피톡용으로 추가한다 — DAY2/DAY7/THIRD_VISIT과 같은
-// "내원기반" 계열은 아니지만 톤 원칙(자연스러운 리마인드, 압박 아님)과 품질 기준(비문 금지,
-// 자체검토)이 동일해서 TRIAL_*처럼 완전히 독립된 프롬프트를 새로 만들 필요는 없다고 판단.
+// 환자에게 보내는 리마인드 메시지. COMMON_SYSTEM_PROMPT(톤/자체검토)를 그대로 재사용하고
+// few-shot 예시만 해피톡용으로 추가한다 — DAY2/DAY7/THIRD_VISIT과 같은 "내원기반" 계열은
+// 아니지만 톤 원칙(자연스러운 리마인드, 압박 아님)과 품질 기준(비문 금지, 자체검토)이 동일해서
+// TRIAL_*처럼 완전히 독립된 프롬프트를 새로 만들 필요는 없다고 판단. 예약 링크 마무리는
+// (task.md 수정 — FREEFORM 오염 제거로 COMMON_SYSTEM_PROMPT에서 빠짐) 해피톡도 다음 처방
+// 방문을 유도하는 목적이 있어 BOOKING_LINK_CLOSING_INSTRUCTION을 여기서 명시적으로 재사용한다.
 const HAPPY_TALK_SYSTEM_PROMPT = `${COMMON_SYSTEM_PROMPT}
+
+${BOOKING_LINK_CLOSING_INSTRUCTION}
 
 [해피톡(처방주기 안내) 예시 — 실제 사용 사례]
 입력: 김민지 / 프로그램: 킬팻캡슐 1개월 / 남은 차수: 2/3차 / 다음 처방일: 2026-08-01
