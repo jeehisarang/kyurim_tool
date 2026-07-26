@@ -27,10 +27,13 @@ function comboKey(f: ShareLinkFlags): string {
 // 검사(EXAM)가 포함된 조합은 아래 EXAM_INTRO를 항상 맨 앞에 고정 배치하고(task.md "검사링크
 // 복사 시 개인화 안내문구 자동첨부"), 티칭/이벤트 조합 문구는 검사 없는 버전(T/E/TE)만 남겨
 // 그 뒤에 이어 붙인다 — 그래서 이 테이블에는 검사 미포함 조합(T/E/TE)만 존재한다.
+// task.md 버그 수정 — T/TE 문구가 "검사 결과"를 언급했는데, 이 테이블은 검사(EXAM) 미포함
+// 조합만 다루므로(위 주석 참고) 실제로 체크하지 않은 검사결과를 잘못 언급하는 문구였다.
+// 프로그램티칭+이벤트만 체크한 DAY2 톡에서 "검사 결과와 추천 혜택을..." 오언급이 재현됨.
 const INTRO_BY_COMBO: Record<string, (patientName: string) => string> = {
-  T: (name) => `${name}님의 검사 결과와 추천 프로그램을 아래 링크에서 확인해보세요 🙂`,
+  T: (name) => `${name}님을 위한 프로그램 안내를 아래 링크에서 확인해보세요 🙂`,
   E: (name) => `${name}님을 위한 특별한 혜택을 아래 링크에서 확인해보세요 🙂`,
-  TE: (name) => `${name}님의 검사 결과와 추천 혜택을 아래 링크에서 확인해보세요 🙂`,
+  TE: (name) => `${name}님을 위한 프로그램과 혜택을 아래 링크에서 확인해보세요 🙂`,
 };
 
 const EXAM_INTRO = (patientName: string) => `${patientName}님 검사결과를 클릭해서 확인해보세요.`;
