@@ -4,7 +4,11 @@ import { useEffect, useState } from "react";
 import styles from "@/app/messages/page.module.css";
 import cardStyles from "./TalkGroupManager.module.css";
 import SealStamp from "@/components/SealStamp";
-import ShareLinkPanel, { buildShareLinkIntro, type ShareLinkFlags } from "@/components/ShareLinkPanel";
+import ShareLinkPanel, {
+  buildShareLinkIntro,
+  type ShareLinkFlags,
+  type ReferralLinkEntry,
+} from "@/components/ShareLinkPanel";
 import { getCurrentUserId } from "@/lib/currentUser";
 import { copyToClipboard } from "@/lib/clipboard";
 import { TALK_MESSAGE_TYPE_LABEL, TRIAL_TASK_TYPE_LABEL, HAPPY_TALK_TASK_TYPE_LABEL } from "@/lib/message-templates";
@@ -82,10 +86,28 @@ export default function TalkGroupManager({ patientId, date }: { patientId: numbe
   const [shareLinkFlags, setShareLinkFlags] = useState<ShareLinkFlags | null>(null);
   // 추천링크 체크박스(task2.md) — program-events/generate가 하던 2일차톡 자동삽입을 대체.
   const [referralBlock, setReferralBlock] = useState<string | null>(null);
+  // AI가 생성 시점에 링크를 직접 소개하도록 전달할 원자료(task.md 재구조화, 네이버예약
+  // 클로징 대체).
+  const [referralLinksRaw, setReferralLinksRaw] = useState<ReferralLinkEntry[]>([]);
 
   function handleLinkGenerated(url: string, flags: ShareLinkFlags) {
     setShareUrl(url);
     setShareLinkFlags(flags);
+  }
+
+  // TalkStudioPanel과 동일한 방식(task.md 재구조화) — 티칭/이벤트/검사결과는 shareUrl 하나를
+  // 공유하는 조합 링크, 추천링크는 kind별로 URL이 다르다.
+  function buildIncludedLinks(): { kind: string; url: string }[] {
+    const links: { kind: string; url: string }[] = [];
+    if (shareUrl && shareLinkFlags) {
+      if (shareLinkFlags.hasTeaching) links.push({ kind: "TEACHING", url: shareUrl });
+      if (shareLinkFlags.hasEvent) links.push({ kind: "EVENT", url: shareUrl });
+      if (shareLinkFlags.hasExam) links.push({ kind: "EXAM", url: shareUrl });
+    }
+    for (const l of referralLinksRaw) {
+      links.push({ kind: l.kind === "TRIAL" ? "REFERRAL_TRIAL" : "REFERRAL_MAIN", url: l.url });
+    }
+    return links;
   }
 
   useEffect(() => {
@@ -126,8 +148,13 @@ export default function TalkGroupManager({ patientId, date }: { patientId: numbe
         const res = await fetch("/api/program-events/generate", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          // extraKeywords는 해피톡(NEXT_DOSE)에서만 실제로 쓰인다 — TRIAL_*은 서버에서 무시.
-          body: JSON.stringify({ todoTaskId: candidate.id, extraKeywords: extraKeywords[candidate.id] || undefined }),
+          // extraKeywords/includedLinks는 해피톡(NEXT_DOSE)에서만 실제로 쓰인다 — TRIAL_*은
+          // 서버에서 무시(task.md 재구조화 — TRIAL_*은 링크 소개 클로징 대상이 아님).
+          body: JSON.stringify({
+            todoTaskId: candidate.id,
+            extraKeywords: extraKeywords[candidate.id] || undefined,
+            includedLinks: buildIncludedLinks(),
+          }),
         });
         const data = await res.json();
         if (!res.ok) {
@@ -147,6 +174,7 @@ export default function TalkGroupManager({ patientId, date }: { patientId: numbe
             messageType: candidate.taskType,
             extraKeywords: extraKeywords[candidate.id] || undefined,
             progressLevel: candidate.taskType === "THIRD_VISIT" ? (progressLevels[candidate.id] ?? "MID") : undefined,
+            includedLinks: buildIncludedLinks(),
           }),
         });
         const data = await res.json();
@@ -180,11 +208,13 @@ export default function TalkGroupManager({ patientId, date }: { patientId: numbe
     const text = drafts[id]?.message ?? "";
     if (!text) return;
     const patientName = candidates?.find((c) => c.id === id)?.patient.name;
+    // task.md 재구조화 이후엔 생성 시점에 AI가 링크를 이미 본문에 소개해두므로, 복사 시
+    // 접미사 부착은 안전망일 뿐이다 — URL이 이미 본문에 있으면 중복으로 붙이지 않는다.
     let fullText = text;
-    if (shareUrl && shareLinkFlags && patientName) {
+    if (shareUrl && shareLinkFlags && patientName && !fullText.includes(shareUrl)) {
       fullText += `\n\n${buildShareLinkIntro(patientName, shareLinkFlags)}\n${shareUrl}`;
     }
-    if (referralBlock) {
+    if (referralBlock && !referralLinksRaw.every((l) => fullText.includes(l.url))) {
       fullText += `\n\n${referralBlock}`;
     }
     const success = await copyToClipboard(fullText);
@@ -319,6 +349,7 @@ export default function TalkGroupManager({ patientId, date }: { patientId: numbe
         patientId={patientId}
         onLinkGenerated={handleLinkGenerated}
         onReferralBlockChange={setReferralBlock}
+        onReferralLinksChange={setReferralLinksRaw}
         defaultCheckTrialReferral={hasTrialDay2Candidate}
       />
 

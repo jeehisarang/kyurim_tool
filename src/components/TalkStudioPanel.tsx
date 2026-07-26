@@ -8,7 +8,11 @@ import PatientNotes from "@/components/PatientNotes";
 import TrialEventCard from "@/components/TrialEventCard";
 import TalkGroupManager from "@/components/TalkGroupManager";
 import ProgramTeachingCreator from "@/components/ProgramTeachingCreator";
-import ShareLinkPanel, { buildShareLinkIntro, type ShareLinkFlags } from "@/components/ShareLinkPanel";
+import ShareLinkPanel, {
+  buildShareLinkIntro,
+  type ShareLinkFlags,
+  type ReferralLinkEntry,
+} from "@/components/ShareLinkPanel";
 import { getCurrentUserId } from "@/lib/currentUser";
 import { copyToClipboard } from "@/lib/clipboard";
 import {
@@ -136,6 +140,25 @@ function TalkStudioInner() {
   const [shareLinkFlags, setShareLinkFlags] = useState<ShareLinkFlags | null>(null);
   // 추천링크 체크박스(task2.md) — 톡 종류 구분 없이 어떤 메시지 타입에도 붙을 수 있다.
   const [referralBlock, setReferralBlock] = useState<string | null>(null);
+  // AI가 생성 시점에 링크를 직접 소개하도록 전달할 원자료(task.md 재구조화, 네이버예약
+  // 클로징 대체) — referralBlock(고정 문구 블록)과 별개로 kind별 실제 URL이 필요하다.
+  const [referralLinksRaw, setReferralLinksRaw] = useState<ReferralLinkEntry[]>([]);
+
+  // "링크 포함하기"에서 실제로 만들어진 링크를 AI 프롬프트용 형태로 변환한다(task.md
+  // 재구조화). 티칭/이벤트/검사결과는 shareUrl 하나를 공유하는 조합 링크라 flags별로
+  // 같은 URL을 중복 추가하고, 추천링크는 kind별로 URL이 다르므로 그대로 이어붙인다.
+  function buildIncludedLinks(): { kind: string; url: string }[] {
+    const links: { kind: string; url: string }[] = [];
+    if (shareUrl && shareLinkFlags) {
+      if (shareLinkFlags.hasTeaching) links.push({ kind: "TEACHING", url: shareUrl });
+      if (shareLinkFlags.hasEvent) links.push({ kind: "EVENT", url: shareUrl });
+      if (shareLinkFlags.hasExam) links.push({ kind: "EXAM", url: shareUrl });
+    }
+    for (const l of referralLinksRaw) {
+      links.push({ kind: l.kind === "TRIAL" ? "REFERRAL_TRIAL" : "REFERRAL_MAIN", url: l.url });
+    }
+    return links;
+  }
 
   // 자유톡(범용 AI 문자생성, task.md) — 기존 statuses 배열(발송이력 추적 대상)과 무관한
   // 독립 섹션이라 별도 로컬 상태로 관리한다. MessageLog에 기록되지 않으므로 발송확인/
@@ -206,6 +229,7 @@ function TalkStudioInner() {
     setShareUrl(null);
     setShareLinkFlags(null);
     setReferralBlock(null);
+    setReferralLinksRaw([]);
     setFreeformInstruction("");
     setFreeformDraft("");
     setFreeformError(null);
@@ -218,6 +242,7 @@ function TalkStudioInner() {
     setShareUrl(null);
     setShareLinkFlags(null);
     setReferralBlock(null);
+    setReferralLinksRaw([]);
     setFreeformInstruction("");
     setFreeformDraft("");
     setFreeformError(null);
@@ -235,6 +260,7 @@ function TalkStudioInner() {
           patientId: selectedPatient.id,
           messageType: "FREEFORM",
           instruction: freeformInstruction.trim(),
+          includedLinks: buildIncludedLinks(),
         }),
       });
       const data = await res.json();
@@ -251,14 +277,17 @@ function TalkStudioInner() {
   }
 
   // 링크 포함하기(추천링크/프로그램티칭/이벤트/검사결과) 재사용 — 기존 handleCopy와
-  // 동일한 접미사 부착 방식(task.md "기존처럼 동일하게 적용 가능하도록 재사용").
+  // 동일한 접미사 부착 방식(task.md "기존처럼 동일하게 적용 가능하도록 재사용"). task.md
+  // 재구조화 이후엔 생성 시점에 AI가 링크를 이미 본문에 자연스럽게 소개해두므로, 복사 시
+  // 접미사 부착은 "생성 후 링크를 새로 체크했는데 재생성을 안 한" 경우의 안전망일 뿐이다 —
+  // 그래서 URL이 이미 본문에 있으면 중복으로 또 붙이지 않는다.
   async function handleCopyFreeform() {
     if (!freeformDraft) return;
     let fullText = freeformDraft;
-    if (shareUrl && shareLinkFlags && selectedPatient) {
+    if (shareUrl && shareLinkFlags && selectedPatient && !fullText.includes(shareUrl)) {
       fullText += `\n\n${buildShareLinkIntro(selectedPatient.name, shareLinkFlags)}\n${shareUrl}`;
     }
-    if (referralBlock) {
+    if (referralBlock && !referralLinksRaw.every((l) => fullText.includes(l.url))) {
       fullText += `\n\n${referralBlock}`;
     }
     const success = await copyToClipboard(fullText);
@@ -283,6 +312,7 @@ function TalkStudioInner() {
           messageType,
           extraKeywords: extraKeywords[messageType] || undefined,
           progressLevel: messageType === "THIRD_VISIT" ? progressLevels.THIRD_VISIT : undefined,
+          includedLinks: buildIncludedLinks(),
         }),
       });
       const data = await res.json();
@@ -311,13 +341,14 @@ function TalkStudioInner() {
     const text = contentFor(status);
     if (!text) return;
     // EXAM은 contentFor가 이미 링크를 포함한 완성된 문구를 돌려주므로, 다른 유형처럼
-    // 링크를 접미사로 또 붙이면 중복된다.
+    // 링크를 접미사로 또 붙이면 중복된다. 나머지 유형은 생성 시점에 AI가 이미 링크를
+    // 본문에 소개해뒀을 수 있어(task.md 재구조화), URL이 이미 본문에 있으면 또 붙이지 않는다.
     let fullText = text;
-    if (status.messageType !== "EXAM" && shareUrl && shareLinkFlags && selectedPatient) {
+    if (status.messageType !== "EXAM" && shareUrl && shareLinkFlags && selectedPatient && !fullText.includes(shareUrl)) {
       fullText += `\n\n${buildShareLinkIntro(selectedPatient.name, shareLinkFlags)}\n${shareUrl}`;
     }
     // 추천링크(task2.md)는 EXAM을 포함해 톡 종류 구분 없이 체크된 대로 그대로 붙인다.
-    if (referralBlock) {
+    if (referralBlock && !referralLinksRaw.every((l) => fullText.includes(l.url))) {
       fullText += `\n\n${referralBlock}`;
     }
     const success = await copyToClipboard(fullText);
@@ -446,6 +477,7 @@ function TalkStudioInner() {
             patientId={selectedPatient.id}
             onLinkGenerated={handleLinkGenerated}
             onReferralBlockChange={setReferralBlock}
+            onReferralLinksChange={setReferralLinksRaw}
           />
         )}
       </div>

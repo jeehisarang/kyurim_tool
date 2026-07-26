@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { generateMessageDraft, generateFreeformMessageDraft, type ProgressLevel } from "@/lib/ai-message";
+import { generateMessageDraft, generateFreeformMessageDraft, parseIncludedLinks, type ProgressLevel } from "@/lib/ai-message";
 import { listConsultationNotesForPatient } from "@/lib/consultation-notes";
 
 const AI_MESSAGE_TYPES = ["DAY2", "DAY7", "THIRD_VISIT"] as const;
@@ -21,7 +21,7 @@ function isProgressLevel(value: unknown): value is ProgressLevel {
 
 export async function POST(request: Request) {
   const body = await request.json();
-  const { patientId, messageType, extraKeywords, progressLevel, instruction } = body;
+  const { patientId, messageType, extraKeywords, progressLevel, instruction, includedLinks } = body;
 
   const isFreeform = messageType === FREEFORM_MESSAGE_TYPE;
   if (!patientId || (!isAiMessageType(messageType) && !isFreeform)) {
@@ -87,6 +87,9 @@ export async function POST(request: Request) {
       mainNeeds: patient.mainNeeds,
     },
     latestConsultationNote,
+    // "링크 포함하기"(프로그램티칭/이벤트/검사결과/추천링크)에서 생성된 링크(task.md 재구조화) —
+    // 클라이언트가 보낸 값을 그대로 믿지 않고 형태를 검증한다.
+    includedLinks: parseIncludedLinks(includedLinks),
   };
 
   try {

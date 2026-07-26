@@ -6,7 +6,12 @@ import ProgramTeachingCreator from "@/components/ProgramTeachingCreator";
 import { getCurrentUserId } from "@/lib/currentUser";
 import { copyToClipboard } from "@/lib/clipboard";
 import { EXAM_TYPE_LABEL, weightCell, gripLabel, hrvSummaryLabel, formatExamDate, type ExaminationRow } from "@/lib/examination-format";
-import { buildReferralShareBlock, REFERRAL_SHARE_LABEL, type ReferralLinkKind } from "@/lib/referral-share-format";
+import {
+  buildReferralShareBlock,
+  buildReferralShareUrl,
+  REFERRAL_SHARE_LABEL,
+  type ReferralLinkKind,
+} from "@/lib/referral-share-format";
 
 // 링크에 포함된 3개 축(티칭/이벤트/검사결과, task.md) — 서로 독립적으로 0개 이상 조합 가능.
 // 복사 시 어떤 안내문구를 붙일지 결정하는 데 쓰인다.
@@ -76,10 +81,16 @@ function examRowKey(row: ExaminationRow): string {
  * 검사기록 체크리스트는 /api/examinations?patientId=(이미 인바디/근력/HRV 3종을 통합 반환)를
  * 그대로 재사용한다 — 종류별 최신 1건만 기본 체크, 과거 기록도 목록엔 보이되 미체크로 둔다.
  */
+// AI 프롬프트에 전달할 "포함할 링크" 원자료(task.md 재구조화) — 추천링크는 kind별로 URL이
+// 서로 다르므로(TRIAL/MAIN), 고정 문구 블록(referralBlock)과 별개로 raw kind+url 목록도
+// 필요하다.
+export type ReferralLinkEntry = { kind: ReferralLinkKind; url: string };
+
 export default function ShareLinkPanel({
   patientId,
   onLinkGenerated,
   onReferralBlockChange,
+  onReferralLinksChange,
   defaultCheckTrialReferral,
 }: {
   patientId: number;
@@ -88,6 +99,8 @@ export default function ShareLinkPanel({
   // 체크 즉시 고정 문구 블록을 부모에 알려준다(이미 발급된 링크를 재사용할 뿐 새로 만들
   // 게 없어서). 옵션이라 안 넘기면 체크박스는 뜨되 부모에 알릴 방법이 없을 뿐 동작엔 문제없다.
   onReferralBlockChange?: (block: string | null) => void;
+  // AI 프롬프트용 원자료(task.md 재구조화) — onReferralBlockChange와 같은 시점에 함께 갱신된다.
+  onReferralLinksChange?: (links: ReferralLinkEntry[]) => void;
   // 2일차톡 생성 컨텍스트(TalkGroupManager)에서만 true로 넘어온다 — 기존에 자동삽입되던
   // TRIAL 추천링크를 이 체크박스가 대체하면서 기본 체크 상태로 시작시키기 위함.
   defaultCheckTrialReferral?: boolean;
@@ -172,16 +185,15 @@ export default function ShareLinkPanel({
   // 다른 3개(티칭/이벤트/검사)와 달리 "링크 생성" 버튼 없이 체크 즉시 부모에 알린다 — 이미
   // 발급된 링크를 그대로 재사용할 뿐이라 새로 만들 게 없다.
   useEffect(() => {
-    if (!onReferralBlockChange) return;
-    if (!referralLinks || checkedReferralKinds.size === 0) {
-      onReferralBlockChange(null);
-      return;
+    const checked = referralLinks?.filter((l) => checkedReferralKinds.has(l.kind)) ?? [];
+    if (onReferralBlockChange) {
+      const blocks = checked.map((l) => buildReferralShareBlock(l.kind, l.token));
+      onReferralBlockChange(blocks.length > 0 ? blocks.join("\n\n") : null);
     }
-    const blocks = referralLinks
-      .filter((l) => checkedReferralKinds.has(l.kind))
-      .map((l) => buildReferralShareBlock(l.kind, l.token));
-    onReferralBlockChange(blocks.length > 0 ? blocks.join("\n\n") : null);
-  }, [checkedReferralKinds, referralLinks, onReferralBlockChange]);
+    if (onReferralLinksChange) {
+      onReferralLinksChange(checked.map((l) => ({ kind: l.kind, url: buildReferralShareUrl(l.kind, l.token) })));
+    }
+  }, [checkedReferralKinds, referralLinks, onReferralBlockChange, onReferralLinksChange]);
 
   function toggleReferralKind(kind: ReferralLinkKind) {
     setCheckedReferralKinds((prev) => {

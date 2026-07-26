@@ -16,13 +16,19 @@ export function referralSharePath(_kind: ReferralLinkKind, token: string): strin
   return `/refer/my/${token}`;
 }
 
+// 추천링크의 실제 URL만 필요한 호출측(AI 프롬프트에 전달할 "포함할 링크", task.md 재구조화)을
+// 위해 분리 — buildReferralShareBlock은 이 함수 위에 고정 안내문구를 덧붙인 것뿐이다.
+export function buildReferralShareUrl(kind: ReferralLinkKind, token: string): string {
+  return `${getShareBaseUrl()}${referralSharePath(kind, token)}`;
+}
+
 /**
  * 톡생성기 "링크 포함하기 > 추천링크" 체크박스(task2.md) 전용 고정 문구 블록. 기존
  * program-events/generate/route.ts에 있던 2일차톡 자동삽입 문구(buildDay2ReferralBlock)를
  * 대체하며, 링크 목적지를 신청폼에서 "내 추천 현황" 페이지로 바꾼 문구로 갱신했다(task.md).
  */
 export function buildReferralShareBlock(kind: ReferralLinkKind, token: string): string {
-  const url = `${getShareBaseUrl()}${referralSharePath(kind, token)}`;
+  const url = buildReferralShareUrl(kind, token);
   const headline = kind === "MAIN" ? "🎁 킬팻캡슐, 주변에도 추천해보세요!" : "🎁 3일체험, 주변에도 추천해보세요!";
 
   return (

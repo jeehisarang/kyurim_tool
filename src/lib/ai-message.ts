@@ -1,7 +1,54 @@
 import OpenAI from "openai";
 
 const MODEL = "gpt-4o-mini";
-const BOOKING_LINK = "https://naver.me/5YFK5LJz";
+
+// 포함된 링크 안내(task.md 재구조화) — 네이버예약 클로징(BOOKING_LINK/BOOKING_LINK_CLOSING_
+// INSTRUCTION, 전체 폐기됨)을 대체한다. "링크 포함하기"(프로그램티칭/이벤트/검사결과/추천링크)에서
+// 실제로 생성된 링크가 있을 때만, 그 URL을 AI에게 데이터로 전달해 자연스러운 문장으로 소개하며
+// 마무리에 넣게 한다. 링크가 하나도 없으면 클로징 문구 자체를 강제하지 않는다(COMMON_SYSTEM_PROMPT
+// [마무리 — 포함된 링크 안내] 참고). 모든 카테고리(DAY2/DAY7/THIRD_VISIT/FREEFORM/HAPPY_TALK)가
+// 공통으로 쓸 수 있어 COMMON에 두되, 실제 값은 항상 유저 메시지(카테고리별 함수)에서 채운다 —
+// "정확성이 필수인 정보는 AI가 추측하지 않고 코드가 채워 넣는다" 원칙(task.md)과 동일.
+export type IncludedLinkKind = "TEACHING" | "EVENT" | "EXAM" | "REFERRAL_TRIAL" | "REFERRAL_MAIN";
+export type IncludedLink = { kind: IncludedLinkKind; url: string };
+
+const INCLUDED_LINK_KINDS: readonly IncludedLinkKind[] = [
+  "TEACHING",
+  "EVENT",
+  "EXAM",
+  "REFERRAL_TRIAL",
+  "REFERRAL_MAIN",
+];
+
+function isIncludedLinkKind(value: unknown): value is IncludedLinkKind {
+  return typeof value === "string" && (INCLUDED_LINK_KINDS as readonly string[]).includes(value);
+}
+
+// 호출측(route.ts) 요청 바디에서 온 값을 그대로 믿지 않고 형태를 검증한다 — 다른 방어적
+// 파싱(parseExamRecords 등)과 동일한 원칙.
+export function parseIncludedLinks(value: unknown): IncludedLink[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .filter((v): v is { kind: unknown; url: unknown } => !!v && typeof v === "object" && "kind" in v && "url" in v)
+    .filter(
+      (v): v is { kind: IncludedLinkKind; url: string } =>
+        isIncludedLinkKind(v.kind) && typeof v.url === "string" && v.url.trim().length > 0,
+    )
+    .map((v) => ({ kind: v.kind, url: v.url.trim() }));
+}
+
+const INCLUDED_LINK_LABEL: Record<IncludedLinkKind, string> = {
+  TEACHING: "프로그램티칭",
+  EVENT: "이벤트",
+  EXAM: "검사결과",
+  REFERRAL_TRIAL: "추천링크(체험)",
+  REFERRAL_MAIN: "추천링크(본프로그램)",
+};
+
+function formatIncludedLinks(links?: IncludedLink[]): string {
+  if (!links || links.length === 0) return "없음";
+  return links.map((l) => `- ${INCLUDED_LINK_LABEL[l.kind]}: ${l.url}`).join("\n");
+}
 
 export type RecentVisit = {
   visitDate: Date;
@@ -44,6 +91,9 @@ export type PatientContext = {
   // 가장 최근 ConsultationNote 1건 요약(SOAP 변환본 있으면 그것, 없으면 원문) — 없으면 undefined.
   // 필수 입력재료 아님(있으면 참고하는 보조 재료), program-teaching 프롬프트와 동일한 원칙.
   latestConsultationNote?: { typeName: string; text: string };
+  // "링크 포함하기"(프로그램티칭/이벤트/검사결과/추천링크)에서 실제로 생성된 링크(task.md
+  // 재구조화) — 없으면 undefined(클로징 문구 강제 안 함).
+  includedLinks?: IncludedLink[];
 };
 
 export function assertOpenAiApiKeyConfigured(): void {
@@ -71,23 +121,36 @@ const COMMON_SYSTEM_PROMPT = `너는 규림한의원의 카카오톡 알림톡 �
 - 자연스러운 회화체를 써. "~하셨을까요?", "다행이에요"처럼 실제 사람이 말하듯이.
 - 모든 문장은 "~해요/~세요/~드릴게요"류의 부드러운 존댓말로 톤을 통일해. 반말이나 딱딱한 격식체가
   섞이면 안 돼. 한 문장이 두 줄 이상 이어지지 않도록 길어지면 쉼표로 늘어놓지 말고 문장을 끊어써.
-- 전문성과 친근감의 균형을 지켜: 치료의 중요성은 분명히 짚어주되 표현은 따뜻하게.
+- 전문성과 친근감의 균형을 지켜: 표현은 따뜻하게 쓰되, 치료의 중요성을 짚어주는 게 이번 메시지
+  목적과 관련 있을 때만 자연스럽게 언급하고, 관련 없으면(예: 명절 인사, 생일 축하처럼 치료와
+  무관한 목적) 억지로 끼워 넣지 말고 생략해.
 - 과도한 감정 표현이나 느낌표 남발은 피하고, 이모지는 🙂 정도만 아주 가끔.
-- 길이는 4~6줄 내외(3회차 톡 제외)로 하되, 전부 한 덩어리로 붙여 쓰지 마. 인사 → 본문(안부/근황) →
-  마무리(예약 유도) 처럼 화제가 바뀌는 지점에서 빈 줄(문단 사이 개행)로 2~3개 문단으로 나눠 카카오톡
-  화면에서 읽기 편하게 해. 목록 기호(-, •, 숫자.)를 쓰라는 뜻은 아니고, 자연스러운 문장 흐름은
-  유지하되 "복붙한 느낌"이 나지 않게 문단 구분만 자연스럽게 넣으라는 뜻이야.
+- 전부 한 덩어리로 붙여 쓰지 마. 인사 → 본문 → 마무리처럼 화제가 바뀌는 지점에서 빈 줄(문단 사이
+  개행)로 2~3개 문단으로 나눠 카카오톡 화면에서 읽기 편하게 해. 목록 기호(-, •, 숫자.)를 쓰라는
+  뜻은 아니고, 자연스러운 문장 흐름은 유지하되 "복붙한 느낌"이 나지 않게 문단 구분만 자연스럽게
+  넣으라는 뜻이야. 전체 분량은 아래 카테고리별 안내(길이 기준)를 반드시 지켜.
 - 아래 "핵심프로필"(원장이 정리한 사실관계), "누적 메모"(최근 디테일), "추가 키워드"에 통증
   부위·특이사항·주의사항처럼 구체적인 정보가 하나라도 있으면, 그중 이번 메시지와 가장 관련
   있는 것 최소 1가지는 반드시 문장 안에 구체적으로 언급해야 해(절대 빠뜨리면 안 됨 — 뭉뚱그려
   "불편하신 점"처럼 일반화하지 말고 실제 내용을 언급해). 핵심프로필이 있으면 누적 메모보다
   우선 참고할 것(더 안정적인 사실관계이기 때문). 다만 서로 무관하거나 오래돼 이번 메시지와
   상관없는 내용까지 전부 나열하지는 마.
-- "최근 상담기록"(상담모드에서 기록된 초진상담 등, 최신 1건)이 주어지고 그 내용이 이번
-  메시지 맥락(2일차/7일차/3회차)과 관련 있다면 자연스럽게 녹여서 반영해. 관련 없는 내용이거나
-  상담기록 자체가 없으면 억지로 끼워 넣지 말고 그냥 생략해 — 상담기록은 참고용 보조 재료일
-  뿐 필수 언급 대상이 아니야.
+- "최근 상담기록"(상담모드에서 기록된 초진상담 등, 최신 1건)이 주어지고 그 내용이 이번 메시지
+  목적과 관련 있다면 자연스럽게 녹여서 반영해. 관련 없는 내용이거나 상담기록 자체가 없으면
+  억지로 끼워 넣지 말고 그냥 생략해 — 상담기록은 참고용 보조 재료일 뿐 필수 언급 대상이 아니야.
 - 출력은 메시지 본문만. 안내 문구, 따옴표, 마크다운(굵게/목록기호 등) 없이 바로 텍스트로 시작해.
+
+[마무리 — 포함된 링크 안내]
+아래 사용자 메시지에 "포함할 링크" 목록이 주어지면, 그 각각을 자연스러운 문장으로 소개하며
+마무리 문단에 자연스럽게 포함시켜(URL은 주어진 그대로 정확히 인용 — 축약·변형·재구성하지 마).
+링크 종류별 소개 톤 참고(그대로 베끼지 말고 자연스럽게 변형해도 됨):
+- 프로그램티칭: "자세한 내용은 아래에서 확인해보세요"
+- 이벤트: "이벤트 소식은 아래 링크에서 확인해보세요"
+- 검사결과: "검사 결과는 아래에서 확인 가능합니다"
+- 추천링크: "링크는 아래에서 확인해보세요"
+링크가 여러 개면 각각을 자연스럽게 순서대로 소개해(하나로 뭉뚱그리지 말 것). "포함할 링크"가
+없거나 "없음"이면 이런 클로징을 절대 억지로 넣지 말고, 특정 URL이나 예약 안내 없이 그냥 메시지
+목적에 맞게 자연스럽게 마무리해.
 
 [출력 전 자체 검토 — 반드시 수행]
 문장을 완성한 뒤 실제로 출력하기 전에, 아래 기준으로 스스로 다시 읽고 문제가 있으면 자연스럽게
@@ -97,24 +160,20 @@ const COMMON_SYSTEM_PROMPT = `너는 규림한의원의 카카오톡 알림톡 �
    등의 호응 오류 금지)
 3. 모든 문장이 마침표/물음표로 완결되어 있고, 중간에 잘리거나 이어지다 만 문장이 없는가?
 4. 같은 단어나 표현이 어색하게 반복되지 않는가?
-5. 상담기록을 반영했다면, 그 내용이 실제로 이번 메시지 맥락과 관련 있는가? (무관한데
+5. 상담기록을 반영했다면, 그 내용이 실제로 이번 메시지 목적과 관련 있는가? (무관한데
    끼워 넣었다면 제거하고 자연스럽게 다시 써)
-위 5가지 중 하나라도 걸리면 반드시 고친 뒤 최종본만 출력해.`;
-
-// 예약 링크 마무리 지시문(task.md 수정) — 이전에는 COMMON_SYSTEM_PROMPT(모든 프롬프트가
-// 공유)에 있어서 자유톡(FREEFORM, 목적이 매번 달라지는 범용 도구)까지 "내원 유도" 클로징이
-// 섞여 나오는 오염이 있었다. DAY2/DAY7/THIRD_VISIT처럼 "내원 유도"가 실제 목적인 카테고리
-// 프롬프트에만 명시적으로 남기고, 공통 프롬프트에서는 완전히 제거했다.
-const BOOKING_LINK_CLOSING_INSTRUCTION = `[마무리 — 예약 유도]
-마지막은 항상 예약 링크 안내로 마무리해 (표현은 자유롭게 바꿔도 됨): "편하실 때 예약 링크로 확인해 주세요. 👉 ${BOOKING_LINK}"`;
+6. "포함할 링크"가 있다면 전부 자연스럽게 소개했고 URL을 정확히 그대로 인용했는가? 없다면
+   (링크 목록이 "없음"이라면) 예약 안내나 특정 URL 언급을 억지로 넣지 않았는가?
+위 6가지 중 하나라도 걸리면 반드시 고친 뒤 최종본만 출력해.`;
 
 const SYSTEM_PROMPT = `${COMMON_SYSTEM_PROMPT}
 
-${BOOKING_LINK_CLOSING_INSTRUCTION}
+[분량 — 2일차/7일차 톡]
+길이는 4~6줄 내외로 써(3회차 톡은 예외 — [3회차 톡 예시]의 구조를 그대로 따를 것).
 
 [2일차 톡 예시 — 실제 사용 사례]
 입력: 홍성순 79세 / 어제 허리가 아파서 내원 / 거동도 잘 못함 / 강근단 7일치 처방함
-출력: "홍성순님, 안녕하세요🙂 규림한의원입니다. 어제 허리 통증으로 많이 불편하셨는데, 오늘은 조금 어떠신가요? 거동이 어려우실 정도라 걱정이 됩니다. 처방받으신 강근단도 꾸준히 복용하시면서 무리한 움직임은 피하시고 충분히 쉬어주세요. 초기 치료는 통증을 줄이고 회복의 방향을 잡는 가장 중요한 시기입니다. 불편하신 점이 있거나 통증이 심해지시면 언제든 이 채팅으로 말씀해 주세요. 증상이 더 악화되지 않도록 가능한 가까운 날짜에 치료를 이어받으시면 회복에 도움이 됩니다. 편하실 때 예약 링크를 통해 예약해 주세요. 👉 ${BOOKING_LINK}"
+출력: "홍성순님, 안녕하세요🙂 규림한의원입니다. 어제 허리 통증으로 많이 불편하셨는데, 오늘은 조금 어떠신가요? 거동이 어려우실 정도라 걱정이 됩니다. 처방받으신 강근단도 꾸준히 복용하시면서 무리한 움직임은 피하시고 충분히 쉬어주세요. 초기 치료는 통증을 줄이고 회복의 방향을 잡는 가장 중요한 시기입니다. 불편하신 점이 있거나 통증이 심해지시면 언제든 이 채팅으로 말씀해 주세요. 증상이 더 악화되지 않도록 가능한 가까운 날짜에 치료를 이어받으시면 회복에 도움이 됩니다. 편하실 때 다시 내원해 주세요."
 
 [3회차 톡 예시 — 호전도별로 구조가 완전히 다름. 섞지 말고 요청된 호전도 버전만 따를 것]
 
@@ -125,7 +184,6 @@ ${BOOKING_LINK_CLOSING_INSTRUCTION}
 - 목표: 재발 예방 · 일상 기능 유지/개선
 [집에서] {부위} 1분 스트레칭 + 가벼운 호흡 1분
 편하신 시간만 남겨 주시면 예약 도와드릴게요.
-참고 링크 👉 ${BOOKING_LINK}
 (전화가 편하시면 "전화"라고 남겨 주세요)"
 
 (호전도 중, 30~50% — 미세 조정 후 안정화)
@@ -134,7 +192,6 @@ ${BOOKING_LINK_CLOSING_INSTRUCTION}
 - 내원 주기: 1주에 2~3회(안정화보다 한 템포 촘촘히)
 [집에서] {부위} 1분 스트레칭 + 온찜질 10분
 편하신 시간만 남겨 주시면 예약 도와드릴게요.
-참고 링크 👉 ${BOOKING_LINK}
 (전화가 편하시면 "전화"라고 남겨 주세요)"
 
 (호전도 하, 0~30% — 재평가 & 빠른 확인)
@@ -144,7 +201,6 @@ ${BOOKING_LINK_CLOSING_INSTRUCTION}
 (반응이 잡히면 → "2주에 3~4회" 안정화로 전환)
 [집에서] 무리한 동작은 피하고, 편한 범위에서 가벼운 호흡 1분(통증 시 중단)
 편하신 시간만 알려주셔도 도와드리겠습니다.
-참고 링크 👉 ${BOOKING_LINK}
 (전화가 편하시면 "전화"라고 남겨 주세요)"
 
 [톤 다듬기 참고]
@@ -152,23 +208,35 @@ ${BOOKING_LINK_CLOSING_INSTRUCTION}
 "피로가 좋아지셨다니 다행입니다." → "피로가 한결 나아지셨다니 정말 다행이에요."
 "늘 건강하세요." → "이번 환절기엔 몸이 덜 지치시길 바랍니다."`;
 
+// task.md 재구조화 검증 중 발견: DAY2처럼 특정 few-shot 예시(구조가 고정된 한 덩어리 문단)를
+// "그대로 참고해"라고 강하게 지시하면, 모델이 COMMON_SYSTEM_PROMPT의 [마무리 — 포함된 링크
+// 안내]보다 few-shot 구조를 우선시해 링크 소개를 통째로 누락하는 경우가 실사용 검증(DAY2+
+// 링크 조합, 5회 연속 재현)에서 확인됐다. 카테고리별 지시문 끝에 명시적으로 다시 상기시켜
+// few-shot 구조를 따르더라도 이 부분만은 생략되지 않게 한다.
+const LINK_REMINDER =
+  " 포함할 링크가 있다면 위 예시의 구조를 따르는 것과 별개로 반드시 마지막에 자연스러운 문장을 " +
+  "추가해 소개해 — 예시 자체에 링크 소개 문장이 없다고 해서 생략하면 안 돼.";
+
 const MESSAGE_TYPE_PROMPT: Record<"DAY2" | "DAY7" | "THIRD_VISIT", string> = {
   DAY2:
     "초진/재초진 다음날 보내는 안부 메시지를 써줘. 어제/오늘 컨디션을 여쭙고, 초기 치료가 회복 " +
     "방향을 잡는 중요한 시기라는 점을 자연스럽게 짚어준 뒤, 불편하면 이 채팅으로 언제든 알려달라고 " +
     "안내하고, 마지막에 가까운 날짜로 재예약을 유도해줘. [2일차 톡 예시]의 구조와 톤을 참고해. " +
     "누적 메모/추가 키워드에 통증 부위나 특이사항이 있다면 컨디션을 여쭙는 문장에 그 내용을 " +
-    "구체적으로 녹여써.",
+    "구체적으로 녹여써." +
+    LINK_REMINDER,
   DAY7:
     "7일간 재내원이 없는 환자에게 보내는 메시지야. 2일차 톡의 연장(계속 말 거는 톤)이 아니라 " +
     "완전히 독립된 안부 인사로 느껴지게 써줘 — '오랜만에 안부를 여쭙는다'는 느낌으로, 재촉하는 " +
     "톤이 아니라 걱정하고 챙기는 톤이어야 해. 그동안 어떻게 지내셨는지 여쭙고, 부담 없이 편한 " +
     "때 다시 뵙고 싶다는 정도로 가볍게 재예약을 권유해줘. 누적 메모/추가 키워드에 남아있는 " +
-    "통증 부위나 특이사항이 있다면 안부를 여쭙는 문장 속에 자연스럽게 언급해줘.",
+    "통증 부위나 특이사항이 있다면 안부를 여쭙는 문장 속에 자연스럽게 언급해줘." +
+    LINK_REMINDER,
   THIRD_VISIT:
     "3회 치료를 마친 환자에게 보내는 메시지야. [3회차 톡 예시]에서 요청된 호전도에 해당하는 " +
-    "버전의 구조(인사/격려 → 내원 주기·목표 또는 계획 → 집에서 할 것 → 예약 유도 → 참고 링크 → " +
-    "전화 안내)를 그대로 따라 작성해. 다른 호전도 버전의 톤이나 구조를 섞지 마.",
+    "버전의 구조(인사/격려 → 내원 주기·목표 또는 계획 → 집에서 할 것 → 예약 유도 → 전화 안내)를 " +
+    "그대로 따라 작성해. 다른 호전도 버전의 톤이나 구조를 섞지 마." +
+    LINK_REMINDER,
 };
 
 async function generateMessage(system: string, user: string): Promise<string> {
@@ -232,6 +300,8 @@ ${noteHistory}
 ${visitHistory}
 ${patient.extraKeywords ? `- 이번 발송에만 참고할 추가 키워드: ${patient.extraKeywords}` : ""}
 ${progressLevel ? `- 호전도: ${progressLevelLabel[progressLevel]}` : ""}
+- 포함할 링크(있으면 마무리에 자연스럽게 소개, 없으면 클로징 문구 생략):
+${formatIncludedLinks(patient.includedLinks)}
 
 요청: ${MESSAGE_TYPE_PROMPT[messageType]}`;
 
@@ -239,13 +309,11 @@ ${progressLevel ? `- 호전도: ${progressLevelLabel[progressLevel]}` : ""}
 }
 
 // 자유톡(범용 AI 문자생성, task.md) 전용 분량 가이드 — 킬팻캡슐 톡 분량 축소 작업(TRIAL_SYSTEM_PROMPT
-// [3-1. 분량 제한])과 동일한 방향/문구. DAY2/DAY7/THIRD_VISIT이 쓰는 COMMON_SYSTEM_PROMPT
-// 자체에는 아직 이 명시적 400자 상한이 없어(길이는 "4~6줄 내외"로만 안내), 그쪽 프롬프트에
-// 영향을 주지 않도록 COMMON_SYSTEM_PROMPT를 건드리지 않고 자유톡 전용 시스템 프롬프트에만
-// 이어붙인다.
-// 주의(task.md 수정) — BOOKING_LINK_CLOSING_INSTRUCTION(예약 링크로 항상 마무리하라는 지시)은
-// 절대 여기 붙이지 말 것. 자유톡은 매번 목적이 달라지는 범용 도구라 "내원 유도"를 기본값으로
-// 깔면 안 된다(수정 전엔 이 지시문이 COMMON_SYSTEM_PROMPT에 있어서 자유톡에도 함께 섞여 나왔음).
+// [3-1. 분량 제한])과 동일한 방향/문구. DAY2/DAY7/THIRD_VISIT과 달리 COMMON_SYSTEM_PROMPT는
+// 이제 카테고리별 숫자를 갖지 않으므로(task.md 재구조화), 자유톡은 이 400자 상한만 자기
+// 전용으로 이어붙인다. COMMON_SYSTEM_PROMPT의 [마무리 — 포함된 링크 안내]는 네이버예약
+// 클로징(BOOKING_LINK, 전체 폐기됨)과 달리 모든 카테고리가 공통으로 써야 하는 범용 로직이라
+// (링크가 있을 때만 소개, 없으면 클로징 없음) 자유톡도 그대로 상속받아 문제없다.
 const FREEFORM_SYSTEM_PROMPT = `${COMMON_SYSTEM_PROMPT}
 
 [분량 제한 — 카카오톡 대화창 "더보기" 방지 (반드시 지킬 것)]
@@ -302,6 +370,8 @@ export async function generateFreeformMessageDraft(
 ${noteHistory}
 - 최근 내원 이력:
 ${visitHistory}
+- 포함할 링크(있으면 마무리에 자연스럽게 소개, 없으면 클로징 문구 생략):
+${formatIncludedLinks(patient.includedLinks)}
 
 요청: 아래는 담당자가 직접 적은, 이번에 보낼 메시지의 목적/내용이야. 이 지시를 최우선으로
 따르되, 위 환자 정보를 참고해 이 환자에게 맞는 문구로 자연스럽게 완성해줘. 목적 설명 중에
@@ -312,19 +382,21 @@ ${visitHistory}
 }
 
 // 해피톡(처방주기 안내, task.md/13-5) — SPLIT(분할처방) 프로그램의 다음 처방일이 임박한
-// 환자에게 보내는 리마인드 메시지. COMMON_SYSTEM_PROMPT(톤/자체검토)를 그대로 재사용하고
-// few-shot 예시만 해피톡용으로 추가한다 — DAY2/DAY7/THIRD_VISIT과 같은 "내원기반" 계열은
-// 아니지만 톤 원칙(자연스러운 리마인드, 압박 아님)과 품질 기준(비문 금지, 자체검토)이 동일해서
-// TRIAL_*처럼 완전히 독립된 프롬프트를 새로 만들 필요는 없다고 판단. 예약 링크 마무리는
-// (task.md 수정 — FREEFORM 오염 제거로 COMMON_SYSTEM_PROMPT에서 빠짐) 해피톡도 다음 처방
-// 방문을 유도하는 목적이 있어 BOOKING_LINK_CLOSING_INSTRUCTION을 여기서 명시적으로 재사용한다.
+// 환자에게 보내는 리마인드 메시지. COMMON_SYSTEM_PROMPT(톤/자체검토/포함된 링크 안내)를 그대로
+// 재사용하고 few-shot 예시와 분량 안내만 해피톡용으로 추가한다 — DAY2/DAY7/THIRD_VISIT과 같은
+// "내원기반" 계열은 아니지만 톤 원칙(자연스러운 리마인드, 압박 아님)과 품질 기준(비문 금지,
+// 자체검토)이 동일해서 TRIAL_*처럼 완전히 독립된 프롬프트를 새로 만들 필요는 없다고 판단.
+// 처음 실사용 예정(task.md)이라 클로징은 COMMON의 범용 링크 안내에만 맡긴다 — 네이버예약
+// 클로징(BOOKING_LINK, 전체 폐기됨)은 더 이상 어디에도 없음. "다음 처방일/차수 안내"는 클로징이
+// 아니라 HAPPY_TALK_PROMPT_INSTRUCTION이 본문에서 직접 요구하므로 클로징 제거와 무관하게 유지된다.
 const HAPPY_TALK_SYSTEM_PROMPT = `${COMMON_SYSTEM_PROMPT}
 
-${BOOKING_LINK_CLOSING_INSTRUCTION}
+[분량 — 해피톡]
+길이는 4~6줄 내외로 써.
 
 [해피톡(처방주기 안내) 예시 — 실제 사용 사례]
 입력: 김민지 / 프로그램: 킬팻캡슐 1개월 / 남은 차수: 2/3차 / 다음 처방일: 2026-08-01
-출력: "김민지님, 안녕하세요🙂 규림한의원입니다. 지금 드시고 계신 킬팻캡슐이 이제 거의 다 드셔가실 시기예요. 다음 처방일이 8월 1일로 다가오고 있어서 미리 안내드리려고 연락드렸어요. 꾸준히 이어서 챙겨 드시는 게 효과를 이어가는 데 가장 중요하니, 편하실 때 다음 처방 받으러 와주세요. 편하실 때 예약 링크로 확인해 주세요. 👉 ${BOOKING_LINK}"`;
+출력: "김민지님, 안녕하세요🙂 규림한의원입니다. 지금 드시고 계신 킬팻캡슐이 이제 거의 다 드셔가실 시기예요. 다음 처방일이 8월 1일로 다가오고 있어서 미리 안내드리려고 연락드렸어요. 꾸준히 이어서 챙겨 드시는 게 효과를 이어가는 데 가장 중요하니, 편하실 때 다음 처방 받으러 와주세요."`;
 
 const HAPPY_TALK_PROMPT_INSTRUCTION =
   "SPLIT(분할처방) 프로그램을 복용 중인 환자에게, 다음 처방일이 1~2일 앞으로 다가왔다는 걸 " +
@@ -333,7 +405,8 @@ const HAPPY_TALK_PROMPT_INSTRUCTION =
   "해. [프로그램명]과 [다음 처방일]을 자연스럽게 문장에 녹여 언급하고, [남은 차수]가 있다면 " +
   "참고해서 톤을 살짝 조절해도 좋아(예: 마지막 차수에 가까우면 그동안 잘 이어오신 것에 대한 " +
   "격려를 살짝 더해도 됨 — 단 남은 차수를 숫자 그대로 문장에 나열하듯 쓰지는 말 것). [해피톡 예시]의 " +
-  "구조와 톤을 참고해.";
+  "구조와 톤을 참고해." +
+  LINK_REMINDER;
 
 export type HappyTalkPatientContext = {
   name: string;
@@ -345,6 +418,7 @@ export type HappyTalkPatientContext = {
   coreProfile?: CoreProfileContext;
   latestConsultationNote?: { typeName: string; text: string };
   extraKeywords?: string;
+  includedLinks?: IncludedLink[];
 };
 
 export async function generateHappyTalkMessageDraft(patient: HappyTalkPatientContext): Promise<string> {
@@ -368,6 +442,8 @@ export async function generateHappyTalkMessageDraft(patient: HappyTalkPatientCon
 - 누적 메모(최근 디테일/뉘앙스 — 관련 있는 것만 선별해서 반영, 전부 나열 금지):
 ${noteHistory}
 ${patient.extraKeywords ? `- 이번 발송에만 참고할 추가 키워드: ${patient.extraKeywords}` : ""}
+- 포함할 링크(있으면 마무리에 자연스럽게 소개, 없으면 클로징 문구 생략):
+${formatIncludedLinks(patient.includedLinks)}
 
 요청: ${HAPPY_TALK_PROMPT_INSTRUCTION}`;
 

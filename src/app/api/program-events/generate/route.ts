@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getProgramEventDetail } from "@/lib/program-events";
-import { generateTrialMessageDraft, generateHappyTalkMessageDraft } from "@/lib/ai-message";
+import { generateTrialMessageDraft, generateHappyTalkMessageDraft, parseIncludedLinks } from "@/lib/ai-message";
 import { listConsultationNotesForPatient } from "@/lib/consultation-notes";
 import { HAPPY_TALK_TASK_TYPE } from "@/lib/happy-talk";
 
@@ -17,7 +17,7 @@ function isTrialTaskType(value: string): value is (typeof TRIAL_TASK_TYPES)[numb
 
 export async function POST(request: Request) {
   const body = await request.json();
-  const { todoTaskId, extraKeywords } = body;
+  const { todoTaskId, extraKeywords, includedLinks } = body;
 
   if (!todoTaskId) {
     return NextResponse.json({ error: "todoTaskId가 필요합니다." }, { status: 400 });
@@ -64,6 +64,8 @@ export async function POST(request: Request) {
         },
         latestConsultationNote,
         extraKeywords: typeof extraKeywords === "string" && extraKeywords.trim() ? extraKeywords.trim() : undefined,
+        // "링크 포함하기"에서 생성된 링크(task.md 재구조화, 해피톡 처음 실사용 대비).
+        includedLinks: parseIncludedLinks(includedLinks),
       });
       return NextResponse.json({ patientMessage: message, internalAnalysis: "" });
     } catch (err) {
