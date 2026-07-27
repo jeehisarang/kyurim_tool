@@ -274,6 +274,9 @@ export default function TrialCampaignSettingsPage() {
         <Link href="/refer/main-registrations" className={styles.linkButton}>
           본프로그램 바로등록 신청 전체보기 →
         </Link>
+        <Link href="/settings/referral-credits" className={styles.linkButton}>
+          추천 적립 현황 보기 →
+        </Link>
       </div>
     </div>
   );
