@@ -8,7 +8,7 @@ import {
 } from "@/lib/referral-config";
 import { getMainReferralAmounts, getTrialReferralBonusAmount } from "@/lib/trial-campaign";
 import { getPatientCreditBalance, listReferralCreditUsageForPatient } from "@/lib/referral-credit-usage";
-import { logActivity } from "@/lib/activity-log";
+import { logActivity, buildReferrerIntroPlaceholder } from "@/lib/activity-log";
 import { createWorkTask } from "@/lib/work-tasks";
 import { startOfDay, getSystemStaffUserId } from "@/lib/teaching-pages";
 import { WORK_TASK_TYPE } from "@/lib/task-types";
@@ -347,35 +347,40 @@ export async function createTrialApplication(input: TrialApplicationInput) {
 
   await requestTrialApplicationCallback({ name: input.name, phone: input.phone });
 
+  // 활동피드 추천인 표시(task2.md)와 적립 지급 둘 다 "유효한(활성+만료 전) 링크"만
+  // 인정한다 — 두 로직이 같은 기준을 쓰도록 조회를 한 번만 해서 공유한다.
+  const link = input.referralToken
+    ? await prisma.referralLink.findUnique({ where: { token: input.referralToken } })
+    : null;
+  const validLink = link && link.isActive && link.expiresAt.getTime() > Date.now() ? link : null;
+
   await logActivity({
     actorType: "PATIENT",
     actorId: null,
     actionType: "TRIAL_APPLICATION_SUBMIT",
-    label: input.referralToken
-      ? `${input.name}님이 추천으로 킬팻캡슐 3일체험을 신청했습니다`
+    label: validLink
+      ? `${input.name}님이 ${buildReferrerIntroPlaceholder()}킬팻캡슐 3일체험을 신청했습니다`
       : `${input.name}님이 킬팻캡슐 3일체험을 신청했습니다`,
+    referrerPatientId: validLink?.patientId ?? null,
   });
 
-  if (input.referralToken) {
-    const link = await prisma.referralLink.findUnique({ where: { token: input.referralToken } });
-    if (link && link.isActive && link.expiresAt.getTime() > Date.now()) {
-      // 공유 문구에 표시된 금액과 실제 지급액이 항상 같도록 동일한 설정값을 참조한다
-      // (task.md — TrialCampaignSettings.trialReferralBonusAmount, 없으면 기본값 폴백).
-      const trialBonusAmount = await getTrialReferralBonusAmount();
-      await prisma.referralCreditEntry.create({
-        data: {
-          patientId: link.patientId,
-          linkToken: input.referralToken,
-          kind: CREDIT_KIND_TRIAL_SIGNUP,
-          amount: trialBonusAmount,
-          referredName: input.name,
-          referredTrialApplicationId: application.id,
-          // 신청 즉시는 "최대 적립금"에만 반영 — 실제 3일체험 등록 시
-          // linkTrialApplicationToPrescription이 CONFIRMED로 전환한다(task.md).
-          status: CREDIT_STATUS_PENDING,
-        },
-      });
-    }
+  if (validLink) {
+    // 공유 문구에 표시된 금액과 실제 지급액이 항상 같도록 동일한 설정값을 참조한다
+    // (task.md — TrialCampaignSettings.trialReferralBonusAmount, 없으면 기본값 폴백).
+    const trialBonusAmount = await getTrialReferralBonusAmount();
+    await prisma.referralCreditEntry.create({
+      data: {
+        patientId: validLink.patientId,
+        linkToken: validLink.token,
+        kind: CREDIT_KIND_TRIAL_SIGNUP,
+        amount: trialBonusAmount,
+        referredName: input.name,
+        referredTrialApplicationId: application.id,
+        // 신청 즉시는 "최대 적립금"에만 반영 — 실제 3일체험 등록 시
+        // linkTrialApplicationToPrescription이 CONFIRMED로 전환한다(task.md).
+        status: CREDIT_STATUS_PENDING,
+      },
+    });
   }
 
   return application;

@@ -2,6 +2,16 @@ import { prisma } from "@/lib/db";
 
 export type ActivityActorType = "STAFF" | "PATIENT" | "SYSTEM";
 
+// 체험 신청 알림에 추천인 이름 포함(task2.md) — label에 이름을 그대로 박아두면 나중에
+// 추천인 이름이 바뀌어도 과거 로그에 옛 이름이 남는 "스냅샷"이 된다. 대신 이 자리표시자를
+// label 문자열에 심어두고, referrerPatientId를 함께 저장하면 listRecentActivity가 조회
+// 시점마다 Patient.name을 다시 조회해 실시간으로 끼워 넣는다.
+export const REFERRER_INTRO_PLACEHOLDER = "{{REFERRER_INTRO}}";
+
+export function buildReferrerIntroPlaceholder(): string {
+  return REFERRER_INTRO_PLACEHOLDER;
+}
+
 /**
  * 실시간 활동피드(우측 고정 레일) 기록 — 조용한 동기부여용 로그일 뿐이라, 이 호출이
  * 실패해도(예: 순간적 DB 잠금) 원래 하려던 작업(업무 등록, 톡 발송확인 등)까지 실패로
@@ -12,6 +22,9 @@ export async function logActivity(input: {
   actorId?: number | null;
   actionType: string;
   label: string;
+  // 체험 신청 알림 추천인(task2.md) — 추천을 통한 신청일 때만 채운다. 이 필드가 있으면
+  // label 안의 REFERRER_INTRO_PLACEHOLDER가 조회 시점마다 최신 이름으로 치환된다.
+  referrerPatientId?: number | null;
 }): Promise<void> {
   try {
     await prisma.activityLog.create({
@@ -20,6 +33,7 @@ export async function logActivity(input: {
         actorId: input.actorId ?? null,
         actionType: input.actionType,
         label: input.label,
+        referrerPatientId: input.referrerPatientId ?? null,
       },
     });
   } catch (err) {
@@ -42,14 +56,22 @@ export async function listRecentActivity(limit = 15): Promise<ActivityLogListRow
   const rows = await prisma.activityLog.findMany({
     orderBy: { createdAt: "desc" },
     take: limit,
-    include: { checkedByStaff: { select: { name: true } } },
+    include: { checkedByStaff: { select: { name: true } }, referrerPatient: { select: { name: true } } },
   });
   return rows.map((row) => ({
     id: row.id,
     actorType: row.actorType as ActivityActorType,
     actorId: row.actorId,
     actionType: row.actionType,
-    label: row.label,
+    // 추천인 이름 실시간 치환(task2.md) — 스냅샷 저장 금지 지시대로, label에 박힌
+    // 고정 문자열이 아니라 조회 시점의 Patient.name을 매번 다시 읽어서 끼워 넣는다.
+    // referrerPatientId가 없는 로그(추천 없음, 또는 이 필드 도입 이전의 과거 로그)는
+    // 플레이스홀더 자체가 없어 그대로 통과한다. 추천인이 그사이 삭제됐다면(드문 케이스)
+    // "추천으로" 문구 없이 자연스럽게 되돌아가도록 빈 문자열로 치환한다.
+    label: row.label.replace(
+      REFERRER_INTRO_PLACEHOLDER,
+      row.referrerPatient ? `${row.referrerPatient.name}님의 추천으로 ` : "",
+    ),
     createdAt: row.createdAt,
     isChecked: row.isChecked,
     checkedByStaffName: row.checkedByStaff?.name ?? null,

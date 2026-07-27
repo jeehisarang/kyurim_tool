@@ -60,6 +60,7 @@ model Patient {
   referralCreditEntries       ReferralCreditEntry[]
   referralCreditUsages        ReferralCreditUsage[]
   mainDirectRegistrationRequests MainDirectRegistrationRequest[]
+  referrerActivityLogs        ActivityLog[]                  @relation("ActivityLogReferrer")
 }
 
 model TreatmentCategory {
@@ -753,6 +754,13 @@ model ActivityLog {
   checkedByStaffId Int?
   checkedByStaff   StaffUser? @relation(fields: [checkedByStaffId], references: [id])
   checkedAt        DateTime?
+  // 체험 신청 알림에 추천인 이름 포함(task2.md) — label에 이름을 그대로 박아두지 않고
+  // (스냅샷 금지 지시) 추천인 patientId만 저장해, 조회할 때마다 listRecentActivity가
+  // 최신 이름을 조회해 label의 "{{REFERRER_INTRO}}" 자리표시자에 끼워 넣는다. null이면
+  // 추천 없이 직접 신청(또는 이 필드 도입 이전의 과거 로그) — 과거 로그는 소급 변경하지
+  // 않는다(요구사항).
+  referrerPatientId Int?
+  referrerPatient   Patient?   @relation("ActivityLogReferrer", fields: [referrerPatientId], references: [id])
 }
 
 // 이벤트 이미지 생성기 1차 버전(AI 생성 > 이벤트 이미지 탭) — 문구를 AI로 완성한 뒤
