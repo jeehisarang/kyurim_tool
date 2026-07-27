@@ -98,6 +98,11 @@
   color: var(--color-celadon-dark);
 }
 
+/* 킬팻캡슐 배지 색상 구분(task.md) — 3일체험(tier1)은 기존 청자색 톤 유지, 본프로그램
+   (1개월/3개월, tier2/3)은 청자색과 확실히 구분되도록 --color-seal(주홍) 계열로 전환한다.
+   기존 청자/한지/주홍 팔레트 안에서만 고른 것 — 새 색상을 추가하지 않았다. tier2<tier3
+   명도 단계(0.16→0.30)는 기존 다른 카테고리(tangTier1~3)의 "기간 길수록 진하게" 규칙을
+   그대로 따른 것. */
 .capsuleTier1 {
   background: rgba(110, 148, 140, 0.18);
   border: 1px solid var(--color-celadon-dark);
@@ -106,17 +111,17 @@
 }
 
 .capsuleTier2 {
-  background: rgba(110, 148, 140, 0.26);
-  border: 1px solid var(--color-celadon-dark);
+  background: rgba(179, 60, 46, 0.16);
+  border: 1px solid var(--color-seal);
   border-left-width: 3px;
-  color: var(--color-celadon-dark);
+  color: var(--color-seal);
 }
 
 .capsuleTier3 {
-  background: rgba(110, 148, 140, 0.34);
-  border: 1px solid var(--color-celadon-dark);
+  background: rgba(179, 60, 46, 0.3);
+  border: 1px solid var(--color-seal);
   border-left-width: 3px;
-  color: var(--color-celadon-dark);
+  color: var(--color-seal);
 }
 
 .period {

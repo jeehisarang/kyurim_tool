@@ -171,6 +171,43 @@
   font-weight: 500;
 }
 
+/* 킬팻캡슐 세부 필터(2단, task.md) — 1단 filterRow보다 한 단 들여써서 하위 필터임을
+   시각적으로 표시. 버튼 자체는 1단과 동일한 톤(celadon)을 재사용해 톤 체계를 늘리지 않는다. */
+.subFilterRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: -12px 0 20px 16px;
+  padding-left: 10px;
+  border-left: 2px solid rgba(110, 148, 140, 0.3);
+}
+
+.subFilterButton,
+.subFilterButtonActive {
+  border-radius: 4px;
+  padding: 4px 10px;
+  font-size: 12px;
+  font-family: var(--font-body);
+  cursor: pointer;
+}
+
+.subFilterButton {
+  border: 1px solid rgba(110, 148, 140, 0.35);
+  background: transparent;
+  color: var(--color-ink);
+}
+
+.subFilterButton:hover {
+  background: rgba(110, 148, 140, 0.1);
+}
+
+.subFilterButtonActive {
+  border: 1px solid var(--color-celadon);
+  background: var(--color-celadon);
+  color: var(--color-hanji-card);
+  font-weight: 500;
+}
+
 .section {
   background: var(--color-hanji-card);
   border: 1px solid rgba(110, 148, 140, 0.35);

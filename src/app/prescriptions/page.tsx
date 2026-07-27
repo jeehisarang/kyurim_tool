@@ -8,6 +8,7 @@ import BackButton from "@/components/BackButton";
 import ProgramBadge from "@/components/ProgramBadge";
 import {
   getProgramCategory,
+  getProgramBadgeInfo,
   PROGRAM_CATEGORY_ICON,
   type ProgramCategoryKey,
 } from "@/lib/program-categories";
@@ -179,6 +180,25 @@ export default function PrescriptionListPage() {
     [stats, categorizedProgramIds],
   );
 
+  // 킬팻캡슐 세부 필터(task.md 2단 구조) — 3일체험/1개월/3개월을 tier 순서(짧다→길다)로
+  // 정렬해 "전체/3일체험/1개월/3개월" 서브 필터 버튼을 만든다. 상단 요약카드와 동일한
+  // stats.perCategory 데이터를 그대로 재사용해 집계 기준이 갈라지지 않게 한다(task.md 요구사항).
+  const killCapSubPrograms = useMemo(() => {
+    const programs = stats?.perCategory.find((c) => c.category === "킬팻캡슐")?.programs ?? [];
+    return [...programs].sort((a, b) => {
+      const tierA = getProgramBadgeInfo(a.programName)?.tier ?? 99;
+      const tierB = getProgramBadgeInfo(b.programName)?.tier ?? 99;
+      return tierA - tierB;
+    });
+  }, [stats]);
+
+  // 세부 필터(1개월/3개월 등)를 고른 뒤에도 서브 필터 행과 상위 "킬팻캡슐" 버튼이 계속
+  // 활성 표시로 남아있어야 다른 세부 항목으로 바로 전환할 수 있다 — category 필터일 때뿐
+  // 아니라 killCapSubPrograms에 속한 program 필터일 때도 "킬팻캡슐 활성"으로 간주한다.
+  const isKillCapCategoryActive =
+    (filter?.kind === "category" && filter.category === "킬팻캡슐") ||
+    (filter?.kind === "program" && killCapSubPrograms.some((p) => p.programId === filter.programId));
+
   const filteredGroups = useMemo(() => {
     if (!groups) return [];
     let result = groups;
@@ -282,7 +302,9 @@ export default function PrescriptionListPage() {
             key={c.category}
             type="button"
             className={
-              isFilterActive({ kind: "category", category: c.category })
+              // 킬팻캡슐은 세부 필터(1개월/3개월 등) 선택 중에도 상위 버튼이 계속 활성으로
+              // 보여야 한다(isKillCapCategoryActive가 그 경우까지 포함해서 계산해준다).
+              (c.category === "킬팻캡슐" ? isKillCapCategoryActive : isFilterActive({ kind: "category", category: c.category }))
                 ? styles.filterButtonActive
                 : styles.filterButton
             }
@@ -306,6 +328,35 @@ export default function PrescriptionListPage() {
           </button>
         ))}
       </div>
+
+      {/* 킬팻캡슐 세부 필터(2단, task.md) — 1단에서 킬팻캡슐 카테고리를 선택했을 때만 노출 */}
+      {isKillCapCategoryActive && killCapSubPrograms.length > 0 && (
+        <div className={styles.subFilterRow}>
+          <button
+            type="button"
+            className={
+              filter?.kind === "category" ? styles.subFilterButtonActive : styles.subFilterButton
+            }
+            onClick={() => setFilter({ kind: "category", category: "킬팻캡슐" })}
+          >
+            킬팻캡슐 전체
+          </button>
+          {killCapSubPrograms.map((p) => (
+            <button
+              key={p.programId}
+              type="button"
+              className={
+                isFilterActive({ kind: "program", programId: p.programId })
+                  ? styles.subFilterButtonActive
+                  : styles.subFilterButton
+              }
+              onClick={() => setFilter({ kind: "program", programId: p.programId })}
+            >
+              {getProgramBadgeInfo(p.programName)?.period ?? p.programName}
+            </button>
+          ))}
+        </div>
+      )}
 
       <div className={styles.section}>
         {groups === null && <p className={styles.muted}>불러오는 중...</p>}
