@@ -18,6 +18,15 @@
  *
  * 실행(실제 반영) — 반드시 위 dry-run 결과를 원장님이 확인/승인한 뒤에만 사용:
  *   npx tsx scripts/backfill-main-referral-links.ts --apply
+ *
+ * --patient 옵션(task2.md) — 처방이 이미 종료(STOPPED)돼 위 기본 동작(ACTIVE만 대상) 대상에서
+ * 빠졌지만, 예외적으로 MAIN 추천링크를 만들어주고 싶은 특정 환자 지정용. 새 치료처방을 억지로
+ * 등록하는 부작용(스케줄/통계 왜곡) 없이 안전하게 처리하기 위한 것 — 처방 상태와 무관하게 해당
+ * 환자의 "가장 최근 본프로그램 처방"을 근거로 tier/링크를 만든다. 본프로그램 이력 자체가 없으면
+ * 에러로 안내하고(무엇을 근거로 tier를 정할지 알 수 없으므로) 그 환자는 처리하지 않는다.
+ *   npx tsx scripts/backfill-main-referral-links.ts --patient=123
+ *   npx tsx scripts/backfill-main-referral-links.ts --patient=123,9152 --apply
+ * (쉼표로 구분한 각 값은 환자 ID 또는 차트번호 — 차트번호로 먼저 찾고, 없으면 숫자 ID로 시도)
  */
 import "dotenv/config";
 import { PrismaBetterSqlite3 } from "@prisma/adapter-better-sqlite3";
@@ -34,6 +43,14 @@ const adapter = new PrismaBetterSqlite3({ url: process.env.DATABASE_URL ?? "file
 const prisma = new PrismaClient({ adapter });
 
 const APPLY = process.argv.includes("--apply");
+
+const PATIENT_ARG = process.argv.find((a) => a.startsWith("--patient="));
+const PATIENT_TOKENS = PATIENT_ARG
+  ? PATIENT_ARG.slice("--patient=".length)
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean)
+  : null;
 
 type PlanAction = "PROMOTE" | "ISSUE_NEW" | "SKIP_ALREADY_MAIN";
 
@@ -106,6 +123,78 @@ async function buildPlan(): Promise<PlanEntry[]> {
   return plan.sort((a, b) => a.patientName.localeCompare(b.patientName, "ko"));
 }
 
+type ResolutionError = { token: string; message: string };
+
+// --patient 옵션(task2.md) — 환자ID 또는 차트번호를 받아, 처방 상태(진행중/종료)와 무관하게
+// "가장 최근 등록된 본프로그램 처방"을 근거로 tier를 정한다. 본프로그램 이력 자체가 없으면
+// (tier를 정할 근거가 없으므로) 에러로 안내하고 그 환자는 계획에서 제외한다.
+async function buildPlanForSpecificPatients(
+  tokens: string[],
+): Promise<{ plan: PlanEntry[]; errors: ResolutionError[] }> {
+  const plan: PlanEntry[] = [];
+  const errors: ResolutionError[] = [];
+
+  for (const token of tokens) {
+    // 차트번호로 먼저 찾고(원장님이 실제로 아는 값), 없으면 숫자면 내부 ID로 시도한다 —
+    // 이 시스템의 차트번호도 숫자 문자열일 수 있어 순서를 이렇게 정했다.
+    let patient = await prisma.patient.findUnique({ where: { chartNumber: token } });
+    if (!patient && /^\d+$/.test(token)) {
+      patient = await prisma.patient.findUnique({ where: { id: Number(token) } });
+    }
+    if (!patient) {
+      errors.push({ token, message: `환자를 찾을 수 없습니다(입력값: "${token}")` });
+      continue;
+    }
+
+    // 처방 상태 무관 — STOPPED/COMPLETED도 포함해서 본프로그램 이력이 있었는지만 확인.
+    const allPrescriptions = await prisma.prescription.findMany({
+      where: { patientId: patient.id },
+      include: { program: true },
+    });
+    const mainPrescriptions = allPrescriptions.filter((p) => isMainProgram(p.program));
+
+    if (mainPrescriptions.length === 0) {
+      errors.push({
+        token,
+        message: `${patient.name}(${patient.chartNumber}) — 본프로그램 처방 이력이 없어 tier를 정할 수 없습니다`,
+      });
+      continue;
+    }
+
+    const chosen = mainPrescriptions.reduce((latest, p) => (p.createdAt > latest.createdAt ? p : latest));
+    const tier = getMainProgramDurationTier(chosen.program.totalDurationDays ?? 90);
+
+    const existingLink = await prisma.referralLink.findFirst({
+      where: { patientId: patient.id },
+      orderBy: { issuedAt: "desc" },
+    });
+
+    const action: PlanAction = !existingLink
+      ? "ISSUE_NEW"
+      : existingLink.kind === "MAIN"
+        ? "SKIP_ALREADY_MAIN"
+        : "PROMOTE";
+
+    plan.push({
+      patientId: patient.id,
+      patientName: patient.name,
+      chartNumber: patient.chartNumber,
+      programName: chosen.program.name,
+      tier,
+      action,
+      existingLinkId: existingLink?.id ?? null,
+      existingToken: existingLink?.token ?? null,
+      sourcePrescriptionId: chosen.id,
+      multiplePrescriptionsNote:
+        `--patient 지정 처리 — 처방상태 무관(현재 상태: ${chosen.status}) 기준 가장 최근 본프로그램 ` +
+        `처방(#${chosen.id}, ${chosen.program.name})으로 계산함` +
+        (mainPrescriptions.length > 1 ? ` (본프로그램 이력 ${mainPrescriptions.length}건 중 최신)` : ""),
+    });
+  }
+
+  return { plan, errors };
+}
+
 function printPlan(plan: PlanEntry[]) {
   const promote = plan.filter((p) => p.action === "PROMOTE");
   const issueNew = plan.filter((p) => p.action === "ISSUE_NEW");
@@ -168,6 +257,33 @@ async function applyPlan(plan: PlanEntry[]) {
 }
 
 async function main() {
+  if (PATIENT_TOKENS) {
+    console.log(`\n=== --patient 지정 모드 (${PATIENT_TOKENS.join(", ")}) — 처방상태 무관 ===`);
+    const { plan, errors } = await buildPlanForSpecificPatients(PATIENT_TOKENS);
+    printPlan(plan);
+
+    if (errors.length > 0) {
+      console.log(`\n=== 처리 불가 ${errors.length}건 ===`);
+      for (const err of errors) console.log(`  ⚠ ${err.token}: ${err.message}`);
+    }
+
+    if (!APPLY) {
+      console.log("\n(dry-run 모드입니다. 실제 반영하려면 --apply 옵션을 붙여 다시 실행하세요.)");
+      return;
+    }
+
+    if (errors.length > 0) {
+      console.log("\n처리 불가 항목이 있어 --apply를 중단합니다. 위 오류를 확인 후 --patient 목록을 수정해 다시 실행하세요.");
+      process.exitCode = 1;
+      return;
+    }
+
+    console.log("\n--- 실제 반영 시작 ---");
+    await applyPlan(plan);
+    console.log("\n--- 실제 반영 완료 ---");
+    return;
+  }
+
   const plan = await buildPlan();
   printPlan(plan);
 
@@ -182,7 +298,7 @@ async function main() {
 }
 
 main()
-  .then(() => process.exit(0))
+  .then(() => process.exit(process.exitCode ?? 0))
   .catch((e) => {
     console.error(e);
     process.exit(1);
