@@ -7,6 +7,7 @@ import BackButton from "@/components/BackButton";
 import QrCodeImage from "@/components/QrCodeImage";
 import { useCurrentUserContext } from "@/lib/CurrentUserContext";
 import { getShareBaseUrl } from "@/lib/share-base-url";
+import { TRIAL_REFERRAL_BONUS_AMOUNT } from "@/lib/referral-config";
 
 type CampaignSettings = {
   heroImagePath: string | null;
@@ -16,6 +17,7 @@ type CampaignSettings = {
   mainRefereeAmount1mo: number | null;
   mainReferrerAmount3mo: number | null;
   mainRefereeAmount3mo: number | null;
+  trialReferralBonusAmount: number | null;
 };
 
 const MAIN_REFERRAL_AMOUNT_DEFAULTS = {
@@ -45,6 +47,8 @@ export default function TrialCampaignSettingsPage() {
   const [mainRefereeAmount1mo, setMainRefereeAmount1mo] = useState("");
   const [mainReferrerAmount3mo, setMainReferrerAmount3mo] = useState("");
   const [mainRefereeAmount3mo, setMainRefereeAmount3mo] = useState("");
+  // 체험(TRIAL) 추천 공유 문구 적립금(task.md) — 마찬가지로 빈 문자열=기본값 사용.
+  const [trialReferralBonusAmount, setTrialReferralBonusAmount] = useState("");
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
@@ -60,6 +64,9 @@ export default function TrialCampaignSettingsPage() {
         setMainRefereeAmount1mo(data.mainRefereeAmount1mo != null ? String(data.mainRefereeAmount1mo) : "");
         setMainReferrerAmount3mo(data.mainReferrerAmount3mo != null ? String(data.mainReferrerAmount3mo) : "");
         setMainRefereeAmount3mo(data.mainRefereeAmount3mo != null ? String(data.mainRefereeAmount3mo) : "");
+        setTrialReferralBonusAmount(
+          data.trialReferralBonusAmount != null ? String(data.trialReferralBonusAmount) : "",
+        );
       });
   }, []);
 
@@ -84,6 +91,7 @@ export default function TrialCampaignSettingsPage() {
       formData.set("mainRefereeAmount1mo", mainRefereeAmount1mo);
       formData.set("mainReferrerAmount3mo", mainReferrerAmount3mo);
       formData.set("mainRefereeAmount3mo", mainRefereeAmount3mo);
+      formData.set("trialReferralBonusAmount", trialReferralBonusAmount);
       if (heroFile) formData.set("heroImage", heroFile);
 
       const res = await fetch("/api/trial-campaign", { method: "POST", body: formData });
@@ -146,6 +154,36 @@ export default function TrialCampaignSettingsPage() {
                 placeholder="예: 간단한 정보만 남겨주시면 확인 후 직접 연락드릴게요!"
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
+                disabled={!isDirector}
+              />
+            </label>
+            <button type="submit" disabled={!isDirector || saving}>
+              {saving ? "저장 중..." : saved ? "저장됨" : "저장"}
+            </button>
+            {saveError && <p className={styles.errorText}>{saveError}</p>}
+          </form>
+        )}
+      </div>
+
+      <div className={styles.section}>
+        <div className={styles.sectionTitle}>체험 추천 적립금</div>
+        <p className={styles.muted}>
+          체험(TRIAL) 링크 공유/복사 시 자동 삽입되는 문구("친구가 체험을 시작할 때마다 OOO원씩
+          적립금이 쌓여요")에 표시되는 금액이자, 실제 적립 지급액입니다. 비워두면 기본값(
+          {TRIAL_REFERRAL_BONUS_AMOUNT.toLocaleString()}원)이 적용됩니다.
+        </p>
+        {settings === null ? (
+          <p className={styles.muted}>불러오는 중...</p>
+        ) : (
+          <form className={styles.formGrid} onSubmit={handleSave}>
+            <label className={styles.fieldLabel}>
+              체험 소개 적립금(원)
+              <input
+                type="number"
+                min={0}
+                placeholder={String(TRIAL_REFERRAL_BONUS_AMOUNT)}
+                value={trialReferralBonusAmount}
+                onChange={(e) => setTrialReferralBonusAmount(e.target.value)}
                 disabled={!isDirector}
               />
             </label>

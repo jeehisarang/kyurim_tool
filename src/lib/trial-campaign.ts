@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/db";
-import { MAIN_REFERRAL_DEFAULTS, type MainProgramDurationTier } from "@/lib/referral-config";
+import { MAIN_REFERRAL_DEFAULTS, TRIAL_REFERRAL_BONUS_AMOUNT, type MainProgramDurationTier } from "@/lib/referral-config";
 
 const SETTINGS_ID = 1;
 
@@ -11,6 +11,7 @@ export type TrialCampaignSettingsView = {
   mainRefereeAmount1mo: number | null;
   mainReferrerAmount3mo: number | null;
   mainRefereeAmount3mo: number | null;
+  trialReferralBonusAmount: number | null;
 };
 
 /**
@@ -28,6 +29,7 @@ export async function getTrialCampaignSettings(): Promise<TrialCampaignSettingsV
     mainRefereeAmount1mo: row?.mainRefereeAmount1mo ?? null,
     mainReferrerAmount3mo: row?.mainReferrerAmount3mo ?? null,
     mainRefereeAmount3mo: row?.mainRefereeAmount3mo ?? null,
+    trialReferralBonusAmount: row?.trialReferralBonusAmount ?? null,
   };
 }
 
@@ -39,12 +41,14 @@ export async function upsertTrialCampaignSettings(input: {
   mainRefereeAmount1mo?: number | null;
   mainReferrerAmount3mo?: number | null;
   mainRefereeAmount3mo?: number | null;
+  trialReferralBonusAmount?: number | null;
 }): Promise<TrialCampaignSettingsView> {
   const amountFields = {
     mainReferrerAmount1mo: input.mainReferrerAmount1mo ?? null,
     mainRefereeAmount1mo: input.mainRefereeAmount1mo ?? null,
     mainReferrerAmount3mo: input.mainReferrerAmount3mo ?? null,
     mainRefereeAmount3mo: input.mainRefereeAmount3mo ?? null,
+    trialReferralBonusAmount: input.trialReferralBonusAmount ?? null,
   };
   const row = await prisma.trialCampaignSettings.upsert({
     where: { id: SETTINGS_ID },
@@ -70,7 +74,18 @@ export async function upsertTrialCampaignSettings(input: {
     mainRefereeAmount1mo: row.mainRefereeAmount1mo,
     mainReferrerAmount3mo: row.mainReferrerAmount3mo,
     mainRefereeAmount3mo: row.mainRefereeAmount3mo,
+    trialReferralBonusAmount: row.trialReferralBonusAmount,
   };
+}
+
+/**
+ * 체험(TRIAL) 추천 공유 문구/실제 적립 지급 양쪽이 공유하는 단일 소스(task.md) —
+ * getMainReferralAmounts와 동일한 원칙. 설정값이 없으면 referral-config.ts의
+ * TRIAL_REFERRAL_BONUS_AMOUNT(5,000원)로 폴백한다.
+ */
+export async function getTrialReferralBonusAmount(): Promise<number> {
+  const settings = await getTrialCampaignSettings();
+  return settings.trialReferralBonusAmount ?? TRIAL_REFERRAL_BONUS_AMOUNT;
 }
 
 export type MainReferralAmounts = { referrerAmount: number; refereeAmount: number };

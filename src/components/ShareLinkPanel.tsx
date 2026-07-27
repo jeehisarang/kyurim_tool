@@ -131,6 +131,22 @@ export default function ShareLinkPanel({
   const [resultUrl, setResultUrl] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
+  // 체험 추천 공유 문구의 적립금액(task.md) — 클라이언트 컴포넌트라 prisma에 직접 접근하는
+  // getTrialReferralBonusAmount()를 못 쓰므로, 이미 공개된 /api/trial-campaign(인증 없음,
+  // 공개 신청페이지도 재사용하는 엔드포인트)을 그대로 재사용해 실제 설정값을 읽는다. 로딩 전
+  // 기본값은 undefined로 둬 buildReferralShareBlock 자체 기본값(referral-config.ts 상수)을
+  // 타게 한다.
+  const [trialBonusAmount, setTrialBonusAmount] = useState<number | undefined>(undefined);
+
+  useEffect(() => {
+    fetch("/api/trial-campaign")
+      .then((res) => res.json())
+      .then((data: { trialReferralBonusAmount: number | null }) => {
+        if (data.trialReferralBonusAmount != null) setTrialBonusAmount(data.trialReferralBonusAmount);
+      })
+      .catch(() => {});
+  }, []);
+
   useEffect(() => {
     if (!includeTeaching || teachingList !== null) return;
     fetch(`/api/patients/${patientId}/teaching-pages`)
@@ -190,13 +206,13 @@ export default function ShareLinkPanel({
   useEffect(() => {
     const checked = referralLinks?.filter((l) => checkedReferralKinds.has(l.kind)) ?? [];
     if (onReferralBlockChange) {
-      const blocks = checked.map((l) => buildReferralShareBlock(l.kind, l.token));
+      const blocks = checked.map((l) => buildReferralShareBlock(l.kind, l.token, trialBonusAmount));
       onReferralBlockChange(blocks.length > 0 ? blocks.join("\n\n") : null);
     }
     if (onReferralLinksChange) {
       onReferralLinksChange(checked.map((l) => ({ kind: l.kind, url: buildReferralShareUrl(l.kind, l.token) })));
     }
-  }, [checkedReferralKinds, referralLinks, onReferralBlockChange, onReferralLinksChange]);
+  }, [checkedReferralKinds, referralLinks, onReferralBlockChange, onReferralLinksChange, trialBonusAmount]);
 
   function toggleReferralKind(kind: ReferralLinkKind) {
     setCheckedReferralKinds((prev) => {

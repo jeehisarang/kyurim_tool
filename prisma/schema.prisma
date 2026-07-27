@@ -1050,5 +1050,10 @@ model TrialCampaignSettings {
   mainRefereeAmount1mo  Int?
   mainReferrerAmount3mo Int?
   mainRefereeAmount3mo  Int?
+  // 체험(TRIAL) 추천 공유 문구의 적립금액(task.md) — 하드코딩된 referral-config.ts의
+  // TRIAL_REFERRAL_BONUS_AMOUNT(5,000원)를 대체할 실제 설정값. null이면(저장 전) 그 기본값으로
+  // 폴백한다(getTrialReferralBonusAmount, trial-campaign.ts). 공유 문구 표시값과 실제 적립
+  // 지급액(referrals.ts createTrialApplication)이 항상 같은 값을 보도록 이 필드 하나를 공유한다.
+  trialReferralBonusAmount Int?
   updatedAt     DateTime @updatedAt
 }

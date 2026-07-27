@@ -1,13 +1,12 @@
 import { prisma } from "@/lib/db";
 import { createWithShortToken } from "@/lib/short-token";
 import {
-  TRIAL_REFERRAL_BONUS_AMOUNT,
   computeTrialReferralExpiry,
   computePromotedLinkExpiry,
   getMainProgramDurationTier,
   type MainProgramDurationTier,
 } from "@/lib/referral-config";
-import { getMainReferralAmounts } from "@/lib/trial-campaign";
+import { getMainReferralAmounts, getTrialReferralBonusAmount } from "@/lib/trial-campaign";
 import { logActivity } from "@/lib/activity-log";
 import { createWorkTask } from "@/lib/work-tasks";
 import { startOfDay, getSystemStaffUserId } from "@/lib/teaching-pages";
@@ -359,12 +358,15 @@ export async function createTrialApplication(input: TrialApplicationInput) {
   if (input.referralToken) {
     const link = await prisma.referralLink.findUnique({ where: { token: input.referralToken } });
     if (link && link.isActive && link.expiresAt.getTime() > Date.now()) {
+      // 공유 문구에 표시된 금액과 실제 지급액이 항상 같도록 동일한 설정값을 참조한다
+      // (task.md — TrialCampaignSettings.trialReferralBonusAmount, 없으면 기본값 폴백).
+      const trialBonusAmount = await getTrialReferralBonusAmount();
       await prisma.referralCreditEntry.create({
         data: {
           patientId: link.patientId,
           linkToken: input.referralToken,
           kind: CREDIT_KIND_TRIAL_SIGNUP,
-          amount: TRIAL_REFERRAL_BONUS_AMOUNT,
+          amount: trialBonusAmount,
           referredName: input.name,
           referredTrialApplicationId: application.id,
           // 신청 즉시는 "최대 적립금"에만 반영 — 실제 3일체험 등록 시
