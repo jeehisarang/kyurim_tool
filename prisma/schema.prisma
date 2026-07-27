@@ -58,6 +58,7 @@ model Patient {
   examReminderCycles          ExamReminderCycle[]
   referralLinks               ReferralLink[]
   referralCreditEntries       ReferralCreditEntry[]
+  referralCreditUsages        ReferralCreditUsage[]
   mainDirectRegistrationRequests MainDirectRegistrationRequest[]
 }
 
@@ -138,6 +139,7 @@ model StaffUser {
   resolvedHrvImportPendings HrvImportPending[]
   tcmChecklistResponses     TcmChecklistResponse[]
   confirmedReferralCredits ReferralCreditEntry[]
+  processedReferralCreditUsages ReferralCreditUsage[]
   kakaoChannelConnectedPatients Patient[] @relation("KakaoChannelConnectedBy")
 }
 
@@ -1032,6 +1034,20 @@ model ReferralCreditEntry {
   // 무관 전체 합, "확정 적립금"은 status=CONFIRMED만의 합으로 두 화면 모두 동일한 필드
   // 하나로 계산한다.
   status                       String            @default("CONFIRMED")
+}
+
+// 적립금 사용 내역(task.md) — ReferralCreditEntry(적립)와 부호를 섞지 않고 완전히 분리된
+// 별도 테이블. 환자별 잔액 = ReferralCreditEntry(CONFIRMED) 합계 − 이 테이블 합계
+// (getPatientCreditBalance, referral-credit-usage.ts). amount는 항상 양수로 저장한다.
+model ReferralCreditUsage {
+  id          Int       @id @default(autoincrement())
+  patientId   Int
+  patient     Patient   @relation(fields: [patientId], references: [id])
+  amount      Int
+  memo        String?
+  staffUserId Int
+  staffUser   StaffUser @relation(fields: [staffUserId], references: [id])
+  createdAt   DateTime  @default(now())
 }
 
 // 킬팻캡슐 3일체험 추천 이벤트(task.md 1-5) — 공개 신청페이지 히어로 이미지/문구 설정.

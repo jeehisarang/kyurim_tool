@@ -1,8 +1,9 @@
 "use client";
 
-import { Fragment, useEffect, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import styles from "./page.module.css";
 import BackButton from "@/components/BackButton";
+import CreditUsageModal from "@/components/CreditUsageModal";
 import { useCurrentUserContext } from "@/lib/CurrentUserContext";
 
 type CreditEntry = {
@@ -21,6 +22,10 @@ type PatientSummary = {
   chartNumber: string;
   maxTotal: number;
   confirmedTotal: number;
+  // 잔액 현황(task.md 신규) — /api/referral-credits가 listReferralCreditSummary 결과에
+  // usage 합계를 더해서 내려준다.
+  totalUsed: number;
+  balance: number;
   entries: CreditEntry[];
 };
 
@@ -43,6 +48,10 @@ export default function ReferralCreditsSettingsPage() {
   const [summary, setSummary] = useState<PatientSummary[] | null>(null);
   const [expandedPatientId, setExpandedPatientId] = useState<number | null>(null);
   const [confirmingId, setConfirmingId] = useState<number | null>(null);
+  // 잔액 현황(task.md 신규) — 검색/필터, "사용 처리" 모달 대상 환자.
+  const [searchQuery, setSearchQuery] = useState("");
+  const [onlyWithBalance, setOnlyWithBalance] = useState(false);
+  const [usageModalPatient, setUsageModalPatient] = useState<PatientSummary | null>(null);
 
   function loadSummary() {
     fetch("/api/referral-credits")
@@ -82,6 +91,22 @@ export default function ReferralCreditsSettingsPage() {
 
   const grandMaxTotal = summary?.reduce((sum, p) => sum + p.maxTotal, 0) ?? 0;
   const grandConfirmedTotal = summary?.reduce((sum, p) => sum + p.confirmedTotal, 0) ?? 0;
+  const grandUsedTotal = summary?.reduce((sum, p) => sum + p.totalUsed, 0) ?? 0;
+  const grandBalanceTotal = summary?.reduce((sum, p) => sum + p.balance, 0) ?? 0;
+
+  // 검색(이름/차트번호, 오늘 추가한 /prescriptions 화면과 동일한 패턴) + 잔액 있는 환자만 필터.
+  const filteredSummary = useMemo(() => {
+    if (!summary) return [];
+    let result = summary;
+    const q = searchQuery.trim();
+    if (q) {
+      result = result.filter((p) => p.patientName.includes(q) || p.chartNumber.includes(q));
+    }
+    if (onlyWithBalance) {
+      result = result.filter((p) => p.balance > 0);
+    }
+    return result;
+  }, [summary, searchQuery, onlyWithBalance]);
 
   return (
     <div className={styles.container}>
@@ -102,30 +127,64 @@ export default function ReferralCreditsSettingsPage() {
             <div className={styles.sectionTitle}>전체 합계</div>
             <div className={styles.summaryRow}>
               <span>최대 적립금 합계: {grandMaxTotal.toLocaleString()}원</span>
-              <strong>확정 적립금 합계: {grandConfirmedTotal.toLocaleString()}원</strong>
+              <span>확정 적립금 합계: {grandConfirmedTotal.toLocaleString()}원</span>
+              <span>총 사용액 합계: {grandUsedTotal.toLocaleString()}원</span>
+              <strong>잔액 합계: {grandBalanceTotal.toLocaleString()}원</strong>
             </div>
           </div>
 
           <div className={styles.section}>
-            <div className={styles.sectionTitle}>환자별 적립 현황 ({summary.length}명)</div>
+            <div className={styles.sectionTitle}>환자별 적립 현황 ({filteredSummary.length}명)</div>
+            <input
+              type="text"
+              className={styles.searchInput}
+              placeholder="차트번호 또는 이름으로 검색"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+            <label className={styles.checkboxLabel}>
+              <input
+                type="checkbox"
+                checked={onlyWithBalance}
+                onChange={(e) => setOnlyWithBalance(e.target.checked)}
+              />
+              잔액 있는 환자만
+            </label>
+            {filteredSummary.length === 0 ? (
+              <p className={styles.muted}>조건에 맞는 환자가 없습니다.</p>
+            ) : (
             <table className={styles.table}>
               <thead>
                 <tr>
                   <th>환자</th>
-                  <th>최대 적립금 합계</th>
-                  <th>확정 적립금 합계</th>
+                  <th>총 적립액</th>
+                  <th>총 사용액</th>
+                  <th>잔액</th>
+                  <th />
                   <th />
                 </tr>
               </thead>
               <tbody>
-                {summary.map((p) => (
+                {filteredSummary.map((p) => (
                   <Fragment key={p.patientId}>
                     <tr>
                       <td>
                         {p.patientName} (<span className={styles.mono}>{p.chartNumber}</span>)
                       </td>
-                      <td className={styles.mono}>{p.maxTotal.toLocaleString()}원</td>
                       <td className={styles.mono}>{p.confirmedTotal.toLocaleString()}원</td>
+                      <td className={styles.mono}>{p.totalUsed.toLocaleString()}원</td>
+                      <td className={styles.mono}>
+                        <strong>{p.balance.toLocaleString()}원</strong>
+                      </td>
+                      <td>
+                        <button
+                          type="button"
+                          className={styles.expandButton}
+                          onClick={() => setUsageModalPatient(p)}
+                        >
+                          사용 처리
+                        </button>
+                      </td>
                       <td>
                         <button
                           type="button"
@@ -140,7 +199,7 @@ export default function ReferralCreditsSettingsPage() {
                     </tr>
                     {expandedPatientId === p.patientId && (
                       <tr>
-                        <td colSpan={4}>
+                        <td colSpan={6}>
                           <table className={styles.detailTable}>
                             <thead>
                               <tr>
@@ -185,8 +244,20 @@ export default function ReferralCreditsSettingsPage() {
                 ))}
               </tbody>
             </table>
+            )}
           </div>
         </>
+      )}
+
+      {usageModalPatient && currentUser && (
+        <CreditUsageModal
+          patientId={usageModalPatient.patientId}
+          patientName={usageModalPatient.patientName}
+          currentBalance={usageModalPatient.balance}
+          staffUserId={currentUser.id}
+          onClose={() => setUsageModalPatient(null)}
+          onSaved={loadSummary}
+        />
       )}
     </div>
   );

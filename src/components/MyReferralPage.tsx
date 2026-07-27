@@ -6,6 +6,8 @@ import { copyToClipboard } from "@/lib/clipboard";
 import KakaoShareButton from "@/components/KakaoShareButton";
 import { getShareBaseUrl } from "@/lib/share-base-url";
 
+type UsageHistoryEntry = { id: number; amount: number; memo: string | null; createdAt: string };
+
 type ReferralStatus = {
   token: string;
   kind: "TRIAL" | "MAIN";
@@ -16,6 +18,9 @@ type ReferralStatus = {
   confirmedCount: number;
   confirmedAmount: number;
   patientName: string;
+  // 적립금 잔액/사용내역(task.md 신규) — 체험+본프로그램 통합 기준(이 링크의 kind와 무관).
+  creditBalance: number;
+  usageHistory: UsageHistoryEntry[];
 };
 
 function formatDate(iso: string): string {
@@ -126,6 +131,28 @@ export default function MyReferralPage({ token }: { token: string }) {
           <p className={styles.referralSafeNotice}>
             이 코드는 회원님만의 고유 코드이며, 개인정보가 없어 SNS·단톡방에 자유롭게 공유해도 안전합니다.
           </p>
+        </div>
+
+        {/* 적립금 잔액/사용내역(task.md 신규) — 체험+본프로그램 통합 기준. 직원 이름 등
+            내부용 정보는 노출하지 않고 사용일자/금액/메모만 보여준다. */}
+        <div className={styles.creditBalanceBanner}>
+          <span className={styles.creditBalanceLabel}>현재 잔액</span>
+          <span className={styles.creditBalanceValue}>{status.creditBalance.toLocaleString()}원</span>
+
+          {status.usageHistory.length > 0 && (
+            <div className={styles.usageHistorySection}>
+              <div className={styles.usageHistoryTitle}>사용 내역</div>
+              <ul className={styles.usageHistoryList}>
+                {status.usageHistory.map((u) => (
+                  <li key={u.id} className={styles.usageHistoryItem}>
+                    <span className={styles.usageHistoryDate}>{formatDate(u.createdAt)}</span>
+                    <span className={styles.usageHistoryAmount}>-{u.amount.toLocaleString()}원</span>
+                    {u.memo && <span className={styles.usageHistoryMemo}>{u.memo}</span>}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
         </div>
 
         <div className={styles.referralActionsRow}>

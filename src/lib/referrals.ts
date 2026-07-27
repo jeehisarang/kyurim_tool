@@ -7,6 +7,7 @@ import {
   type MainProgramDurationTier,
 } from "@/lib/referral-config";
 import { getMainReferralAmounts, getTrialReferralBonusAmount } from "@/lib/trial-campaign";
+import { getPatientCreditBalance, listReferralCreditUsageForPatient } from "@/lib/referral-credit-usage";
 import { logActivity } from "@/lib/activity-log";
 import { createWorkTask } from "@/lib/work-tasks";
 import { startOfDay, getSystemStaffUserId } from "@/lib/teaching-pages";
@@ -453,6 +454,12 @@ export type ReferralLinkStatus = {
   // "OO님의 추천 현황" 개인화 표시용(task.md) — 링크 소유자 이름만 노출, 연락처 등
   // 민감정보는 이 조회에 포함하지 않는다(공개 페이지라 최소한만 반환).
   patientName: string;
+  // 적립금 잔액(task.md 신규) — 이 링크의 kind(체험/본프로그램)와 무관하게 환자 전체
+  // 기준(체험+본프로그램 CONFIRMED 합계 − 사용 합계)으로 계산한다. maxAmount/confirmedAmount는
+  // 위처럼 "이 링크 kind" 범위로 좁혀진 값이라 잔액과는 별개 지표다.
+  creditBalance: number;
+  // 사용 내역(task.md) — 공개 페이지라 처리 직원명은 노출하지 않는다(사용일자/금액/메모만).
+  usageHistory: { id: number; amount: number; memo: string | null; createdAt: Date }[];
 };
 
 /**
@@ -480,6 +487,11 @@ export async function getReferralLinkStatusByToken(token: string): Promise<Refer
         });
   const confirmed = credits.filter((c) => c.status === CREDIT_STATUS_CONFIRMED);
 
+  const [balance, usageHistory] = await Promise.all([
+    getPatientCreditBalance(link.patientId),
+    listReferralCreditUsageForPatient(link.patientId),
+  ]);
+
   return {
     token: link.token,
     kind: link.kind as "TRIAL" | "MAIN",
@@ -490,6 +502,8 @@ export async function getReferralLinkStatusByToken(token: string): Promise<Refer
     confirmedCount: confirmed.length,
     confirmedAmount: confirmed.reduce((sum, c) => sum + c.amount, 0),
     patientName: link.patient.name,
+    creditBalance: balance.balance,
+    usageHistory: usageHistory.map((u) => ({ id: u.id, amount: u.amount, memo: u.memo, createdAt: u.createdAt })),
   };
 }
 

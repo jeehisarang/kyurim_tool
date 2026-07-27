@@ -91,6 +91,83 @@
   text-align: center;
 }
 
+/* 적립금 잔액/사용내역(task.md 신규) */
+.creditBalanceBanner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  background: var(--color-hanji-bg);
+  border: 1px solid rgba(110, 148, 140, 0.3);
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 12px;
+}
+
+.creditBalanceLabel {
+  font-size: 13px;
+  color: var(--color-ink);
+  opacity: 0.65;
+}
+
+.creditBalanceValue {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--color-celadon-dark);
+}
+
+.usageHistorySection {
+  width: 100%;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(110, 148, 140, 0.25);
+}
+
+.usageHistoryTitle {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--color-ink);
+  opacity: 0.7;
+  margin-bottom: 8px;
+}
+
+.usageHistoryList {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.usageHistoryItem {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--color-ink);
+}
+
+.usageHistoryDate {
+  opacity: 0.6;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.usageHistoryAmount {
+  font-weight: 600;
+  color: var(--color-seal);
+  white-space: nowrap;
+}
+
+.usageHistoryMemo {
+  opacity: 0.75;
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .referralActionsRow {
   display: flex;
   flex-wrap: wrap;
