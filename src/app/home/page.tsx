@@ -201,14 +201,21 @@ function HomePageInner() {
       return;
     }
 
-    await fetch(`/api/todo-tasks/${task.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ doneByUserId, action: "DONE" }),
-    });
-
-    setStampTaskId(task.id);
-    setRefreshKey((k) => k + 1);
+    try {
+      const res = await fetch(`/api/todo-tasks/${task.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ doneByUserId, action: "DONE" }),
+      });
+      if (!res.ok) {
+        alert("완료 처리에 실패했습니다. 다시 시도해주세요.");
+        return;
+      }
+      setStampTaskId(task.id);
+      setRefreshKey((k) => k + 1);
+    } catch {
+      alert("서버에 연결하지 못했습니다. 완료 처리되지 않았으니 다시 시도해주세요.");
+    }
   }
 
   function handleManageTalk(patientId: number) {

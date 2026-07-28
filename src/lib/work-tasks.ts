@@ -10,6 +10,13 @@ import { logActivity } from "@/lib/activity-log";
  *   특정 1인 소유가 아니라 모든 직원 화면에 노출돼야 하므로 /api/todo-tasks가
  *   staffUserId 필터와 무관하게(workTask.isSharedTask로) 별도로 포함시킨다.
  */
+/**
+ * TodoTask + WorkTask 생성(task.md 원자성 수정) — 반드시 하나의 트랜잭션으로 묶는다.
+ * 예전에는 두 create를 순차 실행해서, 두 번째(WorkTask)가 실패해도 첫 번째(TodoTask)는
+ * 이미 커밋된 채로 남아 "짝 없는 고아 TodoTask"가 생겼다(WorkTask.findUniqueOrThrow가
+ * 실패해 체크/삭제도 안 되는 상태로 영구히 남음). 트랜잭션으로 묶으면 어느 한쪽이라도
+ * 실패 시 둘 다 롤백되어 고아가 생길 수 없다.
+ */
 export async function createWorkTask(input: {
   title: string;
   description?: string;
@@ -24,25 +31,27 @@ export async function createWorkTask(input: {
   const isSharedTask = input.isSharedTask ?? false;
   const assigneeId = isSharedTask ? undefined : input.assigneeId;
 
-  const todoTask = await prisma.todoTask.create({
-    data: {
-      taskType: WORK_TASK_TYPE,
-      dueDate: input.dueDate,
-      staffUserId: isSharedTask ? null : (assigneeId ?? input.creatorId),
-      patientId: input.patientId ?? null,
-    },
-  });
+  const workTask = await prisma.$transaction(async (tx) => {
+    const todoTask = await tx.todoTask.create({
+      data: {
+        taskType: WORK_TASK_TYPE,
+        dueDate: input.dueDate,
+        staffUserId: isSharedTask ? null : (assigneeId ?? input.creatorId),
+        patientId: input.patientId ?? null,
+      },
+    });
 
-  const workTask = await prisma.workTask.create({
-    data: {
-      todoTaskId: todoTask.id,
-      title: input.title,
-      description: input.description,
-      creatorId: input.creatorId,
-      assigneeId,
-      isSharedTask,
-    },
-    include: { creator: true, assignee: true, todoTask: true },
+    return tx.workTask.create({
+      data: {
+        todoTaskId: todoTask.id,
+        title: input.title,
+        description: input.description,
+        creatorId: input.creatorId,
+        assigneeId,
+        isSharedTask,
+      },
+      include: { creator: true, assignee: true, todoTask: true },
+    });
   });
 
   await logActivity({
@@ -55,11 +64,16 @@ export async function createWorkTask(input: {
   return workTask;
 }
 
-// 업무 완료 처리 + 활동피드 기록을 한 곳에 묶는다 — /api/todo-tasks/[id] PATCH가 이 함수를
-// 호출한다(기존에는 그 라우트가 직접 prisma.todoTask.update만 호출해 로그가 없었음).
+/**
+ * 업무 완료 처리 + 활동피드 기록을 한 곳에 묶는다 — /api/todo-tasks/[id] PATCH가 이 함수를
+ * 호출한다(기존에는 그 라우트가 직접 prisma.todoTask.update만 호출해 로그가 없었음).
+ *
+ * 고아 TodoTask 방어 처리(task.md) — WorkTask가 없는(트랜잭션 도입 전 생성된) 레코드도
+ * 예외를 던지지 않고 그냥 완료 처리한다. 제목 정보가 없어 로그 문구만 다르게 남긴다.
+ */
 export async function completeWorkTask(todoTaskId: number, doneByUserId: number) {
   const [workTask, doneByUser] = await Promise.all([
-    prisma.workTask.findUniqueOrThrow({ where: { todoTaskId } }),
+    prisma.workTask.findUnique({ where: { todoTaskId } }),
     prisma.staffUser.findUniqueOrThrow({ where: { id: doneByUserId } }),
   ]);
 
@@ -72,7 +86,9 @@ export async function completeWorkTask(todoTaskId: number, doneByUserId: number)
     actorType: "STAFF",
     actorId: doneByUserId,
     actionType: "WORK_COMPLETE",
-    label: `${doneByUser.name}님이 업무를 완료했습니다: ${workTask.title}`,
+    label: workTask
+      ? `${doneByUser.name}님이 업무를 완료했습니다: ${workTask.title}`
+      : `${doneByUser.name}님이 업무를 완료했습니다(고아 레코드 정리, todoTaskId=${todoTaskId})`,
   });
 }
 
@@ -118,8 +134,14 @@ export async function updateWorkTask(
 
 // 검사기록과 동일하게 하위 참조 테이블이 없어 하드 삭제한다(소프트삭제 불필요).
 // WorkTask.todoTaskId가 TodoTask를 참조하므로 자식(WorkTask)을 먼저 지운다.
+//
+// 고아 TodoTask 방어 처리(task.md) — WorkTask가 없으면 그 삭제 단계만 건너뛰고
+// TodoTask는 그대로 삭제한다(예전엔 findUniqueOrThrow가 여기서 던져 TodoTask 삭제까지
+// 도달하지 못해 고아가 영구히 안 지워졌음).
 export async function deleteWorkTask(todoTaskId: number) {
-  const existing = await prisma.workTask.findUniqueOrThrow({ where: { todoTaskId } });
-  await prisma.workTask.delete({ where: { id: existing.id } });
+  const existing = await prisma.workTask.findUnique({ where: { todoTaskId } });
+  if (existing) {
+    await prisma.workTask.delete({ where: { id: existing.id } });
+  }
   await prisma.todoTask.delete({ where: { id: todoTaskId } });
 }
