@@ -166,6 +166,30 @@
   color: var(--color-ink);
 }
 
+/* 업무(WORK) 제목 클릭 가능 버전(task2.md 읽기전용 미리보기 팝업) — 기존 배지 스타일은
+   그대로 두고 클릭 가능 표시(밑줄)와 긴 제목 말줄임만 추가한다. */
+.taskTypeBadgeWorkButton {
+  display: inline-block;
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: bottom;
+  border: none;
+  border-radius: 4px;
+  padding: 2px 8px;
+  font-size: 13px;
+  font-family: var(--font-body);
+  background: rgba(43, 39, 35, 0.08);
+  color: var(--color-celadon-dark);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.taskTypeBadgeWorkButton:hover {
+  background: rgba(43, 39, 35, 0.14);
+}
+
 .categoryBadgeExamReminder {
   display: inline-block;
   border-radius: 4px;

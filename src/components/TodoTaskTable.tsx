@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import styles from "./TodoTaskTable.module.css";
 import SealStamp from "@/components/SealStamp";
 import ProgramBadge from "@/components/ProgramBadge";
+import WorkTaskDetailModal from "@/components/WorkTaskDetailModal";
 
 // 요청대상 드롭다운(등록/수정 공통)에서 "전체 공통"을 나타내는 구분값 — 실제 staffUser id와
 // 겹치지 않게 문자열로 고정한다(빈 문자열은 "지정 안 함"에 쓰이고 있음).
@@ -106,6 +107,17 @@ function workAssigneeSelectValue(task: TodoTask): string {
   if (task.isSharedTask) return SHARED_TASK_VALUE;
   if (task.assignee) return String(task.assignee.id);
   return "";
+}
+
+// 미리보기 팝업(task2.md)의 담당자 표시 — 테이블 "담당자" 컬럼과 동일한 규칙.
+function workAssigneeDisplayLabel(task: TodoTask): string {
+  if (task.isSharedTask) return "전체 공통";
+  return task.staffUser?.name ?? "미배정";
+}
+
+function formatFullDate(iso: string): string {
+  const d = new Date(iso);
+  return `${d.getFullYear()}.${d.getMonth() + 1}.${d.getDate()}`;
 }
 
 type TalkGroup = {
@@ -213,6 +225,10 @@ export default function TodoTaskTable({
   const [editSaving, setEditSaving] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
 
+  // 업무 읽기전용 미리보기 팝업(task2.md) — 제목 클릭 시 열림.
+  const [viewingWorkId, setViewingWorkId] = useState<number | null>(null);
+  const viewingTask = tasks.find((t) => t.id === viewingWorkId) ?? null;
+
   function startEditWork(task: TodoTask) {
     setEditingWorkId(task.id);
     setEditTitle(task.title ?? "");
@@ -272,6 +288,7 @@ export default function TodoTaskTable({
   }
 
   return (
+    <>
     <table className={styles.table}>
       <thead>
         <tr>
@@ -392,14 +409,18 @@ export default function TodoTaskTable({
                 )}
                 <td>
                   {isWork ? (
-                    <span className={styles.taskTypeBadgeWork}>
+                    <button
+                      type="button"
+                      className={styles.taskTypeBadgeWorkButton}
+                      onClick={() => setViewingWorkId(task.id)}
+                    >
                       📌 {task.title}
                       {task.isSharedTask ? (
                         <span className={styles.selfAssignedTag}> (전체 공통)</span>
                       ) : (
                         !task.assignee && <span className={styles.selfAssignedTag}> (자율업무)</span>
                       )}
-                    </span>
+                    </button>
                   ) : isExamReminder ? (
                     <span className={styles.taskTypeBadgeExamReminder}>
                       🔬 {task.title}
@@ -541,6 +562,20 @@ export default function TodoTaskTable({
         })}
       </tbody>
     </table>
+    {viewingTask && (
+      <WorkTaskDetailModal
+        title={viewingTask.title ?? "업무"}
+        description={viewingTask.description ?? null}
+        assigneeLabel={workAssigneeDisplayLabel(viewingTask)}
+        dueDateLabel={viewingTask.dueDate ? formatFullDate(viewingTask.dueDate) : null}
+        onClose={() => setViewingWorkId(null)}
+        onEdit={() => {
+          setViewingWorkId(null);
+          startEditWork(viewingTask);
+        }}
+      />
+    )}
+    </>
   );
 }
 
