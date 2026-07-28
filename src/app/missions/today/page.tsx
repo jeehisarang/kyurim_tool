@@ -36,7 +36,16 @@ type KillCapPatient = { patientId: number; patientName: string; chartNumber: str
 
 type GeneratedMessage = { patientId: number; patientName: string; message: string; token: string };
 
+type RangeStats = {
+  rangeStart: string;
+  rangeEnd: string;
+  sentCount: number;
+  completedCount: number;
+  completionRate: number;
+};
+
 const TYPE_LABEL: Record<string, string> = { QUIZ: "퀴즈", PHOTO: "사진", TEXT: "텍스트" };
+const WEEKDAY_LABELS = ["일", "월", "화", "수", "목", "금", "토"];
 
 function todayParam(): string {
   const d = new Date();
@@ -44,6 +53,23 @@ function todayParam(): string {
   const m = String(d.getMonth() + 1).padStart(2, "0");
   const day = String(d.getDate()).padStart(2, "0");
   return `${y}-${m}-${day}`;
+}
+
+// ISO 문자열 → <input type="date"> 값(YYYY-MM-DD).
+function toDateInputValue(iso: string): string {
+  const d = new Date(iso);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+function formatRangeLabel(startIso: string, endIso: string): string {
+  const fmt = (iso: string) => {
+    const d = new Date(iso);
+    return `${d.getMonth() + 1}/${d.getDate()}(${WEEKDAY_LABELS[d.getDay()]})`;
+  };
+  return `${fmt(startIso)} ~ ${fmt(endIso)}`;
 }
 
 /**
@@ -62,6 +88,32 @@ export default function MissionsTodayPage() {
   const [generatingPatientId, setGeneratingPatientId] = useState<number | null>(null);
   const [generatedMessage, setGeneratedMessage] = useState<GeneratedMessage | null>(null);
   const [copied, setCopied] = useState(false);
+
+  // 발송/수행 통계 요약카드(task2.md) — 진입 시 항상 이번주(월~일)로 초기화.
+  const [rangeStats, setRangeStats] = useState<RangeStats | null>(null);
+  const [rangeStartInput, setRangeStartInput] = useState("");
+  const [rangeEndInput, setRangeEndInput] = useState("");
+
+  function loadStats(start?: string, end?: string) {
+    const query = start && end ? `?start=${start}&end=${end}` : "";
+    fetch(`/api/missions/stats${query}`)
+      .then((res) => res.json())
+      .then((data: RangeStats) => {
+        setRangeStats(data);
+        setRangeStartInput(toDateInputValue(data.rangeStart));
+        setRangeEndInput(toDateInputValue(data.rangeEnd));
+      });
+  }
+
+  function handleRangeSearch(e: React.FormEvent) {
+    e.preventDefault();
+    if (!rangeStartInput || !rangeEndInput) return;
+    loadStats(rangeStartInput, rangeEndInput);
+  }
+
+  useEffect(() => {
+    loadStats();
+  }, []);
 
   function load() {
     fetch(`/api/missions/today?date=${todayParam()}`)
@@ -144,6 +196,45 @@ export default function MissionsTodayPage() {
         <h1 className={styles.pageTitle}>오늘의 미션 발송</h1>
       </div>
       <p className={styles.muted}>킬팻캡슐 진행중 환자 대상 — 카톡 발송은 직접, 문구는 여기서 생성.</p>
+
+      <div className={styles.section}>
+        <div className={styles.sectionTitle}>발송/수행 현황</div>
+        {rangeStats === null ? (
+          <p className={styles.muted}>불러오는 중...</p>
+        ) : (
+          <>
+            <div className={styles.statsRow}>
+              <div className={styles.statItem}>
+                <span className={styles.statLabel}>발송</span>
+                <span className={styles.statValue}>{rangeStats.sentCount}명</span>
+              </div>
+              <div className={styles.statItem}>
+                <span className={styles.statLabel}>수행</span>
+                <span className={styles.statValue}>{rangeStats.completedCount}명</span>
+              </div>
+              <div className={styles.statItem}>
+                <span className={styles.statLabel}>수행율</span>
+                <span className={styles.statValue}>{rangeStats.completionRate}%</span>
+              </div>
+            </div>
+            <p className={styles.muted} style={{ marginBottom: 10 }}>
+              {formatRangeLabel(rangeStats.rangeStart, rangeStats.rangeEnd)}
+            </p>
+            <form className={styles.rangeForm} onSubmit={handleRangeSearch}>
+              <input
+                type="date"
+                value={rangeStartInput}
+                onChange={(e) => setRangeStartInput(e.target.value)}
+              />
+              <span>~</span>
+              <input type="date" value={rangeEndInput} onChange={(e) => setRangeEndInput(e.target.value)} />
+              <button type="submit" className={styles.smallButton}>
+                조회
+              </button>
+            </form>
+          </>
+        )}
+      </div>
 
       <div className={styles.section}>
         <Link href="/missions/approvals" className={styles.smallButton}>

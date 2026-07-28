@@ -94,6 +94,70 @@ export async function listActiveKillCapPatients(): Promise<KillCapActivePatient[
   return [...byPatient.values()];
 }
 
+// ── 발송/수행 통계 요약카드 (/missions/today, task2.md) ──────────────────────
+
+function addDays(date: Date, days: number): Date {
+  const d = new Date(date);
+  d.setDate(d.getDate() + days);
+  return d;
+}
+
+// stats.ts의 startOfWeekMonday와 동일한 로직(월~일, 서버 로컬시간=KST 기준) — 미션 통계
+// 전용이라 이 파일에 그대로 둔다(기존 addMonths처럼 파일별 소규모 날짜 헬퍼 중복 관례).
+function startOfWeekMonday(date: Date): Date {
+  const day = startOfDay(date);
+  const weekday = day.getDay(); // 0=일 ... 6=토
+  const diffToMonday = weekday === 0 ? -6 : 1 - weekday;
+  return addDays(day, diffToMonday);
+}
+
+export function getCurrentWeekRange(): { start: Date; end: Date } {
+  const start = startOfWeekMonday(new Date());
+  return { start, end: addDays(start, 6) };
+}
+
+export type MissionRangeStats = {
+  rangeStart: string;
+  rangeEnd: string;
+  sentCount: number;
+  completedCount: number;
+  completionRate: number;
+};
+
+/**
+ * 미션톡 발송/수행 요약(task2.md) — MissionDailyAssignment에는 환자별 발송여부 필드가 없다
+ * (하루에 지정되는 미션 템플릿 1개만 나타냄). 실제 "발송" 단위는 MissionSubmission
+ * 1건(환자별로 "문구 생성" 시 생성됨, sentAt=생성시각)이고, "수행"은 그중 submittedAt이
+ * 채워진(퀴즈 정답 제출/사진·텍스트 제출 — 승인 대기중이어도 포함) 건이다. 두 값 모두
+ * 인원수 기준이라 patientId로 dedupe한다(같은 환자가 기간 내 여러 날 발송받아도 1명).
+ */
+export async function getMissionRangeStats(start: Date, end: Date): Promise<MissionRangeStats> {
+  const rangeStart = startOfDay(start);
+  const rangeEndExclusive = addDays(startOfDay(end), 1);
+
+  const submissions = await prisma.missionSubmission.findMany({
+    where: { missionDailyAssignment: { date: { gte: rangeStart, lt: rangeEndExclusive } } },
+    select: { patientId: true, submittedAt: true },
+  });
+
+  const sentPatientIds = new Set(submissions.map((s) => s.patientId));
+  const completedPatientIds = new Set(
+    submissions.filter((s) => s.submittedAt !== null).map((s) => s.patientId),
+  );
+
+  const sentCount = sentPatientIds.size;
+  const completedCount = completedPatientIds.size;
+  const completionRate = sentCount === 0 ? 0 : Math.round((completedCount / sentCount) * 100);
+
+  return {
+    rangeStart: rangeStart.toISOString(),
+    rangeEnd: startOfDay(end).toISOString(),
+    sentCount,
+    completedCount,
+    completionRate,
+  };
+}
+
 // ── 미션뱅크 관리 (/settings/missions) ──────────────────────────────────────
 
 export type MissionTemplateInput = {

@@ -142,3 +142,44 @@
   font-size: 13px;
   margin: 4px 0 0;
 }
+
+.statsRow {
+  display: flex;
+  gap: 24px;
+  margin-bottom: 8px;
+}
+
+.statItem {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.statLabel {
+  font-size: 12px;
+  color: var(--color-ink);
+  opacity: 0.6;
+}
+
+.statValue {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--color-celadon-dark);
+  font-family: var(--font-display);
+}
+
+.rangeForm {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.rangeForm input[type="date"] {
+  border: 1px solid rgba(110, 148, 140, 0.4);
+  border-radius: 4px;
+  background: var(--color-hanji-bg);
+  color: var(--color-ink);
+  padding: 6px 8px;
+  font-size: 13px;
+  font-family: var(--font-body);
+}
