@@ -19,9 +19,8 @@ import {
 } from "@/lib/exam-thresholds";
 import { logActivity } from "@/lib/activity-log";
 import { withObjectParticle } from "@/lib/korean-particle";
-import { createWorkTask } from "@/lib/work-tasks";
-import { WORK_TASK_TYPE } from "@/lib/task-types";
 import { listConsultationNotesForPatient } from "@/lib/consultation-notes";
+import { requestPatientConsultCallback } from "@/lib/patient-consult";
 
 // 티칭지에 개별 문구(ProgramTeaching.ctaButtonLabel)가 없을 때 쓰는 기본 전환버튼 문구.
 export const DEFAULT_CTA_LABEL = "프로그램문의하기";
@@ -421,7 +420,7 @@ export async function recordTeachingPageCtaClick(token: string): Promise<boolean
   return true;
 }
 
-// requestEventInquiryCallback(event-images.ts)도 재사용하는 공용 헬퍼라 export한다.
+// requestPatientConsultCallback(patient-consult.ts)도 재사용하는 공용 헬퍼라 export한다.
 export function startOfDay(date: Date): Date {
   const d = new Date(date);
   d.setHours(0, 0, 0, 0);
@@ -430,7 +429,7 @@ export function startOfDay(date: Date): Date {
 
 // 자동생성 WorkTask(예: 프로그램문의 요청)의 creatorId 전용 시스템 계정 — prisma/seed.ts에서
 // 항상 비활성 상태로 생성해둔다(현재 사용자 선택 목록에 노출되지 않게).
-// requestEventInquiryCallback(event-images.ts)도 재사용하는 공용 헬퍼라 export한다.
+// requestPatientConsultCallback(patient-consult.ts)도 재사용하는 공용 헬퍼라 export한다.
 export async function getSystemStaffUserId(): Promise<number> {
   const systemUser = await prisma.staffUser.findUniqueOrThrow({ where: { name: "시스템" } });
   return systemUser.id;
@@ -449,27 +448,11 @@ export async function requestConsultCallback(token: string): Promise<{ patientNa
   });
   if (!page) return null;
 
-  const existingOpen = await prisma.todoTask.findFirst({
-    where: {
-      taskType: WORK_TASK_TYPE,
-      patientId: page.patientId,
-      isDone: false,
-      createdAt: { gte: startOfDay(new Date()) },
-      workTask: { title: { contains: "프로그램문의 요청" } },
-    },
+  await requestPatientConsultCallback({
+    patientId: page.patientId,
+    patientName: page.patient.name,
+    sourceLabel: `프로그램티칭: ${page.programTeaching.programName}`,
   });
-
-  if (!existingOpen) {
-    const systemStaffId = await getSystemStaffUserId();
-    await createWorkTask({
-      title: `${page.patient.name}님 프로그램문의 요청 — 연락 필요`,
-      description: `프로그램티칭: ${page.programTeaching.programName}`,
-      creatorId: systemStaffId,
-      isSharedTask: true,
-      dueDate: null,
-      patientId: page.patientId,
-    });
-  }
 
   return { patientName: page.patient.name };
 }

@@ -10,6 +10,7 @@ const MENU_ITEMS = [
   { label: "홈", href: "/home" },
   { label: "내원체크", href: "/visit-check" },
   { label: "오늘 할 일", href: "/todo" },
+  { label: "미션톡", href: "/missions/today" },
   { label: "치료처방", href: "/prescriptions" },
   { label: "검사", href: "/examinations" },
   { label: "상담설문", href: "/consultation-survey" },

@@ -61,6 +61,7 @@ model Patient {
   referralCreditUsages        ReferralCreditUsage[]
   mainDirectRegistrationRequests MainDirectRegistrationRequest[]
   referrerActivityLogs        ActivityLog[]                  @relation("ActivityLogReferrer")
+  missionSubmissions          MissionSubmission[]
 }
 
 model TreatmentCategory {
@@ -140,8 +141,12 @@ model StaffUser {
   resolvedHrvImportPendings HrvImportPending[]
   tcmChecklistResponses     TcmChecklistResponse[]
   confirmedReferralCredits ReferralCreditEntry[]
-  processedReferralCreditUsages ReferralCreditUsage[]
+  processedReferralCreditUsages ReferralCreditUsage[] @relation("ReferralCreditUsageStaff")
+  editedReferralCreditUsages    ReferralCreditUsage[] @relation("ReferralCreditUsageEditedBy")
+  cancelledReferralCreditUsages ReferralCreditUsage[] @relation("ReferralCreditUsageCancelledBy")
   kakaoChannelConnectedPatients Patient[] @relation("KakaoChannelConnectedBy")
+  createdMissionDailyAssignments MissionDailyAssignment[]
+  approvedMissionSubmissions     MissionSubmission[]
 }
 
 model Program {
@@ -838,6 +843,105 @@ model PatientShareLinkExam {
   @@index([examType, examRecordId])
 }
 
+// 미션톡(14장, 킬팻캡슐 한정) — 원장/직원이 만들어두는 미션 원본(뱅크). QUIZ는 body에 질문을
+// 담고 quizOptions(JSON 배열)/quizAnswerIndex(정답 인덱스, 0-based)를 함께 채운다. PHOTO/TEXT는
+// 두 필드를 쓰지 않는다(항상 null). category는 원장이 자유롭게 새 카테고리를 추가할 수
+// 있어야 해서(체중계/공유/후기/약속/다짐/일기/기타는 예시일 뿐 고정 목록 아님) enum이 아닌
+// 자유 문자열로 둔다(ProgramCategoryKey 등과 달리 이건 코드로 매핑 안 함).
+model MissionTemplate {
+  id              Int                      @id @default(autoincrement())
+  type            String // QUIZ | PHOTO | TEXT
+  category        String
+  title           String
+  body            String // QUIZ는 질문 문구, PHOTO/TEXT는 안내 문구
+  quizOptions     String? // QUIZ 타입만 — 4지선다 보기 JSON 배열
+  quizAnswerIndex Int? // QUIZ 타입만 — 정답 인덱스(0-based)
+  rewardAmount    Int
+  isActive        Boolean                  @default(true)
+  createdAt       DateTime                 @default(now())
+  dailyAssignments MissionDailyAssignment[]
+  // 제출건 템플릿 스냅샷(task.md 미션 제출건 템플릿 스냅샷 구조) — MissionSubmission.
+  // missionTemplateId 역참조. dailyAssignments와 별개 관계다(그날의 "현재" 템플릿 vs
+  // 각 제출건이 실제로 생성된 시점의 "고정된" 템플릿).
+  submissionSnapshots MissionSubmission[]
+}
+
+// 요일별 발송 on/off(task.md) — 배열 필드 하나가 아니라 요일마다 독립된 행으로 관리해
+// 설정화면에서 체크박스 7개로 다루기 쉽게 한다. weekday: 0=일요일~6=토요일
+// (JS Date.getDay()와 동일 규칙, 요일 7개 seed로 항상 미리 채워둔다).
+model MissionSchedule {
+  id       Int     @id @default(autoincrement())
+  weekday  Int     @unique
+  isActive Boolean @default(true)
+}
+
+// 특정 날짜에 발송할 미션 1건 지정(task.md) — 날짜당 유니크(하루에 미션 1개만 지정 가능).
+// /missions/today 화면이 upsert(date 기준)로 이 레코드를 만들거나 교체한다.
+model MissionDailyAssignment {
+  id                Int                 @id @default(autoincrement())
+  date              DateTime            @unique
+  missionTemplateId Int
+  missionTemplate   MissionTemplate     @relation(fields: [missionTemplateId], references: [id])
+  // 서두문구 뱅크(task2.md) — 생성 시점(그날 미션 지정 시) 활성 문구 중 랜덤 배정(직전
+  // 발송일 문구는 제외). 문구뱅크 도입 이전 레코드는 null로 남는다.
+  introPhraseId     Int?
+  introPhrase       MissionIntroPhrase? @relation(fields: [introPhraseId], references: [id])
+  createdByStaffId  Int
+  createdByStaff    StaffUser           @relation(fields: [createdByStaffId], references: [id])
+  createdAt         DateTime            @default(now())
+  submissions       MissionSubmission[]
+}
+
+// 미션톡 서두문구 뱅크(task2.md) — 발송 시 첫 문장이 뜬금없지 않도록 미리 준비해두는
+// "부담없음/재밌음/센스있음" 톤의 짧은 도입 문구. MissionDailyAssignment 생성 시마다
+// 랜덤 배정된다(직전 발송일과 겹치지 않게).
+model MissionIntroPhrase {
+  id        Int                      @id @default(autoincrement())
+  text      String
+  isActive  Boolean                  @default(true)
+  createdAt DateTime                 @default(now())
+  dailyAssignments MissionDailyAssignment[]
+}
+
+// 환자 1명에게 그날 미션이 발송된 건 1개(task.md) — 공개 제출 페이지(/m/[token])의 조회
+// 단위이자 진실원천. QUIZ는 오답이어도 이 레코드 자체를 재사용해 재시도 허용(quizAttempts만
+// 증가), PHOTO/TEXT는 제출 1회로 PENDING_APPROVAL 확정.
+//
+// 템플릿 스냅샷(task.md 미션 제출건 템플릿 스냅샷 구조 반영) — missionTemplateId는 생성
+// 시점의 템플릿을 고정 저장한다. 오늘의 미션을 재지정(MissionDailyAssignment.
+// missionTemplateId 변경)해도 이미 만들어진 제출건은 원래 템플릿 그대로 유지되어야
+// 하기 때문 — /m/[token] 렌더링도 assignment의 "현재" 템플릿이 아니라 이 스냅샷을
+// 기준으로 판단한다(그래야 재지정 후에도 각 토큰이 항상 자기 원래 유형(퀴즈/사진/텍스트)을
+// 보여준다). 유니크 제약도 (assignment, patient, 템플릿) 조합으로 넓혀서, 재지정으로
+// 템플릿이 바뀌면 같은 환자라도 새 제출건(새 토큰)이 자연스럽게 생성되고, 이전 템플릿의
+// 제출건(SENT든 완료든)은 고아 상태로 그대로 보존된다(별도 삭제/리셋 없음, task.md 정책).
+model MissionSubmission {
+  id                       Int                    @id @default(autoincrement())
+  missionDailyAssignmentId Int
+  missionDailyAssignment   MissionDailyAssignment @relation(fields: [missionDailyAssignmentId], references: [id])
+  patientId                Int
+  patient                  Patient                @relation(fields: [patientId], references: [id])
+  missionTemplateId        Int
+  missionTemplate          MissionTemplate        @relation(fields: [missionTemplateId], references: [id])
+  token                    String                 @unique
+  status                   String                 @default("SENT") // SENT | SUBMITTED | AUTO_COMPLETED | PENDING_APPROVAL | APPROVED | REJECTED
+  submittedPhotoPath       String?
+  submittedText            String?
+  quizSelectedIndex        Int?
+  quizAttempts             Int                    @default(0)
+  approvedByStaffId        Int?
+  approvedByStaff          StaffUser?             @relation(fields: [approvedByStaffId], references: [id])
+  approvedAt               DateTime?
+  // 적립 확정 시(퀴즈 정답 즉시 또는 승인 처리) 함께 생성된 ReferralCreditEntry 연결.
+  // 오답 재시도 중이거나 반려된 건은 계속 null.
+  creditEntryId            Int?                   @unique
+  creditEntry              ReferralCreditEntry?   @relation(fields: [creditEntryId], references: [id])
+  sentAt                   DateTime               @default(now())
+  submittedAt              DateTime?
+
+  @@unique([missionDailyAssignmentId, patientId, missionTemplateId])
+}
+
 // 증상 패턴 프로필(task.md) — HRV 등 검사와 별개로 환자에 종속된 독립 상담 체크리스트.
 // "변증 진단표"가 아니라 참고용 프로필이라는 점을 강조하기 위해 한의학 변증명 대신
 // 카테고리 코드(EMOTION_STAGNATION 등)로 다룬다(과신 방지, task.md 배경).
@@ -1042,6 +1146,12 @@ model ReferralCreditEntry {
   // 무관 전체 합, "확정 적립금"은 status=CONFIRMED만의 합으로 두 화면 모두 동일한 필드
   // 하나로 계산한다.
   status                       String            @default("CONFIRMED")
+  // 미션톡(14장) 적립 유효기간 — 기존 추천 크레딧(TRIAL_SIGNUP/MAIN_SIGNUP)은 항상 null(무기한
+  // 유지), 미션 적립(kind=MISSION_QUIZ/PHOTO/TEXT)만 적립일+6개월로 채운다.
+  // getPatientCreditBalance(referral-credit-usage.ts)가 이 값이 과거인 항목을 잔액 계산에서
+  // 제외한다.
+  expiresAt                    DateTime?
+  missionSubmission            MissionSubmission?
 }
 
 // 적립금 사용 내역(task.md) — ReferralCreditEntry(적립)와 부호를 섞지 않고 완전히 분리된
@@ -1054,8 +1164,25 @@ model ReferralCreditUsage {
   amount      Int
   memo        String?
   staffUserId Int
-  staffUser   StaffUser @relation(fields: [staffUserId], references: [id])
+  staffUser   StaffUser @relation("ReferralCreditUsageStaff", fields: [staffUserId], references: [id])
   createdAt   DateTime  @default(now())
+  // 적립금 사용처리 수정/취소(task.md) — 실제 사용일(수정 가능). 이 필드 도입 이전 기존
+  // 레코드는 최초 createdAt으로 백필한다(그 이전 데이터의 실제 사용일을 복원할 방법이 없어
+  // 최선의 근사치, task.md 지시).
+  usedAt      DateTime
+  // 수정 이력(최소 감사로그, task.md) — 상세 서술(이전 금액/날짜 → 새 금액/날짜)은
+  // ActivityLog(CREDIT_USAGE_EDIT)에 남기고, 여기 두 필드는 "수정된 적 있는지/누가/언제"를
+  // 화면에서 바로 보여주기 위한 용도로만 둔다.
+  editedAt        DateTime?
+  editedByStaffId Int?
+  editedByStaff   StaffUser? @relation("ReferralCreditUsageEditedBy", fields: [editedByStaffId], references: [id])
+  // 취소(소프트 삭제, task.md) — 이 코드베이스의 기존 소프트 삭제 원칙(Visit/Program 등과
+  // 동일, 물리 삭제 대신 비활성화만)을 그대로 따른다. 취소되면 잔액 계산
+  // (getPatientCreditBalance)에서 제외되어 그 금액만큼 잔액이 복구된다.
+  isCancelled        Boolean    @default(false)
+  cancelledAt        DateTime?
+  cancelledByStaffId Int?
+  cancelledByStaff   StaffUser? @relation("ReferralCreditUsageCancelledBy", fields: [cancelledByStaffId], references: [id])
 }
 
 // 킬팻캡슐 3일체험 추천 이벤트(task.md 1-5) — 공개 신청페이지 히어로 이미지/문구 설정.
@@ -1079,5 +1206,9 @@ model TrialCampaignSettings {
   // 폴백한다(getTrialReferralBonusAmount, trial-campaign.ts). 공유 문구 표시값과 실제 적립
   // 지급액(referrals.ts createTrialApplication)이 항상 같은 값을 보도록 이 필드 하나를 공유한다.
   trialReferralBonusAmount Int?
+  // 마감설문 작성 완료 적립금(task2.md) — null이면 referral-config.ts의 기본값(30,000원)으로
+  // 폴백한다(getExitSurveyCompletionAmount, trial-campaign.ts). 마감설문 완료 화면 문구와
+  // 실제 지급액이 항상 이 값 하나를 공유한다.
+  exitSurveyCompletionAmount Int?
   updatedAt     DateTime @updatedAt
 }

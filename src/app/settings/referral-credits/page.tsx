@@ -4,6 +4,7 @@ import { Fragment, useEffect, useMemo, useState } from "react";
 import styles from "./page.module.css";
 import BackButton from "@/components/BackButton";
 import CreditUsageModal from "@/components/CreditUsageModal";
+import EditCreditUsageModal from "@/components/EditCreditUsageModal";
 import { useCurrentUserContext } from "@/lib/CurrentUserContext";
 
 type CreditEntry = {
@@ -29,7 +30,22 @@ type PatientSummary = {
   entries: CreditEntry[];
 };
 
-const KIND_LABEL: Record<string, string> = { TRIAL_SIGNUP: "체험 추천", MAIN_SIGNUP: "본프로그램 추천" };
+type UsageRecord = {
+  id: number;
+  amount: number;
+  memo: string | null;
+  usedAt: string;
+  staffUserName: string;
+  isCancelled: boolean;
+  cancelledAt: string | null;
+  editedAt: string | null;
+};
+
+const KIND_LABEL: Record<string, string> = {
+  TRIAL_SIGNUP: "체험 추천",
+  MAIN_SIGNUP: "본프로그램 추천",
+  EXIT_SURVEY_COMPLETION: "마감설문 작성",
+};
 const STATUS_LABEL: Record<string, string> = { PENDING: "대기중", CONFIRMED: "확정" };
 
 function formatDate(iso: string): string {
@@ -53,10 +69,60 @@ export default function ReferralCreditsSettingsPage() {
   const [onlyWithBalance, setOnlyWithBalance] = useState(false);
   const [usageModalPatient, setUsageModalPatient] = useState<PatientSummary | null>(null);
 
+  // 사용내역 수정/취소(task.md 신규) — 환자별 사용내역은 펼칠 때만 조회(lazy load)해서 캐시해둔다.
+  const [expandedUsagePatientId, setExpandedUsagePatientId] = useState<number | null>(null);
+  const [usageByPatient, setUsageByPatient] = useState<Record<number, UsageRecord[] | undefined>>({});
+  const [editingUsage, setEditingUsage] = useState<{ usage: UsageRecord; patientId: number; patientName: string } | null>(null);
+  const [cancellingUsageId, setCancellingUsageId] = useState<number | null>(null);
+
   function loadSummary() {
     fetch("/api/referral-credits")
       .then((res) => res.json())
       .then(setSummary);
+  }
+
+  function loadUsageForPatient(patientId: number) {
+    return fetch(`/api/referral-credits/usage?patientId=${patientId}`)
+      .then((res) => res.json())
+      .then((data: UsageRecord[]) => {
+        setUsageByPatient((prev) => ({ ...prev, [patientId]: data }));
+        return data;
+      });
+  }
+
+  function toggleUsageExpand(patientId: number) {
+    if (expandedUsagePatientId === patientId) {
+      setExpandedUsagePatientId(null);
+      return;
+    }
+    setExpandedUsagePatientId(patientId);
+    if (!usageByPatient[patientId]) {
+      loadUsageForPatient(patientId);
+    }
+  }
+
+  async function handleCancelUsage(usage: UsageRecord, patientId: number) {
+    if (!currentUser) return;
+    if (!confirm("이 사용내역을 삭제하시겠습니까? 삭제하면 해당 금액만큼 잔액이 복구됩니다")) return;
+    setCancellingUsageId(usage.id);
+    try {
+      const res = await fetch(`/api/referral-credits/usage/${usage.id}/cancel`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ staffUserId: currentUser.id }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        alert(data.error ?? "취소에 실패했습니다.");
+        return;
+      }
+      await loadUsageForPatient(patientId);
+      loadSummary();
+    } catch {
+      alert("서버에 연결하지 못했습니다. 다시 시도해주세요.");
+    } finally {
+      setCancellingUsageId(null);
+    }
   }
 
   useEffect(() => {
@@ -162,6 +228,7 @@ export default function ReferralCreditsSettingsPage() {
                   <th>잔액</th>
                   <th />
                   <th />
+                  <th />
                 </tr>
               </thead>
               <tbody>
@@ -196,10 +263,19 @@ export default function ReferralCreditsSettingsPage() {
                           {expandedPatientId === p.patientId ? "접기" : `내역 ${p.entries.length}건`}
                         </button>
                       </td>
+                      <td>
+                        <button
+                          type="button"
+                          className={styles.expandButton}
+                          onClick={() => toggleUsageExpand(p.patientId)}
+                        >
+                          {expandedUsagePatientId === p.patientId ? "접기" : "사용내역"}
+                        </button>
+                      </td>
                     </tr>
                     {expandedPatientId === p.patientId && (
                       <tr>
-                        <td colSpan={6}>
+                        <td colSpan={7}>
                           <table className={styles.detailTable}>
                             <thead>
                               <tr>
@@ -240,6 +316,70 @@ export default function ReferralCreditsSettingsPage() {
                         </td>
                       </tr>
                     )}
+                    {expandedUsagePatientId === p.patientId && (
+                      <tr>
+                        <td colSpan={7}>
+                          {usageByPatient[p.patientId] === undefined ? (
+                            <p className={styles.muted}>불러오는 중...</p>
+                          ) : usageByPatient[p.patientId]!.length === 0 ? (
+                            <p className={styles.muted}>사용 내역이 없습니다.</p>
+                          ) : (
+                            <table className={styles.detailTable}>
+                              <thead>
+                                <tr>
+                                  <th>금액</th>
+                                  <th>사용일</th>
+                                  <th>메모</th>
+                                  <th>처리 직원</th>
+                                  <th>상태</th>
+                                  <th />
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {usageByPatient[p.patientId]!.map((u) => (
+                                  <tr key={u.id}>
+                                    <td className={styles.mono}>{u.amount.toLocaleString()}원</td>
+                                    <td className={styles.mono}>{formatDate(u.usedAt)}</td>
+                                    <td>{u.memo ?? "-"}</td>
+                                    <td>{u.staffUserName}</td>
+                                    <td>
+                                      {u.isCancelled
+                                        ? `취소됨${u.cancelledAt ? ` (${formatDate(u.cancelledAt)})` : ""}`
+                                        : u.editedAt
+                                          ? `수정됨 (${formatDate(u.editedAt)})`
+                                          : "-"}
+                                    </td>
+                                    <td>
+                                      {!u.isCancelled && (
+                                        <>
+                                          <button
+                                            type="button"
+                                            className={styles.expandButton}
+                                            onClick={() =>
+                                              setEditingUsage({ usage: u, patientId: p.patientId, patientName: p.patientName })
+                                            }
+                                          >
+                                            수정
+                                          </button>{" "}
+                                          <button
+                                            type="button"
+                                            className={styles.expandButton}
+                                            disabled={cancellingUsageId === u.id}
+                                            onClick={() => handleCancelUsage(u, p.patientId)}
+                                          >
+                                            {cancellingUsageId === u.id ? "처리 중..." : "삭제"}
+                                          </button>
+                                        </>
+                                      )}
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          )}
+                        </td>
+                      </tr>
+                    )}
                   </Fragment>
                 ))}
               </tbody>
@@ -257,6 +397,21 @@ export default function ReferralCreditsSettingsPage() {
           staffUserId={currentUser.id}
           onClose={() => setUsageModalPatient(null)}
           onSaved={loadSummary}
+        />
+      )}
+
+      {editingUsage && currentUser && (
+        <EditCreditUsageModal
+          usageId={editingUsage.usage.id}
+          patientName={editingUsage.patientName}
+          initialAmount={editingUsage.usage.amount}
+          initialUsedAt={editingUsage.usage.usedAt}
+          staffUserId={currentUser.id}
+          onClose={() => setEditingUsage(null)}
+          onSaved={() => {
+            loadUsageForPatient(editingUsage.patientId);
+            loadSummary();
+          }}
         />
       )}
     </div>

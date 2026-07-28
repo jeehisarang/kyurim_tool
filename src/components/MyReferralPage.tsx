@@ -6,7 +6,7 @@ import { copyToClipboard } from "@/lib/clipboard";
 import KakaoShareButton from "@/components/KakaoShareButton";
 import { getShareBaseUrl } from "@/lib/share-base-url";
 
-type UsageHistoryEntry = { id: number; amount: number; memo: string | null; createdAt: string };
+type UsageHistoryEntry = { id: number; amount: number; memo: string | null; usedAt: string };
 
 type ReferralStatus = {
   token: string;
@@ -145,7 +145,7 @@ export default function MyReferralPage({ token }: { token: string }) {
               <ul className={styles.usageHistoryList}>
                 {status.usageHistory.map((u) => (
                   <li key={u.id} className={styles.usageHistoryItem}>
-                    <span className={styles.usageHistoryDate}>{formatDate(u.createdAt)}</span>
+                    <span className={styles.usageHistoryDate}>{formatDate(u.usedAt)}</span>
                     <span className={styles.usageHistoryAmount}>-{u.amount.toLocaleString()}원</span>
                     {u.memo && <span className={styles.usageHistoryMemo}>{u.memo}</span>}
                   </li>

@@ -1,5 +1,10 @@
 import { prisma } from "@/lib/db";
-import { MAIN_REFERRAL_DEFAULTS, TRIAL_REFERRAL_BONUS_AMOUNT, type MainProgramDurationTier } from "@/lib/referral-config";
+import {
+  MAIN_REFERRAL_DEFAULTS,
+  TRIAL_REFERRAL_BONUS_AMOUNT,
+  EXIT_SURVEY_COMPLETION_AMOUNT_DEFAULT,
+  type MainProgramDurationTier,
+} from "@/lib/referral-config";
 
 const SETTINGS_ID = 1;
 
@@ -12,6 +17,7 @@ export type TrialCampaignSettingsView = {
   mainReferrerAmount3mo: number | null;
   mainRefereeAmount3mo: number | null;
   trialReferralBonusAmount: number | null;
+  exitSurveyCompletionAmount: number | null;
 };
 
 /**
@@ -30,6 +36,7 @@ export async function getTrialCampaignSettings(): Promise<TrialCampaignSettingsV
     mainReferrerAmount3mo: row?.mainReferrerAmount3mo ?? null,
     mainRefereeAmount3mo: row?.mainRefereeAmount3mo ?? null,
     trialReferralBonusAmount: row?.trialReferralBonusAmount ?? null,
+    exitSurveyCompletionAmount: row?.exitSurveyCompletionAmount ?? null,
   };
 }
 
@@ -42,6 +49,7 @@ export async function upsertTrialCampaignSettings(input: {
   mainReferrerAmount3mo?: number | null;
   mainRefereeAmount3mo?: number | null;
   trialReferralBonusAmount?: number | null;
+  exitSurveyCompletionAmount?: number | null;
 }): Promise<TrialCampaignSettingsView> {
   const amountFields = {
     mainReferrerAmount1mo: input.mainReferrerAmount1mo ?? null,
@@ -49,6 +57,7 @@ export async function upsertTrialCampaignSettings(input: {
     mainReferrerAmount3mo: input.mainReferrerAmount3mo ?? null,
     mainRefereeAmount3mo: input.mainRefereeAmount3mo ?? null,
     trialReferralBonusAmount: input.trialReferralBonusAmount ?? null,
+    exitSurveyCompletionAmount: input.exitSurveyCompletionAmount ?? null,
   };
   const row = await prisma.trialCampaignSettings.upsert({
     where: { id: SETTINGS_ID },
@@ -75,6 +84,7 @@ export async function upsertTrialCampaignSettings(input: {
     mainReferrerAmount3mo: row.mainReferrerAmount3mo,
     mainRefereeAmount3mo: row.mainRefereeAmount3mo,
     trialReferralBonusAmount: row.trialReferralBonusAmount,
+    exitSurveyCompletionAmount: row.exitSurveyCompletionAmount,
   };
 }
 
@@ -109,4 +119,14 @@ export async function getMainReferralAmounts(tier: MainProgramDurationTier): Pro
     referrerAmount: settings.mainReferrerAmount3mo ?? defaults.referrerAmount,
     refereeAmount: settings.mainRefereeAmount3mo ?? defaults.refereeAmount,
   };
+}
+
+/**
+ * 마감설문 작성 완료 적립금(task2.md) — 마감설문 완료 처리(exit-surveys.ts
+ * createExitSurveyResponse)와 완료 화면 안내 문구(ExitSurveyForm.tsx) 양쪽이 이 함수 하나를
+ * 공유해서 항상 같은 값을 본다(getTrialReferralBonusAmount와 동일 원칙).
+ */
+export async function getExitSurveyCompletionAmount(): Promise<number> {
+  const settings = await getTrialCampaignSettings();
+  return settings.exitSurveyCompletionAmount ?? EXIT_SURVEY_COMPLETION_AMOUNT_DEFAULT;
 }

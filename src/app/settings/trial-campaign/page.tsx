@@ -7,7 +7,7 @@ import BackButton from "@/components/BackButton";
 import QrCodeImage from "@/components/QrCodeImage";
 import { useCurrentUserContext } from "@/lib/CurrentUserContext";
 import { getShareBaseUrl } from "@/lib/share-base-url";
-import { TRIAL_REFERRAL_BONUS_AMOUNT } from "@/lib/referral-config";
+import { TRIAL_REFERRAL_BONUS_AMOUNT, EXIT_SURVEY_COMPLETION_AMOUNT_DEFAULT } from "@/lib/referral-config";
 
 type CampaignSettings = {
   heroImagePath: string | null;
@@ -18,6 +18,7 @@ type CampaignSettings = {
   mainReferrerAmount3mo: number | null;
   mainRefereeAmount3mo: number | null;
   trialReferralBonusAmount: number | null;
+  exitSurveyCompletionAmount: number | null;
 };
 
 const MAIN_REFERRAL_AMOUNT_DEFAULTS = {
@@ -49,6 +50,8 @@ export default function TrialCampaignSettingsPage() {
   const [mainRefereeAmount3mo, setMainRefereeAmount3mo] = useState("");
   // 체험(TRIAL) 추천 공유 문구 적립금(task.md) — 마찬가지로 빈 문자열=기본값 사용.
   const [trialReferralBonusAmount, setTrialReferralBonusAmount] = useState("");
+  // 마감설문 작성 완료 적립금(task2.md) — 마찬가지로 빈 문자열=기본값 사용.
+  const [exitSurveyCompletionAmount, setExitSurveyCompletionAmount] = useState("");
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
@@ -66,6 +69,9 @@ export default function TrialCampaignSettingsPage() {
         setMainRefereeAmount3mo(data.mainRefereeAmount3mo != null ? String(data.mainRefereeAmount3mo) : "");
         setTrialReferralBonusAmount(
           data.trialReferralBonusAmount != null ? String(data.trialReferralBonusAmount) : "",
+        );
+        setExitSurveyCompletionAmount(
+          data.exitSurveyCompletionAmount != null ? String(data.exitSurveyCompletionAmount) : "",
         );
       });
   }, []);
@@ -92,6 +98,7 @@ export default function TrialCampaignSettingsPage() {
       formData.set("mainReferrerAmount3mo", mainReferrerAmount3mo);
       formData.set("mainRefereeAmount3mo", mainRefereeAmount3mo);
       formData.set("trialReferralBonusAmount", trialReferralBonusAmount);
+      formData.set("exitSurveyCompletionAmount", exitSurveyCompletionAmount);
       if (heroFile) formData.set("heroImage", heroFile);
 
       const res = await fetch("/api/trial-campaign", { method: "POST", body: formData });
@@ -196,6 +203,36 @@ export default function TrialCampaignSettingsPage() {
       </div>
 
       <div className={styles.section}>
+        <div className={styles.sectionTitle}>마감설문 작성 적립금</div>
+        <p className={styles.muted}>
+          체험 마감설문(/refer/exit/[prescriptionId]) 작성 완료 시 즉시 지급되는 적립금입니다.
+          비워두면 기본값({EXIT_SURVEY_COMPLETION_AMOUNT_DEFAULT.toLocaleString()}원)이
+          적용됩니다.
+        </p>
+        {settings === null ? (
+          <p className={styles.muted}>불러오는 중...</p>
+        ) : (
+          <form className={styles.formGrid} onSubmit={handleSave}>
+            <label className={styles.fieldLabel}>
+              마감설문 작성 적립금(원)
+              <input
+                type="number"
+                min={0}
+                placeholder={String(EXIT_SURVEY_COMPLETION_AMOUNT_DEFAULT)}
+                value={exitSurveyCompletionAmount}
+                onChange={(e) => setExitSurveyCompletionAmount(e.target.value)}
+                disabled={!isDirector}
+              />
+            </label>
+            <button type="submit" disabled={!isDirector || saving}>
+              {saving ? "저장 중..." : saved ? "저장됨" : "저장"}
+            </button>
+            {saveError && <p className={styles.errorText}>{saveError}</p>}
+          </form>
+        )}
+      </div>
+
+      <div className={styles.section}>
         <div className={styles.sectionTitle}>본프로그램 추천 적립금</div>
         <p className={styles.muted}>
           비워두면 기본값(1개월: 소개자 35,000원 / 피소개자 15,000원, 3개월: 소개자 70,000원 /
@@ -273,6 +310,9 @@ export default function TrialCampaignSettingsPage() {
         </Link>
         <Link href="/refer/main-registrations" className={styles.linkButton}>
           본프로그램 바로등록 신청 전체보기 →
+        </Link>
+        <Link href="/refer/exit-responses" className={styles.linkButton}>
+          마감설문 응답 보기 →
         </Link>
         <Link href="/settings/referral-credits" className={styles.linkButton}>
           추천 적립 현황 보기 →

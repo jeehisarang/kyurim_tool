@@ -3,7 +3,8 @@
   display: flex;
   justify-content: center;
   background: var(--color-hanji-bg);
-  padding: 28px 16px;
+  /* 하단 고정 CTA(StickyBottomCta, task3.md)에 마지막 내용이 가려지지 않도록 여유 확보. */
+  padding: 28px 16px calc(96px + env(safe-area-inset-bottom, 0px));
 }
 
 .card {

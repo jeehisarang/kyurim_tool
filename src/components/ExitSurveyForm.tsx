@@ -26,6 +26,8 @@ type PageData = {
   alreadySubmitted: boolean;
   referralStatus: ReferralStatus | null;
   mainRefereeDiscounts: { oneMonth: number; threeMonth: number };
+  // 마감설문 작성 완료 적립금(task2.md) — 이 지시서 반영 이전 제출건은 null(지급 이력 없음).
+  exitSurveyCreditAmount: number | null;
 };
 
 // "내 추천 현황 보기" 링크(task.md) — 코드/적립현황/복사/카톡공유 전체는 전용 공개페이지
@@ -127,6 +129,11 @@ export default function ExitSurveyForm({ prescriptionId }: { prescriptionId: num
       <div className={styles.page}>
         <div className={styles.card}>
           <p className={styles.completeText}>마감설문 제출이 완료되었습니다. 수고 많으셨어요!</p>
+          {pageData.exitSurveyCreditAmount !== null && (
+            <p className={styles.referralExtraNotice}>
+              마감설문 작성 적립금 {pageData.exitSurveyCreditAmount.toLocaleString()}원이 적립되었습니다.
+            </p>
+          )}
           <p className={styles.referralExtraNotice}>
             친구가 이 링크로 본프로그램 등록 시 1개월 {pageData.mainRefereeDiscounts.oneMonth.toLocaleString()}
             원 / 3개월 {pageData.mainRefereeDiscounts.threeMonth.toLocaleString()}원 할인이 적용됩니다.

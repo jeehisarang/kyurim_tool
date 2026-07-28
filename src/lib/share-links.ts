@@ -1,10 +1,9 @@
 import { prisma } from "@/lib/db";
-import { getTeachingPageContentById, type TeachingPageContentForShare, startOfDay, getSystemStaffUserId } from "@/lib/teaching-pages";
+import { getTeachingPageContentById, type TeachingPageContentForShare, startOfDay } from "@/lib/teaching-pages";
 import { logActivity } from "@/lib/activity-log";
 import { getEventImage } from "@/lib/event-images";
 import { createWithShortToken } from "@/lib/short-token";
-import { createWorkTask } from "@/lib/work-tasks";
-import { WORK_TASK_TYPE } from "@/lib/task-types";
+import { requestPatientConsultCallback } from "@/lib/patient-consult";
 import {
   getBodyCompositionRecord,
   getStrengthTestRecord,
@@ -271,38 +270,33 @@ export async function getShareLinkOgImagePath(token: string): Promise<string | n
 }
 
 /**
- * "상담예약하기"(task.md PART C) — 검사기록이 포함된 공유링크 전용 상담 요청. 이벤트문의하기의
- * requestEventInquiryCallback(event-images.ts)/프로그램문의하기의 requestConsultCallback
- * (teaching-pages.ts)과 동일한 패턴(당일+동일환자 중복방지, 담당자 지정 없는 공용 업무) —
- * 검사기록이 없는 링크는 이 버튼 자체가 노출되지 않으므로 examLinks 없으면 null 반환.
+ * 통합 공유링크(/s/[token]) 하단 고정 CTA "진료상담문의하기"(task3.md) — 이 페이지가
+ * 프로그램티칭/이벤트/검사결과 중 무엇을 포함하든 버튼은 하나, 콜백 업무도 하나만
+ * 생성한다(requestPatientConsultCallback이 당일+동일환자 중복방지 담당). 어떤 섹션들이
+ * 함께 있었는지는 sourceLabel로만 남겨 담당 직원이 참고할 수 있게 한다.
  */
-export async function requestExamConsultCallback(shareToken: string): Promise<{ patientName: string } | null> {
+export async function requestShareLinkConsultCallback(shareToken: string): Promise<{ patientName: string } | null> {
   const link = await prisma.patientShareLink.findUnique({
     where: { token: shareToken },
-    include: { patient: true, examLinks: true },
-  });
-  if (!link || link.examLinks.length === 0) return null;
-
-  const existingOpen = await prisma.todoTask.findFirst({
-    where: {
-      taskType: WORK_TASK_TYPE,
-      patientId: link.patientId,
-      isDone: false,
-      createdAt: { gte: startOfDay(new Date()) },
-      workTask: { title: { contains: "검사상담 요청" } },
+    include: {
+      patient: true,
+      teachingPage: { include: { programTeaching: true } },
+      eventImage: true,
+      examLinks: true,
     },
   });
+  if (!link) return null;
 
-  if (!existingOpen) {
-    const systemStaffId = await getSystemStaffUserId();
-    await createWorkTask({
-      title: `${link.patient.name}님 검사상담 요청 — 연락 필요`,
-      creatorId: systemStaffId,
-      isSharedTask: true,
-      dueDate: null,
-      patientId: link.patientId,
-    });
-  }
+  const sourceParts: string[] = [];
+  if (link.teachingPage) sourceParts.push(`프로그램티칭: ${link.teachingPage.programTeaching.programName}`);
+  if (link.eventImage) sourceParts.push(`이벤트: ${link.eventImage.finalTitle}`);
+  if (link.examLinks.length > 0) sourceParts.push("검사결과");
+
+  await requestPatientConsultCallback({
+    patientId: link.patientId,
+    patientName: link.patient.name,
+    sourceLabel: `통합공유링크 (${sourceParts.join(", ") || "내용 없음"})`,
+  });
 
   return { patientName: link.patient.name };
 }

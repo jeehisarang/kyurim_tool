@@ -1,15 +1,20 @@
 import { prisma } from "@/lib/db";
 import { getTrialReferralStatus, type TrialReferralStatus } from "@/lib/referrals";
-import { getMainReferralAmounts } from "@/lib/trial-campaign";
+import { getMainReferralAmounts, getExitSurveyCompletionAmount } from "@/lib/trial-campaign";
+import { computeReferralCreditExpiry } from "@/lib/referral-config";
 import { startOfDay, getSystemStaffUserId } from "@/lib/teaching-pages";
 import { createWorkTask } from "@/lib/work-tasks";
 import { WORK_TASK_TYPE } from "@/lib/task-types";
 import {
   COMPLIANCE_OPTIONS,
   CONSULT_INTEREST_OPTIONS,
+  parseChanges,
   type ComplianceValue,
   type ConsultInterestValue,
 } from "@/lib/exit-survey-format";
+
+const CREDIT_KIND_EXIT_SURVEY_COMPLETION = "EXIT_SURVEY_COMPLETION";
+const CREDIT_STATUS_CONFIRMED = "CONFIRMED";
 
 export type ExitSurveyPageData = {
   patientName: string;
@@ -19,6 +24,10 @@ export type ExitSurveyPageData = {
   // 본프로그램 등록 시 이만큼 할인된다"는 안내에 쓴다. 어느 프로그램으로 등록할지 아직
   // 모르는 시점이라 1개월/3개월 두 값 다 내려준다(설정 가능값, getMainReferralAmounts).
   mainRefereeDiscounts: { oneMonth: number; threeMonth: number };
+  // 마감설문 작성 완료 적립금(task2.md) — 이미 제출된 처방이면 실제 지급된 금액(이 지시서
+  // 반영 이전 제출건은 지급된 적이 없어 null), 아직 미제출이면 지금 제출 시 지급될 현재
+  // 설정값을 미리 내려준다(완료 화면이 별도 재조회 없이 그대로 쓴다).
+  exitSurveyCreditAmount: number | null;
 };
 
 // 공개 마감설문 페이지(/refer/exit/[prescriptionId], task.md Phase 2-1) 조회 — 인증 없음,
@@ -37,11 +46,22 @@ export async function getExitSurveyPageData(prescriptionId: number): Promise<Exi
     getMainReferralAmounts("THREE_MONTH"),
   ]);
 
+  let exitSurveyCreditAmount: number | null;
+  if (prescription.exitSurveyResponse) {
+    const existingCredit = await prisma.referralCreditEntry.findFirst({
+      where: { referredPrescriptionId: prescriptionId, kind: CREDIT_KIND_EXIT_SURVEY_COMPLETION },
+    });
+    exitSurveyCreditAmount = existingCredit?.amount ?? null;
+  } else {
+    exitSurveyCreditAmount = await getExitSurveyCompletionAmount();
+  }
+
   return {
     patientName: prescription.patient.name,
     alreadySubmitted: Boolean(prescription.exitSurveyResponse),
     referralStatus,
     mainRefereeDiscounts: { oneMonth: oneMonth.refereeAmount, threeMonth: threeMonth.refereeAmount },
+    exitSurveyCreditAmount,
   };
 }
 
@@ -127,9 +147,86 @@ export async function createExitSurveyResponse(input: ExitSurveyInput) {
     },
   });
 
+  // 마감설문 작성 완료 적립금(task2.md) — 이 지시서 반영 이후 신규 제출건부터만 지급.
+  // 같은 처방으로 중복 제출될 수 없으므로(위 exitSurveyResponse 존재 체크) 원칙적으로
+  // 한 번만 지급되지만, 방어적으로 한 번 더 존재 여부를 확인한다(idempotent).
+  const existingCredit = await prisma.referralCreditEntry.findFirst({
+    where: { referredPrescriptionId: input.prescriptionId, kind: CREDIT_KIND_EXIT_SURVEY_COMPLETION },
+  });
+  if (!existingCredit) {
+    const amount = await getExitSurveyCompletionAmount();
+    const now = new Date();
+    await prisma.referralCreditEntry.create({
+      data: {
+        patientId: prescription.patientId,
+        linkToken: `EXIT_SURVEY_${input.prescriptionId}`,
+        kind: CREDIT_KIND_EXIT_SURVEY_COMPLETION,
+        amount,
+        referredName: "마감설문 작성 완료",
+        referredPrescriptionId: input.prescriptionId,
+        status: CREDIT_STATUS_CONFIRMED,
+        expiresAt: computeReferralCreditExpiry(now),
+      },
+    });
+  }
+
   if (input.consultInterest === "네" || input.consultInterest === "고민중") {
     await requestExitSurveyConsultCallback(input.prescriptionId, prescription.patientId, prescription.patient.name);
   }
 
   return response;
+}
+
+export type ExitSurveyResponseRow = {
+  id: number;
+  prescriptionId: number;
+  patientId: number;
+  patientName: string;
+  chartNumber: string;
+  programName: string;
+  compliance: string;
+  changes: string[];
+  consultInterest: string;
+  comment: string | null;
+  submittedAt: Date;
+  workTask: { id: number; isDone: boolean; doneAt: Date | null } | null;
+};
+
+/**
+ * 마감설문 응답 전체보기(task.md, /refer/exit-responses) — /refer/applications(신청응답
+ * 전체보기)와 동일한 "직원용 목록 조회" 패턴. 연동된 "본상담 예약 요청" 콜백 업무는
+ * requestExitSurveyConsultCallback이 별도 FK 없이 title+당일+환자로만 dedup하므로, 여기서는
+ * WorkTask.description에 박아둔 "(처방 #N)" 문자열로 역매칭한다(상담희망=아니오는 애초에
+ * 업무 자체가 생성되지 않으므로 null).
+ */
+export async function listAllExitSurveyResponses(): Promise<ExitSurveyResponseRow[]> {
+  const responses = await prisma.exitSurveyResponse.findMany({
+    orderBy: { submittedAt: "desc" },
+    include: { prescription: { include: { patient: true, program: true } } },
+  });
+
+  const consultWorkTasks = await prisma.todoTask.findMany({
+    where: { taskType: WORK_TASK_TYPE, workTask: { title: { contains: "본상담 예약 요청" } } },
+    include: { workTask: true },
+  });
+  const workTaskByPrescriptionId = new Map<number, { id: number; isDone: boolean; doneAt: Date | null }>();
+  for (const t of consultWorkTasks) {
+    const match = t.workTask?.description?.match(/처방 #(\d+)\)/);
+    if (match) workTaskByPrescriptionId.set(Number(match[1]), { id: t.id, isDone: t.isDone, doneAt: t.doneAt });
+  }
+
+  return responses.map((r) => ({
+    id: r.id,
+    prescriptionId: r.prescriptionId,
+    patientId: r.prescription.patientId,
+    patientName: r.prescription.patient.name,
+    chartNumber: r.prescription.patient.chartNumber,
+    programName: r.prescription.program.name,
+    compliance: r.compliance,
+    changes: parseChanges(r.changes),
+    consultInterest: r.consultInterest,
+    comment: r.comment,
+    submittedAt: r.submittedAt,
+    workTask: workTaskByPrescriptionId.get(r.prescriptionId) ?? null,
+  }));
 }

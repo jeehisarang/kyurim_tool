@@ -1,5 +1,20 @@
 import { NextResponse } from "next/server";
-import { createReferralCreditUsage, InvalidCreditUsageAmountError } from "@/lib/referral-credit-usage";
+import {
+  createReferralCreditUsage,
+  listReferralCreditUsageForPatient,
+  InvalidCreditUsageAmountError,
+} from "@/lib/referral-credit-usage";
+
+// 사용내역 목록(task.md 수정/취소 기능) — 환자별로 펼칠 때만 조회(lazy load).
+export async function GET(request: Request) {
+  const { searchParams } = new URL(request.url);
+  const patientId = Number(searchParams.get("patientId"));
+  if (!patientId) {
+    return NextResponse.json({ error: "patientId가 필요합니다." }, { status: 400 });
+  }
+  const usages = await listReferralCreditUsageForPatient(patientId);
+  return NextResponse.json(usages);
+}
 
 // 적립금 "사용 처리"(task.md) — /settings/referral-credits 전용, 원장 화면에서만 노출되는
 // 버튼이라 인증은 클라이언트 role 체크(isDirector)에 맡긴다(다른 원장 전용 화면과 동일한

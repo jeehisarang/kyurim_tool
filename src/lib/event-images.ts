@@ -1,9 +1,6 @@
 import { prisma } from "@/lib/db";
 import { logActivity } from "@/lib/activity-log";
 import { withObjectParticle } from "@/lib/korean-particle";
-import { createWorkTask } from "@/lib/work-tasks";
-import { WORK_TASK_TYPE } from "@/lib/task-types";
-import { startOfDay, getSystemStaffUserId } from "@/lib/teaching-pages";
 
 export async function listEventImages() {
   return prisma.eventImage.findMany({
@@ -64,9 +61,10 @@ export async function deleteEventImage(id: number) {
 }
 
 /**
- * "이벤트문의하기" 버튼 클릭 로그(task.md, /s/[token] 이벤트 섹션) — 티칭지의
- * recordTeachingPageCtaClick과 동일하게 중복 방지 없이 클릭마다 기록한다(업무 중복 방지는
- * requestEventInquiryCallback이 별도로 처리). PatientShareLink 토큰으로 환자+이벤트를
+ * 이벤트 CTA 클릭 로그(task3.md, /s/[token] 하단 고정 CTA) — 어느 문구/버튼이든(통합
+ * "진료상담문의하기" 하나로 바뀌었지만) 이 페이지가 이벤트 섹션을 포함하고 있었다는
+ * 사실 자체는 계속 개별 기록한다(중복 방지 없이 클릭마다 기록, 콜백 업무 중복 방지는
+ * requestPatientConsultCallback이 별도로 담당). PatientShareLink 토큰으로 환자+이벤트를
  * 함께 조회한다 — EventImage 자체는 티칭지처럼 고유 공개 token을 갖지 않고 공유링크를
  * 통해서만 노출되기 때문.
  */
@@ -84,41 +82,4 @@ export async function recordEventCtaClick(shareToken: string): Promise<boolean> 
     label: `${link.patient.name}님이 [${link.eventImage.finalTitle}] ${withObjectParticle("이벤트문의하기")} 눌렀습니다`,
   });
   return true;
-}
-
-/**
- * "이벤트문의하기" 버튼(task.md, /s/[token] 공개 페이지) — requestConsultCallback과 동일한
- * 패턴으로 콜백 업무(WORK)를 전체공통으로 자동 생성한다. 같은 환자에게 당일 이미
- * 열려있는(미완료) "이벤트문의" 콜백 업무가 있으면 새로 만들지 않는다.
- */
-export async function requestEventInquiryCallback(shareToken: string): Promise<{ patientName: string } | null> {
-  const link = await prisma.patientShareLink.findUnique({
-    where: { token: shareToken },
-    include: { patient: true, eventImage: true },
-  });
-  if (!link || !link.eventImage) return null;
-
-  const existingOpen = await prisma.todoTask.findFirst({
-    where: {
-      taskType: WORK_TASK_TYPE,
-      patientId: link.patientId,
-      isDone: false,
-      createdAt: { gte: startOfDay(new Date()) },
-      workTask: { title: { contains: "이벤트문의 요청" } },
-    },
-  });
-
-  if (!existingOpen) {
-    const systemStaffId = await getSystemStaffUserId();
-    await createWorkTask({
-      title: `${link.patient.name}님 이벤트문의 요청 — 연락 필요`,
-      description: `이벤트: ${link.eventImage.finalTitle}`,
-      creatorId: systemStaffId,
-      isSharedTask: true,
-      dueDate: null,
-      patientId: link.patientId,
-    });
-  }
-
-  return { patientName: link.patient.name };
 }

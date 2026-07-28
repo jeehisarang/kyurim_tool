@@ -261,6 +261,20 @@ async function generateMessage(system: string, user: string): Promise<string> {
   return response.choices[0]?.message?.content?.trim() ?? "";
 }
 
+// AI톡(2일차/7일차/3회차) 링크 누락 시 네이버예약링크 자동 삽입(task.md) — "포함된 링크
+// 안내" 시스템은 실제로 생성된 링크(프로그램티칭/이벤트/검사결과/추천링크)가 있을 때만
+// AI가 자연스럽게 소개하도록 유도할 뿐, 그런 링크가 하나도 없는 발송건에서는 AI 문구에
+// 아무 링크도 안 남는 경우가 실사용상 흔했다. 그 경우에만 최종 텍스트에 http가 전혀
+// 없는지 기계적으로 체크해 네이버예약링크를 안전망으로 붙인다 — 이미 다른 링크가
+// 포함돼 있으면(http 문자열 존재) 중복 삽입하지 않는다. 미션톡은 자체 제출링크가
+// 이미 있어 이 로직 대상이 아니다(missions.ts 쪽에서는 이 함수를 호출하지 않음 — 명시적 제외).
+const NAVER_BOOKING_LINK = "https://naver.me/FtTiOcvq";
+
+export function appendNaverBookingLinkIfMissing(text: string): string {
+  if (text.includes("http")) return text;
+  return `${text}\n\n예약은 아래 링크에서 편하게 하실 수 있어요.\n${NAVER_BOOKING_LINK}`;
+}
+
 export async function generateMessageDraft(
   messageType: "DAY2" | "DAY7" | "THIRD_VISIT",
   patient: PatientContext,
@@ -309,7 +323,8 @@ ${formatIncludedLinks(patient.includedLinks)}
 
 요청: ${MESSAGE_TYPE_PROMPT[messageType]}`;
 
-  return generateMessage(SYSTEM_PROMPT, userMessage);
+  const draft = await generateMessage(SYSTEM_PROMPT, userMessage);
+  return appendNaverBookingLinkIfMissing(draft);
 }
 
 // 자유톡(범용 AI 문자생성, task.md) 전용 분량 가이드 — 킬팻캡슐 톡 분량 축소 작업(TRIAL_SYSTEM_PROMPT

@@ -68,6 +68,123 @@ const trialEventTemplates = [
   { taskType: "TRIAL_DEADLINE", offsetDays: 3, generationType: "AI", sortOrder: 2 },
 ];
 
+// 미션톡(14장) 퀴즈 미션 템플릿 10개(task.md 퀴즈미션 10개 시드 반영) — placeholder 3건
+// ("다이어트 상식 퀴즈 1/2/3")을 실제 문항으로 교체하고 나머지 7개를 추가한다. title로
+// 존재 여부를 확인해 재실행해도 중복 생성되지 않게 한다(MissionTemplate은 별도 unique
+// 필드가 없어 findFirst로 대신 dedup).
+const OLD_PLACEHOLDER_QUIZ_TITLES = ["다이어트 상식 퀴즈 1", "다이어트 상식 퀴즈 2", "다이어트 상식 퀴즈 3"];
+
+const quizMissionTemplates = [
+  {
+    title: "밥은 천천히",
+    body: "밥을 천천히 먹어야 하는 이유, 뇌가 \"배부르다\"는 신호를 받기까지 걸리는 시간은?",
+    quizOptions: ["5분", "20분", "1시간", "3시간"],
+    quizAnswerIndex: 1,
+  },
+  {
+    title: "포만감 오래가는 밥",
+    body: "다음 중 식이섬유가 가장 풍부해서 포만감이 오래가는 건?",
+    quizOptions: ["흰쌀밥", "현미", "라면", "케이크"],
+    quizAnswerIndex: 1,
+  },
+  {
+    title: "단백질 최고봉",
+    body: "다음 중 단백질 함량이 가장 높은 식품은?",
+    quizOptions: ["닭가슴살", "사과", "감자", "흰쌀밥"],
+    quizAnswerIndex: 0,
+  },
+  {
+    title: "야식이 안 좋은 이유",
+    body: "야식이 다이어트에 특히 안 좋은 이유는?",
+    quizOptions: [
+      "밤엔 소화효소가 안 나와서",
+      "자는 동안 활동량이 적어 칼로리 소모가 줄어서",
+      "밤에 먹으면 위가 커져서",
+      "특별한 이유 없음",
+    ],
+    quizAnswerIndex: 1,
+  },
+  {
+    title: "스트레스와 단 음식",
+    body: "스트레스를 받으면 코르티솔이라는 호르몬이 늘어나는데, 이때 생기는 대표적 변화는?",
+    quizOptions: ["식욕이 준다", "특히 단 음식이 당긴다", "물이 당긴다", "아무 변화 없다"],
+    quizAnswerIndex: 1,
+  },
+  {
+    title: "액체 칼로리의 함정",
+    body: "콜라 같은 단 음료가 다이어트에 안 좋은 이유 중 하나는?",
+    quizOptions: [
+      "칼로리가 없어서",
+      "액체 칼로리는 배부름을 잘 못 느끼게 해서",
+      "카페인 때문에",
+      "색소 때문에",
+    ],
+    quizAnswerIndex: 1,
+  },
+  {
+    title: "근육과 기초대사량",
+    body: "근육량이 많으면 다이어트에 유리한 이유는?",
+    quizOptions: [
+      "운동을 덜 해도 돼서",
+      "가만히 있어도 기초대사량이 높아 칼로리를 더 쓰기 때문",
+      "물을 덜 마셔도 돼서",
+      "상관없음",
+    ],
+    quizAnswerIndex: 1,
+  },
+  {
+    title: "식전 물 한 컵",
+    body: "식사 전에 물 한 컵을 미리 마시면 생기는 효과는?",
+    quizOptions: ["포만감이 줄어든다", "포만감이 늘어 식사량이 줄어든다", "소화가 느려진다", "변화 없다"],
+    quizAnswerIndex: 1,
+  },
+  {
+    title: "근력운동과 요요",
+    body: "다이어트 중에도 근력운동을 같이 해야 하는 이유는?",
+    quizOptions: ["살이 더 잘 찐다", "근육 손실을 막아 요요가 덜 온다", "식욕이 늘어난다", "상관없음"],
+    quizAnswerIndex: 1,
+  },
+  {
+    title: "천천히 오르는 혈당",
+    body: "다음 중 혈당을 천천히 올려 배고픔이 늦게 오게 해주는 식품은?",
+    quizOptions: ["흰빵", "사탕", "렌틸콩(콩류)", "탄산음료"],
+    quizAnswerIndex: 2,
+  },
+];
+
+// 미션톡 사진/텍스트 미션 템플릿 7개(task.md 사진/텍스트 미션 템플릿 7개 시드 반영) — 퀴즈
+// 10건에 이어 신규 추가(기존 퀴즈는 그대로 유지). "다짐"/"일기" 카테고리는 제출 시 환자 메모
+// 타임라인에 자동 연결된다(missions.ts linkPatientNoteIfNeeded, 이전 지시서에서 이미 구현).
+const photoAndTextMissionTemplates = [
+  { type: "PHOTO", category: "체중계", title: "체중계 인증", body: "오늘 체중계 위에 선 모습을 사진으로 올려주세요.", rewardAmount: 2000 },
+  { type: "PHOTO", category: "식단", title: "오늘 한 끼 인증", body: "오늘 드신 한 끼, 사진으로 가볍게 남겨주세요.", rewardAmount: 1500 },
+  { type: "PHOTO", category: "운동", title: "움직인 순간 인증", body: "오늘 걷거나 움직인 순간을 사진 한 장으로 남겨주세요.", rewardAmount: 1500 },
+  { type: "TEXT", category: "다짐", title: "다이어트를 시작한 이유", body: "다이어트를 시작하게 된 이유나 이루고 싶은 모습을 적어주세요.", rewardAmount: 2000 },
+  { type: "TEXT", category: "일기", title: "오늘 하루 소감", body: "오늘 하루 어떠셨는지, 짧게라도 남겨주세요.", rewardAmount: 2000 },
+  { type: "TEXT", category: "후기", title: "캡슐 복용 후기", body: "캡슐 드시면서 느낀 점을 편하게 적어주세요.", rewardAmount: 5000 },
+  { type: "TEXT", category: "다짐", title: "힘들었던 순간", body: "관리하면서 제일 힘들었던 순간, 어떻게 이겨내셨는지 적어주세요.", rewardAmount: 2000 },
+];
+
+// 미션톡 서두문구 뱅크(task.md 발송문구 구조 개선 — 톤+명분 결합 버전으로 전면 교체).
+// 이전 6개("오늘은 번개미션..." 등, task2.md)는 삭제 후 아래 6개로 교체한다.
+const OLD_INTRO_PHRASES_TO_REMOVE = [
+  "오늘은 번개미션 뜨는 날이에요. 참여 안 하셔도 그만, 하면 소소하게 적립도 돼요.",
+  "규림 번개미션 도착. 3초면 끝나요, 밑져야 본전으로 한번 보실래요?",
+  "오늘의 미션이 떴어요. 어렵지 않아요, 진짜로요.",
+  "심심할 때 하나 풀어보세요. 정답 맞히면 적립금도 따라와요.",
+  "오늘은 회원님만을 위한 미션 하나 준비했어요.",
+  "가볍게 참여하는 미션이에요, 부담 갖지 않으셔도 돼요.",
+];
+
+const missionIntroPhrases = [
+  "혼자 하시면 지치기 쉬워서, 저희가 종종 이렇게 가볍게 챙겨드리는 미션이에요. 부담은 없어요.",
+  "다이어트는 꾸준함이 관건이라 종종 이런 미션으로 챙겨드리고 있어요. 안 하셔도 그만이에요.",
+  "혼자 버티지 마시라고 저희가 가끔 이렇게 미션을 드려요. 3초면 끝나요.",
+  "잘 하고 계신지 종종 확인차 미션 하나 준비했어요. 부담 갖지 마세요.",
+  "중간에 힘 빠지지 않으시라고, 저희가 주기적으로 이렇게 챙겨드리는 거예요.",
+  "혼자 하면 루즈해지기 쉬워서, 저희가 가끔 이런 미션으로 리마인드 드려요.",
+];
+
 async function main() {
   for (const [index, name] of treatmentCategories.entries()) {
     await prisma.treatmentCategory.upsert({
@@ -121,6 +238,51 @@ async function main() {
       update: {},
       create: { ...template, programId: trialProgram.id },
     });
+  }
+
+  // placeholder 3건 교체(task.md 퀴즈미션 10개 시드 반영) — 실제 사용 이력(발송/제출)이
+  // 없는 초기 예시 데이터라 안전하게 삭제 후 아래 10개로 다시 채운다.
+  await prisma.missionTemplate.deleteMany({ where: { title: { in: OLD_PLACEHOLDER_QUIZ_TITLES } } });
+
+  for (const template of quizMissionTemplates) {
+    const existing = await prisma.missionTemplate.findFirst({ where: { title: template.title } });
+    if (existing) continue;
+    await prisma.missionTemplate.create({
+      data: {
+        type: "QUIZ",
+        category: "퀴즈",
+        title: template.title,
+        body: template.body,
+        quizOptions: JSON.stringify(template.quizOptions),
+        quizAnswerIndex: template.quizAnswerIndex,
+        rewardAmount: 1000,
+      },
+    });
+  }
+
+  for (const template of photoAndTextMissionTemplates) {
+    const existing = await prisma.missionTemplate.findFirst({ where: { title: template.title } });
+    if (existing) continue;
+    await prisma.missionTemplate.create({ data: { ...template, isActive: true } });
+  }
+
+  // 서두문구 뱅크 전면 교체(task.md) — 실사용 이력(발송)이 없는 초기 예시 문구라 안전하게
+  // 삭제 후 새 6개로 채운다. 혹시 이 문구를 참조하는 MissionDailyAssignment가 있으면
+  // FK 제약에 걸리지 않도록 먼저 참조를 끊는다.
+  const oldPhrases = await prisma.missionIntroPhrase.findMany({ where: { text: { in: OLD_INTRO_PHRASES_TO_REMOVE } } });
+  if (oldPhrases.length > 0) {
+    const oldPhraseIds = oldPhrases.map((p) => p.id);
+    await prisma.missionDailyAssignment.updateMany({
+      where: { introPhraseId: { in: oldPhraseIds } },
+      data: { introPhraseId: null },
+    });
+    await prisma.missionIntroPhrase.deleteMany({ where: { id: { in: oldPhraseIds } } });
+  }
+
+  for (const text of missionIntroPhrases) {
+    const existing = await prisma.missionIntroPhrase.findFirst({ where: { text } });
+    if (existing) continue;
+    await prisma.missionIntroPhrase.create({ data: { text } });
   }
 
   console.log("Seed complete.");

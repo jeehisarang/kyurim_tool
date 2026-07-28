@@ -3,16 +3,18 @@ import { createWithShortToken } from "@/lib/short-token";
 import {
   computeTrialReferralExpiry,
   computePromotedLinkExpiry,
+  computeReferralCreditExpiry,
   getMainProgramDurationTier,
   type MainProgramDurationTier,
 } from "@/lib/referral-config";
 import { getMainReferralAmounts, getTrialReferralBonusAmount } from "@/lib/trial-campaign";
-import { getPatientCreditBalance, listReferralCreditUsageForPatient } from "@/lib/referral-credit-usage";
+import { getPatientCreditBalance, listReferralCreditUsageForPatient, isCreditExpired } from "@/lib/referral-credit-usage";
 import { logActivity, buildReferrerIntroPlaceholder } from "@/lib/activity-log";
 import { createWorkTask } from "@/lib/work-tasks";
 import { startOfDay, getSystemStaffUserId } from "@/lib/teaching-pages";
 import { WORK_TASK_TYPE } from "@/lib/task-types";
 import { BODY_TYPE_MAX_SELECTIONS } from "@/lib/trial-application-format";
+import { isMainProgram } from "@/lib/program-categories";
 
 const REFERRAL_KIND_TRIAL = "TRIAL";
 const CREDIT_KIND_TRIAL_SIGNUP = "TRIAL_SIGNUP";
@@ -95,6 +97,50 @@ export async function promoteOrIssueMainReferralLink(prescription: {
   );
 }
 
+export class NoActivePrescriptionForReferralError extends Error {
+  constructor() {
+    super("추천링크를 발급할 활성 처방이 없습니다.");
+    this.name = "NoActivePrescriptionForReferralError";
+  }
+}
+
+/**
+ * 미션톡(14장) "내 적립금 보기" 버튼(task.md) 전용 — 환자에게 이미 ReferralLink가 있으면
+ * 그대로 재사용하고, 없으면(예: 이 추천 이벤트 기능 도입 이전부터 진행 중이던 환자) 현재
+ * 활성 처방을 근거로 새로 발급한다. 체험(FIXED_SEQUENCE)이면 issueTrialReferralLink,
+ * 본프로그램(SPLIT, isMainProgram)이면 promoteOrIssueMainReferralLink를 그대로 재사용해서
+ * kind/만료일 계산 로직이 기존 등록 플로우와 갈라지지 않게 한다.
+ */
+export async function getOrIssueReferralTokenForPatient(patientId: number): Promise<string> {
+  const existing = await prisma.referralLink.findFirst({
+    where: { patientId },
+    orderBy: { issuedAt: "desc" },
+  });
+  if (existing) return existing.token;
+
+  const prescription = await prisma.prescription.findFirst({
+    where: { patientId, status: "ACTIVE" },
+    include: { program: true },
+    orderBy: { startDate: "desc" },
+  });
+  if (!prescription) throw new NoActivePrescriptionForReferralError();
+
+  if (prescription.program.type === "FIXED_SEQUENCE") {
+    await issueTrialReferralLink({ id: prescription.id, patientId, startDate: prescription.startDate });
+  } else if (isMainProgram(prescription.program)) {
+    await promoteOrIssueMainReferralLink({
+      id: prescription.id,
+      patientId,
+      totalDurationDays: prescription.program.totalDurationDays ?? 90,
+    });
+  } else {
+    throw new NoActivePrescriptionForReferralError();
+  }
+
+  const created = await prisma.referralLink.findFirstOrThrow({ where: { patientId }, orderBy: { issuedAt: "desc" } });
+  return created.token;
+}
+
 /**
  * 처방등록 화면 "소개 확인" 섹션(task.md Phase 3-2, 추천 이벤트 개선 4-2로 재구성) 확정
  * 처리 — 추천인에게 프로그램 기간별 적립금(1개월 35,000원/3개월 70,000원, 설정 가능)을
@@ -136,7 +182,8 @@ export async function confirmReferralCreditEntry(entryId: number, staffId: numbe
 
   return prisma.referralCreditEntry.update({
     where: { id: entryId },
-    data: { status: CREDIT_STATUS_CONFIRMED, confirmedByStaffId: staffId },
+    // 추천 크레딧 1년 유효기간(task.md) — 지금 이 순간 확정되는 신규 항목에만 적용.
+    data: { status: CREDIT_STATUS_CONFIRMED, confirmedByStaffId: staffId, expiresAt: computeReferralCreditExpiry(new Date()) },
   });
 }
 
@@ -221,7 +268,12 @@ export async function listReferralCreditSummary(): Promise<ReferralCreditPatient
       byPatient.set(entry.patientId, summary);
     }
     summary.maxTotal += entry.amount;
-    if (entry.status === CREDIT_STATUS_CONFIRMED) summary.confirmedTotal += entry.amount;
+    // 크레딧 유효기간(task.md) — 만료된 항목(미션 6개월/추천 1년 공통 규칙, isCreditExpired)은
+    // "실제 사용 가능한 금액"인 confirmedTotal에서 제외한다(getPatientCreditBalance와 동일
+    // 원칙). maxTotal(총 발생 표시용)은 만료 여부와 무관하게 그대로 둔다.
+    if (entry.status === CREDIT_STATUS_CONFIRMED && !isCreditExpired(entry.expiresAt)) {
+      summary.confirmedTotal += entry.amount;
+    }
     summary.entries.push({
       id: entry.id,
       kind: entry.kind,
@@ -464,7 +516,8 @@ export type ReferralLinkStatus = {
   // 위처럼 "이 링크 kind" 범위로 좁혀진 값이라 잔액과는 별개 지표다.
   creditBalance: number;
   // 사용 내역(task.md) — 공개 페이지라 처리 직원명은 노출하지 않는다(사용일자/금액/메모만).
-  usageHistory: { id: number; amount: number; memo: string | null; createdAt: Date }[];
+  // 취소된 내역은 애초에 "사용한 적 없는 것"으로 보이도록 제외한다(task.md 수정/취소 기능).
+  usageHistory: { id: number; amount: number; memo: string | null; usedAt: Date }[];
 };
 
 /**
@@ -508,7 +561,9 @@ export async function getReferralLinkStatusByToken(token: string): Promise<Refer
     confirmedAmount: confirmed.reduce((sum, c) => sum + c.amount, 0),
     patientName: link.patient.name,
     creditBalance: balance.balance,
-    usageHistory: usageHistory.map((u) => ({ id: u.id, amount: u.amount, memo: u.memo, createdAt: u.createdAt })),
+    usageHistory: usageHistory
+      .filter((u) => !u.isCancelled)
+      .map((u) => ({ id: u.id, amount: u.amount, memo: u.memo, usedAt: u.usedAt })),
   };
 }
 
@@ -656,6 +711,11 @@ export async function linkTrialApplicationToPrescription(
       kind: CREDIT_KIND_TRIAL_SIGNUP,
       status: CREDIT_STATUS_PENDING,
     },
-    data: { status: CREDIT_STATUS_CONFIRMED, referredPrescriptionId: prescriptionId },
+    // 추천 크레딧 1년 유효기간(task.md) — 지금 이 순간 확정되는 신규 항목에만 적용.
+    data: {
+      status: CREDIT_STATUS_CONFIRMED,
+      referredPrescriptionId: prescriptionId,
+      expiresAt: computeReferralCreditExpiry(new Date()),
+    },
   });
 }

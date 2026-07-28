@@ -161,6 +161,43 @@ export async function saveTrialCampaignHeroImage(file: File): Promise<ResizedIma
   };
 }
 
+// 미션톡(14장) 사진 미션 제출 이미지 — 환자가 휴대폰으로 직접 찍은 원본(5MB+ 가능)을
+// 그대로 올려도 되도록 프로그램티칭과 동일 규격(1080px/80%)으로 축소 저장한다.
+const MISSION_UPLOAD_DIR = path.join(process.cwd(), "public", "uploads", "mission");
+const MISSION_PUBLIC_PATH_PREFIX = "/uploads/mission";
+const MISSION_MAX_DIMENSION = 1080;
+const MISSION_JPEG_QUALITY = 80;
+
+export async function saveMissionPhotoImage(file: File): Promise<ResizedImage> {
+  const originalBuffer = Buffer.from(await file.arrayBuffer());
+
+  let resizedBuffer: Buffer;
+  try {
+    resizedBuffer = await sharp(originalBuffer)
+      .rotate()
+      .resize({
+        width: MISSION_MAX_DIMENSION,
+        height: MISSION_MAX_DIMENSION,
+        fit: "inside",
+        withoutEnlargement: true,
+      })
+      .jpeg({ quality: MISSION_JPEG_QUALITY })
+      .toBuffer();
+  } catch (err) {
+    throw new ImageResizeError(err);
+  }
+
+  await mkdir(MISSION_UPLOAD_DIR, { recursive: true });
+  const filename = `${crypto.randomUUID()}.jpg`;
+  await writeFile(path.join(MISSION_UPLOAD_DIR, filename), resizedBuffer);
+
+  return {
+    path: `${MISSION_PUBLIC_PATH_PREFIX}/${filename}`,
+    originalBytes: originalBuffer.length,
+    resizedBytes: resizedBuffer.length,
+  };
+}
+
 // 합성 결과(문구가 얹힌 최종 이미지)는 브라우저 Canvas가 이미 적정 해상도로 렌더링해
 // 보낸 PNG를 그대로 저장한다 — sharp로 재압축하면 텍스트 가장자리가 뭉개질 수 있어 피한다.
 export async function saveCompositeImage(file: File): Promise<{ path: string }> {

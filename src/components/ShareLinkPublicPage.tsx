@@ -4,10 +4,10 @@ import { useEffect, useState } from "react";
 import styles from "./ShareLinkPublicPage.module.css";
 import TeachingPageContent, { type TeachingPageContentView } from "@/components/TeachingPageContent";
 import ExamShareSections from "@/components/ExamShareSections";
+import StickyBottomCta from "@/components/StickyBottomCta";
 import type { ShareLinkExamEntry } from "@/lib/share-links";
 
-// TeachingPageContent.tsx와 동일한 채널(task.md) — 클라이언트 컴포넌트에서 읽어야 해서
-// NEXT_PUBLIC_ 접두사가 필요하다.
+// TeachingPageContent.tsx(리팩터 전)와 동일 채널(task3.md 하단 고정 CTA 통일).
 const KAKAO_CHANNEL_CHAT_URL =
   process.env.NEXT_PUBLIC_KAKAO_CHANNEL_CHAT_URL ?? "https://pf.kakao.com/_FVxlGT/chat";
 
@@ -26,25 +26,17 @@ type ShareLinkView = {
  * 보이면 안 된다는 원장 확인). 원장 전용 화면(/consultation-survey, 검사등록 등)에서
  * 조회/입력하는 기능 자체는 그대로 유지되고, 이 공개 페이지 노출만 없앤 것.
  *
- * OG 이미지 작업(task.md) 때 상위 src/app/s/[token]/page.tsx가 generateMetadata를 쓰는
- * 서버 컴포넌트로 바뀌면서, 클라이언트 로직 전체를 이 컴포넌트로 옮기고 token을 prop으로
- * 받도록 변경했다(useParams 제거).
+ * 하단 고정 CTA 통일(task3.md) — 기존에 섹션별로 나뉘어 있던 "프로그램문의하기"/
+ * "이벤트문의하기"/"상담예약하기" 3개 버튼을 페이지 전체 기준 "진료상담문의하기" 버튼
+ * 하나로 합쳤다. 콜백 업무는 requestShareLinkConsultCallback(공유링크 token 하나로 포함된
+ * 섹션 전부를 판단) 한 번만 호출하고, 콘텐츠별 클릭 분석(teaching/event cta-click)은
+ * 어떤 섹션이 실제로 있었는지에 따라 계속 개별 기록한다.
  */
 export default function ShareLinkPublicPage({ token }: { token: string }) {
   const [view, setView] = useState<ShareLinkView | null>(null);
   const [loadError, setLoadError] = useState(false);
-
-  // "이벤트문의하기" 버튼 상태 — TeachingPageContent의 handleCtaClick과 동일한 패턴
-  // (window.open을 클릭 핸들러 내 동기적으로 먼저 호출 → cta-click 로그 + 문의 요청
-  // 병렬 fetch, task.md 지시). 이벤트는 EventImage 자체가 아니라 공유링크(token) 기준으로
-  // 조회되므로 여기 페이지에서 직접 상태를 들고 있는다.
-  const [eventCtaClicked, setEventCtaClicked] = useState(false);
-  const [eventCtaSubmitting, setEventCtaSubmitting] = useState(false);
-
-  // "상담예약하기"(task.md PART C) 버튼 상태 — 이벤트문의하기와 동일한 패턴이지만 별도 상태로
-  // 관리한다(통합 링크에서 두 버튼이 병렬로 노출될 수 있어 서로 독립적으로 동작해야 함).
-  const [examConsultClicked, setExamConsultClicked] = useState(false);
-  const [examConsultSubmitting, setExamConsultSubmitting] = useState(false);
+  const [ctaClicked, setCtaClicked] = useState(false);
+  const [ctaSubmitting, setCtaSubmitting] = useState(false);
 
   useEffect(() => {
     setLoadError(false);
@@ -54,32 +46,26 @@ export default function ShareLinkPublicPage({ token }: { token: string }) {
       .catch(() => setLoadError(true));
   }, [token]);
 
-  async function handleEventCtaClick() {
+  async function handleCtaClick() {
     window.open(KAKAO_CHANNEL_CHAT_URL, "_blank", "noopener,noreferrer");
-    setEventCtaSubmitting(true);
+    setCtaSubmitting(true);
     try {
+      const clickLogRequests: Promise<Response>[] = [];
+      if (view?.teaching) {
+        clickLogRequests.push(fetch(`/api/teaching-pages/${view.teaching.token}/cta-click`, { method: "POST" }));
+      }
+      if (view?.event) {
+        clickLogRequests.push(fetch(`/api/share-links/${token}/event-cta-click`, { method: "POST" }));
+      }
       await Promise.all([
-        fetch(`/api/share-links/${token}/event-cta-click`, { method: "POST" }),
-        fetch(`/api/share-links/${token}/event-consult-request`, { method: "POST" }),
+        ...clickLogRequests,
+        fetch(`/api/share-links/${token}/consult-request`, { method: "POST" }),
       ]);
-      setEventCtaClicked(true);
+      setCtaClicked(true);
     } catch {
       // 환자용 공개 페이지라 실패해도 별도 에러 문구 없이 조용히 무시 — 버튼은 다시 누를 수 있다.
     } finally {
-      setEventCtaSubmitting(false);
-    }
-  }
-
-  async function handleExamConsultClick() {
-    window.open(KAKAO_CHANNEL_CHAT_URL, "_blank", "noopener,noreferrer");
-    setExamConsultSubmitting(true);
-    try {
-      await fetch(`/api/share-links/${token}/exam-consult-request`, { method: "POST" });
-      setExamConsultClicked(true);
-    } catch {
-      // 환자용 공개 페이지라 실패해도 별도 에러 문구 없이 조용히 무시 — 버튼은 다시 누를 수 있다.
-    } finally {
-      setExamConsultSubmitting(false);
+      setCtaSubmitting(false);
     }
   }
 
@@ -108,59 +94,26 @@ export default function ShareLinkPublicPage({ token }: { token: string }) {
   const hasEvent = view.event !== null;
 
   return (
-    <div className={styles.page}>
-      <div className={styles.card}>
-        {hasExams && <ExamShareSections exams={view.exams} />}
-        {hasExams && (hasTeaching || hasEvent) && <hr className={styles.sectionDivider} />}
+    <>
+      <div className={styles.page}>
+        <div className={styles.card}>
+          {hasExams && <ExamShareSections exams={view.exams} />}
+          {hasExams && (hasTeaching || hasEvent) && <hr className={styles.sectionDivider} />}
 
-        {view.teaching && <TeachingPageContent token={view.teaching.token} view={view.teaching} />}
-        {hasTeaching && hasEvent && <hr className={styles.sectionDivider} />}
+          {view.teaching && <TeachingPageContent view={view.teaching} />}
+          {hasTeaching && hasEvent && <hr className={styles.sectionDivider} />}
 
-        {view.event && (
-          <div>
-            {view.event.finalTitle && <p className={styles.eventTitle}>{view.event.finalTitle}</p>}
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={view.event.compositeImagePath} alt="" className={styles.eventImage} />
-            {view.event.finalCopy && <p className={styles.eventCopy}>{view.event.finalCopy}</p>}
-
-            {eventCtaClicked ? (
-              <p className={styles.ctaConfirmText}>카카오톡으로 상담 가능하십니다</p>
-            ) : (
-              <button
-                type="button"
-                className={styles.ctaButton}
-                onClick={handleEventCtaClick}
-                disabled={eventCtaSubmitting}
-              >
-                이벤트문의하기
-              </button>
-            )}
-          </div>
-        )}
-
-        {/* "상담예약하기"(task.md PART C) — 검사기록이 포함된 링크 전용, 페이지 맨 하단.
-            기존 프로그램문의/이벤트문의 버튼과 배타적이지 않고 나란히 노출된다. */}
-        {hasExams && (
-          <>
-            <hr className={styles.sectionDivider} />
+          {view.event && (
             <div>
-              <p className={styles.examConsultIntro}>내원하셔서 보다 자세한 상담 도와드리겠습니다</p>
-              {examConsultClicked ? (
-                <p className={styles.ctaConfirmText}>카카오톡으로 상담 가능하십니다</p>
-              ) : (
-                <button
-                  type="button"
-                  className={styles.ctaButton}
-                  onClick={handleExamConsultClick}
-                  disabled={examConsultSubmitting}
-                >
-                  상담예약하기
-                </button>
-              )}
+              {view.event.finalTitle && <p className={styles.eventTitle}>{view.event.finalTitle}</p>}
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={view.event.compositeImagePath} alt="" className={styles.eventImage} />
+              {view.event.finalCopy && <p className={styles.eventCopy}>{view.event.finalCopy}</p>}
             </div>
-          </>
-        )}
+          )}
+        </div>
       </div>
-    </div>
+      <StickyBottomCta clicked={ctaClicked} submitting={ctaSubmitting} onClick={handleCtaClick} />
+    </>
   );
 }

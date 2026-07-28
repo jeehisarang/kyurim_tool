@@ -1,0 +1,138 @@
+/* 미션 페이지 공통 배너(task.md) — 화면 전체 너비, 세로는 원본 비율 유지. 카드 폭(420px)과
+   무관하게 뷰포트 전체에 걸치는 순수 장식 요소라 .page 바깥(형제)에 둔다. */
+.bannerWrap {
+  width: 100%;
+  background: var(--color-hanji-bg);
+}
+
+.banner {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.page {
+  min-height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 40px 16px;
+  background: var(--color-hanji-bg);
+}
+
+.card {
+  width: 100%;
+  max-width: 420px;
+  background: var(--color-hanji-card);
+  border: 1px solid rgba(110, 148, 140, 0.35);
+  border-radius: 10px;
+  box-shadow: 0 2px 8px rgba(43, 39, 35, 0.08);
+  padding: 28px 22px;
+}
+
+.headline {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 20px;
+  color: var(--color-ink);
+  margin-bottom: 12px;
+}
+
+.bodyText {
+  font-size: 15px;
+  color: var(--color-ink);
+  opacity: 0.85;
+  margin-bottom: 20px;
+  white-space: pre-wrap;
+}
+
+.optionButton {
+  display: block;
+  width: 100%;
+  text-align: left;
+  border: 1px solid rgba(110, 148, 140, 0.4);
+  border-radius: 6px;
+  background: var(--color-hanji-bg);
+  color: var(--color-ink);
+  padding: 12px 14px;
+  font-size: 14px;
+  font-family: var(--font-body);
+  cursor: pointer;
+  margin-bottom: 10px;
+}
+
+.optionButton:hover:not(:disabled) {
+  border-color: var(--color-celadon);
+  background: rgba(110, 148, 140, 0.1);
+}
+
+.optionButton:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.textarea {
+  width: 100%;
+  border: 1px solid rgba(110, 148, 140, 0.4);
+  border-radius: 6px;
+  background: var(--color-hanji-bg);
+  color: var(--color-ink);
+  padding: 10px 12px;
+  font-size: 14px;
+  font-family: var(--font-body);
+  margin-bottom: 14px;
+  resize: vertical;
+}
+
+.fileInput {
+  margin-bottom: 14px;
+}
+
+.submitButton {
+  border: none;
+  border-radius: 6px;
+  background: var(--color-celadon);
+  color: var(--color-hanji-card);
+  padding: 10px 20px;
+  font-size: 14px;
+  font-family: var(--font-body);
+  font-weight: 600;
+  cursor: pointer;
+  width: 100%;
+}
+
+.submitButton:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.completeText {
+  font-size: 16px;
+  color: var(--color-celadon-dark);
+  font-weight: 600;
+  text-align: center;
+  padding: 20px 0;
+}
+
+.errorText {
+  color: var(--color-seal);
+  font-size: 13px;
+  margin: 8px 0;
+}
+
+.retryText {
+  color: var(--color-seal);
+  font-size: 13px;
+  margin: 8px 0 14px;
+}
+
+.rewardBadge {
+  display: inline-block;
+  background: rgba(110, 148, 140, 0.15);
+  color: var(--color-celadon-dark);
+  border-radius: 999px;
+  padding: 4px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  margin-top: 8px;
+}

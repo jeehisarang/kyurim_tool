@@ -51,6 +51,7 @@ export async function POST(request: Request) {
     mainReferrerAmount3mo: parseAmountField("mainReferrerAmount3mo"),
     mainRefereeAmount3mo: parseAmountField("mainRefereeAmount3mo"),
     trialReferralBonusAmount: parseAmountField("trialReferralBonusAmount"),
+    exitSurveyCompletionAmount: parseAmountField("exitSurveyCompletionAmount"),
   });
   return NextResponse.json(settings);
 }

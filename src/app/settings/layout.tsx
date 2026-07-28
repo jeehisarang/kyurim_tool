@@ -13,6 +13,7 @@ const TABS = [
   { label: "검사 학술근거 관리", href: "/settings/exam-guides" },
   { label: "질문 관리", href: "/settings/tcm-checklist-questions" },
   { label: "체험이벤트 관리", href: "/settings/trial-campaign" },
+  { label: "미션톡 관리", href: "/settings/missions" },
 ];
 
 export default function SettingsLayout({ children }: { children: React.ReactNode }) {
