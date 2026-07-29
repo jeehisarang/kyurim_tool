@@ -291,6 +291,12 @@ export async function upsertMissionDailyAssignment(date: Date, missionTemplateId
   });
 }
 
+// 미션톡 고정 타이틀(task3.md) — 서두문구 12종 교체와 함께, "숙제/출석체크" 느낌을 줄이려고
+// 인사말과 서두문구 사이에 항상 이 타이틀을 고정으로 끼워넣는다. /m/[token] 공개 페이지
+// 상단(MissionSubmissionPage.tsx)에도 같은 문자열을 그대로 노출해야 하므로 값을 바꿀 땐
+// 두 곳 다 함께 바꿔야 한다.
+export const MISSION_FIXED_TITLE = "🎯 이번 주 규림미션";
+
 // 미션 유형별 카톡 문구 요약 줄(task2.md 지시 문구 그대로 — 퀴즈/사진은 고정 라벨, 텍스트만
 // 실제 제목을 쓴다).
 function missionSummaryLine(template: { type: string; title: string }): string {
@@ -355,6 +361,7 @@ export async function getOrCreateMissionMessageForPatient(date: Date, patientId:
   // 4줄이 빈 줄 없이 바로 이어진다(task.md "최종 조합 순서" 명세 그대로).
   const lines = [
     `규림한의원입니다. ${patient.name}님`,
+    MISSION_FIXED_TITLE,
     ...(assignment.introPhrase ? [assignment.introPhrase.text] : []),
     missionSummaryLine(assignment.missionTemplate),
     `${getShareBaseUrl()}/m/${submission.token}`,

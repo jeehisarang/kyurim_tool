@@ -1,7 +1,11 @@
-/* 미션 페이지 공통 배너(task.md) — 화면 전체 너비, 세로는 원본 비율 유지. 카드 폭(420px)과
-   무관하게 뷰포트 전체에 걸치는 순수 장식 요소라 .page 바깥(형제)에 둔다. */
+/* 미션 페이지 공통 배너(task.md) — PC 반응형 수정(task3.md): 예전엔 width:100%로 뷰포트
+   전체에 걸쳐서, 카드(max-width 제한)와 폭이 안 맞아 PC 넓은 화면에서 배너만 거대하게
+   늘어나 보이는 문제가 있었다. 카드와 동일한 최대 폭으로 제한하고 중앙 정렬해서 PC에서도
+   모바일과 비슷한 좁은 비율로 보이게 한다. */
 .bannerWrap {
   width: 100%;
+  max-width: 480px;
+  margin: 0 auto;
   background: var(--color-hanji-bg);
 }
 
@@ -9,6 +13,24 @@
   width: 100%;
   height: auto;
   display: block;
+}
+
+/* 미션톡 고정 타이틀(task3.md) — 배너 아래, 미션 카드 위. 배너와 동일한 폭/중앙정렬로
+   맞춰서 하나의 좁은 컬럼처럼 이어져 보이게 한다. */
+.fixedTitleWrap {
+  width: 100%;
+  max-width: 480px;
+  margin: 0 auto;
+  padding: 16px 16px 0;
+  background: var(--color-hanji-bg);
+  text-align: center;
+}
+
+.fixedTitle {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 18px;
+  color: var(--color-ink);
 }
 
 .page {
@@ -22,7 +44,7 @@
 
 .card {
   width: 100%;
-  max-width: 420px;
+  max-width: 480px;
   background: var(--color-hanji-card);
   border: 1px solid rgba(110, 148, 140, 0.35);
   border-radius: 10px;

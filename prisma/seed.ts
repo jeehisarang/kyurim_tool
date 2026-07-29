@@ -165,24 +165,31 @@ const photoAndTextMissionTemplates = [
   { type: "TEXT", category: "다짐", title: "힘들었던 순간", body: "관리하면서 제일 힘들었던 순간, 어떻게 이겨내셨는지 적어주세요.", rewardAmount: 2000 },
 ];
 
-// 미션톡 서두문구 뱅크(task.md 발송문구 구조 개선 — 톤+명분 결합 버전으로 전면 교체).
-// 이전 6개("오늘은 번개미션..." 등, task2.md)는 삭제 후 아래 6개로 교체한다.
-const OLD_INTRO_PHRASES_TO_REMOVE = [
-  "오늘은 번개미션 뜨는 날이에요. 참여 안 하셔도 그만, 하면 소소하게 적립도 돼요.",
-  "규림 번개미션 도착. 3초면 끝나요, 밑져야 본전으로 한번 보실래요?",
-  "오늘의 미션이 떴어요. 어렵지 않아요, 진짜로요.",
-  "심심할 때 하나 풀어보세요. 정답 맞히면 적립금도 따라와요.",
-  "오늘은 회원님만을 위한 미션 하나 준비했어요.",
-  "가볍게 참여하는 미션이에요, 부담 갖지 않으셔도 돼요.",
-];
-
-const missionIntroPhrases = [
+// 미션톡 서두문구 뱅크(task3.md 타이틀 고정+문구 개편 — 6종 → 12종 교체).
+// 이번엔 실사용 발송 이력이 있는 데이터라(MissionDailyAssignment.introPhraseId로 참조됨)
+// 하드 삭제하지 않고 isActive=false로 소프트 비활성화만 한다(소프트삭제 원칙).
+const PREVIOUS_INTRO_PHRASES_TO_DEACTIVATE = [
   "혼자 하시면 지치기 쉬워서, 저희가 종종 이렇게 가볍게 챙겨드리는 미션이에요. 부담은 없어요.",
   "다이어트는 꾸준함이 관건이라 종종 이런 미션으로 챙겨드리고 있어요. 안 하셔도 그만이에요.",
   "혼자 버티지 마시라고 저희가 가끔 이렇게 미션을 드려요. 3초면 끝나요.",
   "잘 하고 계신지 종종 확인차 미션 하나 준비했어요. 부담 갖지 마세요.",
   "중간에 힘 빠지지 않으시라고, 저희가 주기적으로 이렇게 챙겨드리는 거예요.",
   "혼자 하면 루즈해지기 쉬워서, 저희가 가끔 이런 미션으로 리마인드 드려요.",
+];
+
+const missionIntroPhrases = [
+  "이번 주도 작은 미션 하나 준비했습니다.\n필수는 아닙니다.\n편하실 때 1분만 참여하시면 되고,\n참여하신 분께는 적립금도 드립니다.\n이번 주 미션이 궁금하시다면 눌러보세요. 😊",
+  "다이어트는\n거창한 결심보다 작은 실천이 오래갑니다.\n그래서 이번 주도\n부담 없는 1분 미션을 준비했습니다.\n참여하시면 적립금도 함께 드려요.",
+  "이번 주 미션도\n생각보다 훨씬 간단합니다.\n안 하셔도 괜찮지만,\n참여하시면 적립금까지 챙기실 수 있어요.\n가볍게 한번 확인해 보세요.",
+  "혼자 다이어트를 하다 보면\n가끔 동기부여가 필요하죠.\n그래서 준비한\n이번 주 작은 미션입니다.\n1분이면 충분합니다.",
+  "이번 주도\n소소한 미션이 도착했습니다.\n부담은 내려놓고,\n편하실 때 가볍게 참여해 보세요.\n적립금도 함께 준비되어 있습니다.",
+  "오늘도 열심히 하고 계신 여러분께\n작은 미션 하나 보내드립니다.\n안 하셔도 괜찮습니다.\n하지만 작은 실천 하나가\n생각보다 큰 변화를 만들기도 합니다.",
+  "이번 주 미션은\n1분이면 충분합니다.\n커피 한 잔 마시는 시간보다 짧지만,\n꾸준함에는 큰 도움이 될 수 있습니다.\n참여하시면 적립금도 받아가세요.",
+  "이번 주도\n가볍게 즐기는 미션 하나!\n의무도,\n출석체크도 아닙니다.\n편하게 참여하시고\n적립금도 받아가세요.",
+  "혹시 이번 주도\n잘 지내고 계신가요? 😊\n가볍게 참여할 수 있는\n이번 주 미션을 준비했습니다.\n시간 되실 때 한번 확인해 보세요.",
+  "이번 주도\n건강한 습관 하나를 더해볼까요?\n1분이면 끝나는 미션으로\n적립금도 함께 챙겨가세요.",
+  "\"이번 주는 어떤 미션이지?\"\n그 궁금함 하나면 충분합니다. 😊\n이번에도 부담 없이 참여하실 수 있는\n작은 미션을 준비했습니다.",
+  "이번 주도\n작은 선물을 준비했습니다.\n1분 미션에 참여하시고,\n적립금도 함께 받아가세요.\n안 하셔도 괜찮지만,\n하면 조금 더 재미있는 다이어트가 됩니다.",
 ];
 
 async function main() {
@@ -266,18 +273,13 @@ async function main() {
     await prisma.missionTemplate.create({ data: { ...template, isActive: true } });
   }
 
-  // 서두문구 뱅크 전면 교체(task.md) — 실사용 이력(발송)이 없는 초기 예시 문구라 안전하게
-  // 삭제 후 새 6개로 채운다. 혹시 이 문구를 참조하는 MissionDailyAssignment가 있으면
-  // FK 제약에 걸리지 않도록 먼저 참조를 끊는다.
-  const oldPhrases = await prisma.missionIntroPhrase.findMany({ where: { text: { in: OLD_INTRO_PHRASES_TO_REMOVE } } });
-  if (oldPhrases.length > 0) {
-    const oldPhraseIds = oldPhrases.map((p) => p.id);
-    await prisma.missionDailyAssignment.updateMany({
-      where: { introPhraseId: { in: oldPhraseIds } },
-      data: { introPhraseId: null },
-    });
-    await prisma.missionIntroPhrase.deleteMany({ where: { id: { in: oldPhraseIds } } });
-  }
+  // 서두문구 뱅크 6종 → 12종 교체(task3.md) — 이번엔 실사용 발송 이력이 있어 하드 삭제
+  // 대신 isActive=false로만 비활성화한다(MissionDailyAssignment.introPhraseId 참조와
+  // 과거 발송 이력 감사추적을 그대로 보존).
+  await prisma.missionIntroPhrase.updateMany({
+    where: { text: { in: PREVIOUS_INTRO_PHRASES_TO_DEACTIVATE } },
+    data: { isActive: false },
+  });
 
   for (const text of missionIntroPhrases) {
     const existing = await prisma.missionIntroPhrase.findFirst({ where: { text } });

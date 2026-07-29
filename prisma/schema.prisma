@@ -848,6 +848,15 @@ model PatientShareLinkExam {
 // 두 필드를 쓰지 않는다(항상 null). category는 원장이 자유롭게 새 카테고리를 추가할 수
 // 있어야 해서(체중계/공유/후기/약속/다짐/일기/기타는 예시일 뿐 고정 목록 아님) enum이 아닌
 // 자유 문자열로 둔다(ProgramCategoryKey 등과 달리 이건 코드로 매핑 안 함).
+// 미션톡 전용 설정(싱글톤, task3.md) — 카톡 링크 미리보기(OG)에 쓰는 전용 이미지 경로.
+// 없으면(null) og-image.ts의 공통 로고로 폴백한다(TrialCampaignSettings.heroImagePath와
+// 동일 원칙).
+model MissionSettings {
+  id         Int      @id @default(autoincrement())
+  ogImagePath String?
+  updatedAt  DateTime @updatedAt
+}
+
 model MissionTemplate {
   id              Int                      @id @default(autoincrement())
   type            String // QUIZ | PHOTO | TEXT

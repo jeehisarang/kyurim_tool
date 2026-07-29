@@ -57,6 +57,14 @@ export default function MissionsSettingsPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // 미션톡 OG(카톡 링크 미리보기) 이미지(task3.md).
+  const [ogImagePath, setOgImagePath] = useState<string | null>(null);
+  const [ogImageFile, setOgImageFile] = useState<File | null>(null);
+  const [ogImagePreview, setOgImagePreview] = useState<string | null>(null);
+  const [ogSaving, setOgSaving] = useState(false);
+  const [ogSaved, setOgSaved] = useState(false);
+  const [ogError, setOgError] = useState<string | null>(null);
+
   function loadTemplates() {
     fetch("/api/missions/templates")
       .then((res) => res.json())
@@ -66,6 +74,44 @@ export default function MissionsSettingsPage() {
   useEffect(() => {
     loadTemplates();
   }, []);
+
+  useEffect(() => {
+    fetch("/api/missions/settings")
+      .then((res) => res.json())
+      .then((data: { ogImagePath: string | null }) => setOgImagePath(data.ogImagePath));
+  }, []);
+
+  function handleOgImageChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0] ?? null;
+    setOgImageFile(file);
+    setOgImagePreview(file ? URL.createObjectURL(file) : null);
+  }
+
+  async function handleOgImageSave() {
+    if (!currentUser || !ogImageFile) return;
+    setOgSaving(true);
+    setOgError(null);
+    try {
+      const formData = new FormData();
+      formData.set("staffUserId", String(currentUser.id));
+      formData.set("ogImage", ogImageFile);
+      const res = await fetch("/api/missions/settings", { method: "POST", body: formData });
+      const data = await res.json();
+      if (!res.ok) {
+        setOgError(data.error ?? "저장에 실패했습니다.");
+        return;
+      }
+      setOgImagePath(data.ogImagePath);
+      setOgImageFile(null);
+      setOgImagePreview(null);
+      setOgSaved(true);
+      setTimeout(() => setOgSaved(false), 1500);
+    } catch {
+      setOgError("서버에 연결하지 못했습니다. 다시 시도해주세요.");
+    } finally {
+      setOgSaving(false);
+    }
+  }
 
   const filteredTemplates = useMemo(() => {
     if (!templates) return [];
@@ -173,6 +219,29 @@ export default function MissionsSettingsPage() {
         <Link href="/missions/approvals" className={styles.linkButton}>
           승인 대기 큐 →
         </Link>
+      </div>
+
+      <div className={styles.section}>
+        <div className={styles.sectionTitle}>미션톡 OG(카톡 링크 미리보기) 이미지</div>
+        <p className={styles.muted}>
+          미션톡 링크(/m/[token])를 카카오톡으로 공유할 때 대화창에 뜨는 미리보기 이미지입니다.
+          비워두면 규림한의원 공통 로고 이미지가 대신 노출됩니다.
+        </p>
+        {(ogImagePreview ?? ogImagePath) && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={ogImagePreview ?? ogImagePath ?? ""} alt="" className={styles.ogPreview} />
+        )}
+        <input type="file" accept="image/*" onChange={handleOgImageChange} disabled={!isDirector} />
+        <div>
+          <button
+            type="button"
+            onClick={handleOgImageSave}
+            disabled={!isDirector || !ogImageFile || ogSaving}
+          >
+            {ogSaving ? "저장 중..." : ogSaved ? "저장됨" : "저장"}
+          </button>
+        </div>
+        {ogError && <p className={styles.errorText}>{ogError}</p>}
       </div>
 
       <div className={styles.section}>

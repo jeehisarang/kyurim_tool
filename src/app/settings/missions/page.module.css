@@ -200,3 +200,10 @@
   font-size: 13px;
   margin: 4px 0 0;
 }
+
+.ogPreview {
+  display: block;
+  max-width: 240px;
+  border-radius: 6px;
+  margin-bottom: 10px;
+}

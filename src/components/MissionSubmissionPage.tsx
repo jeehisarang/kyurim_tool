@@ -10,6 +10,18 @@ import styles from "./MissionSubmissionPage.module.css";
 const BANNER_WIDTH = 1536;
 const BANNER_HEIGHT = 1024;
 
+// 미션톡 고정 타이틀(task3.md) — missions.ts MISSION_FIXED_TITLE과 항상 같은 문자열을
+// 유지해야 한다(카톡 발송 문구와 페이지가 이어지는 느낌을 주기 위함).
+const MISSION_FIXED_TITLE = "🎯 이번 주 규림미션";
+
+function MissionFixedTitle() {
+  return (
+    <div className={styles.fixedTitleWrap}>
+      <span className={styles.fixedTitle}>{MISSION_FIXED_TITLE}</span>
+    </div>
+  );
+}
+
 /**
  * 미션 페이지 공통 배너(task.md) — 퀴즈/사진/텍스트 전부, 그리고 로딩/에러 화면까지
  * 항상 최상단에 노출한다. 순수 장식/브랜딩 목적이라 클릭 이벤트가 없다. 이미지 로딩에
@@ -160,6 +172,7 @@ export default function MissionSubmissionPage({ token }: { token: string }) {
     return (
       <>
         <MissionBanner />
+        <MissionFixedTitle />
         <div className={styles.page}>
           <div className={styles.card}>
             <p className={styles.completeText}>불러오는 중...</p>
@@ -173,6 +186,7 @@ export default function MissionSubmissionPage({ token }: { token: string }) {
     return (
       <>
         <MissionBanner />
+        <MissionFixedTitle />
         <div className={styles.page}>
           <div className={styles.card}>
             <p className={styles.errorText}>{loadError ?? "미션을 찾을 수 없습니다."}</p>
@@ -187,6 +201,7 @@ export default function MissionSubmissionPage({ token }: { token: string }) {
   return (
     <>
       <MissionBanner />
+      <MissionFixedTitle />
       <div className={styles.page}>
         <div className={styles.card}>
           <h1 className={styles.headline}>{mission.title}</h1>
