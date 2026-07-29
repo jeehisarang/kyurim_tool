@@ -143,6 +143,40 @@
   margin: 4px 0 0;
 }
 
+.warningBanner {
+  background: rgba(196, 108, 60, 0.12);
+  color: var(--color-seal);
+  border: 1px solid rgba(196, 108, 60, 0.3);
+  border-radius: 6px;
+  padding: 8px 12px;
+  font-size: 13px;
+  margin-bottom: 10px;
+}
+
+.filterTabs {
+  display: flex;
+  gap: 8px;
+  margin: 10px 0 14px;
+  flex-wrap: wrap;
+}
+
+.filterTab {
+  border: 1px solid rgba(110, 148, 140, 0.4);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--color-ink);
+  padding: 5px 14px;
+  font-size: 13px;
+  font-family: var(--font-body);
+  cursor: pointer;
+}
+
+.filterTabActive {
+  background: var(--color-celadon);
+  color: var(--color-hanji-card);
+  border-color: var(--color-celadon);
+}
+
 .statsRow {
   display: flex;
   gap: 24px;

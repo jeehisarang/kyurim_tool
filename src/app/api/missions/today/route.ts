@@ -4,6 +4,7 @@ import {
   getMissionDailyAssignmentForDate,
   upsertMissionDailyAssignment,
   listActiveKillCapPatients,
+  getMissionSendLogSummaries,
 } from "@/lib/missions";
 
 function parseDateParam(value: string | null): Date {
@@ -25,7 +26,13 @@ export async function GET(request: Request) {
     prisma.missionTemplate.findMany({ where: { isActive: true }, orderBy: { createdAt: "desc" } }),
   ]);
 
-  return NextResponse.json({ assignment, killCapPatients, activeTemplates });
+  // 발송이력 요약(task.md 발송관리 개선) — 목록에 있는 환자만 한 번에 조회.
+  const sendLogSummaryMap = await getMissionSendLogSummaries(killCapPatients.map((p) => p.patientId));
+  const sendLogSummaries = Object.fromEntries(
+    [...sendLogSummaryMap.entries()].map(([patientId, summary]) => [patientId, summary]),
+  );
+
+  return NextResponse.json({ assignment, killCapPatients, activeTemplates, sendLogSummaries });
 }
 
 export async function POST(request: Request) {

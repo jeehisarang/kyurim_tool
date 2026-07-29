@@ -62,6 +62,7 @@ export type KillCapActivePatient = {
   patientId: number;
   patientName: string;
   chartNumber: string;
+  programId: number;
   programName: string;
 };
 
@@ -87,11 +88,78 @@ export async function listActiveKillCapPatients(): Promise<KillCapActivePatient[
       patientId: p.patientId,
       patientName: p.patient.name,
       chartNumber: p.patient.chartNumber,
+      programId: p.program.id,
       programName: p.program.name,
     });
   }
 
   return [...byPatient.values()];
+}
+
+// ── 발송이력 추적 (task.md 발송관리 개선) ────────────────────────────────────
+
+/**
+ * 미션톡 발송이력 기록 — "문구 생성" 시점이 아니라 "복사" 버튼 클릭 시점(=실제 카톡 발송
+ * 직전 행동)에 호출한다. 문구만 생성하고 안 보낼 수도 있어 문구 생성 자체는 발송으로
+ * 간주하지 않는다(task.md).
+ */
+export async function createMissionSendLog(input: {
+  patientId: number;
+  missionTemplateId: number;
+  sentByStaffId: number;
+}) {
+  return prisma.missionSendLog.create({ data: input });
+}
+
+export type MissionSendLogSummary = {
+  count: number;
+  lastSentAt: Date;
+  lastSentByStaffName: string;
+};
+
+/**
+ * 환자별 발송이력 요약(task.md "발송 3회 · 최근 07/28 최승희") — /missions/today 목록이
+ * 환자마다 개별 쿼리를 날리지 않도록 한 번에 모아서 반환한다(listAllPatientUsageTotals와
+ * 동일한 N+1 방지 패턴).
+ */
+export async function getMissionSendLogSummaries(
+  patientIds: number[],
+): Promise<Map<number, MissionSendLogSummary>> {
+  if (patientIds.length === 0) return new Map();
+  const logs = await prisma.missionSendLog.findMany({
+    where: { patientId: { in: patientIds } },
+    include: { sentByStaff: true },
+    orderBy: { sentAt: "desc" },
+  });
+
+  const map = new Map<number, MissionSendLogSummary>();
+  for (const log of logs) {
+    const existing = map.get(log.patientId);
+    if (!existing) {
+      map.set(log.patientId, { count: 1, lastSentAt: log.sentAt, lastSentByStaffName: log.sentByStaff.name });
+    } else {
+      existing.count += 1;
+    }
+  }
+  return map;
+}
+
+export type TodaySendLogEntry = { sentAt: Date; staffName: string };
+
+/**
+ * 중복발송 경고(task.md) — "문구 생성" 클릭 시 해당 환자에게 당일 이미 발송(=복사) 이력이
+ * 있는지 확인한다. 경고는 표시만 하고 진행을 막지 않는다(버튼 비활성화 금지, task.md).
+ */
+export async function getTodaySendLogForPatient(patientId: number, date: Date): Promise<TodaySendLogEntry | null> {
+  const start = startOfDay(date);
+  const end = addDays(start, 1);
+  const log = await prisma.missionSendLog.findFirst({
+    where: { patientId, sentAt: { gte: start, lt: end } },
+    include: { sentByStaff: true },
+    orderBy: { sentAt: "desc" },
+  });
+  if (!log) return null;
+  return { sentAt: log.sentAt, staffName: log.sentByStaff.name };
 }
 
 // ── 발송/수행 통계 요약카드 (/missions/today, task2.md) ──────────────────────
@@ -310,6 +378,10 @@ export type MissionMessageResult = {
   token: string;
   submissionId: number;
   status: string;
+  // 발송이력 기록(task.md)에 필요 — "복사" 버튼 클릭 시 이 값 그대로 createMissionSendLog에 넘긴다.
+  missionTemplateId: number;
+  // 중복발송 경고(task.md) — 당일 이미 발송(복사) 이력이 있으면 채워진다.
+  todaySendLog: TodaySendLogEntry | null;
 };
 
 /**
@@ -367,7 +439,16 @@ export async function getOrCreateMissionMessageForPatient(date: Date, patientId:
     `${getShareBaseUrl()}/m/${submission.token}`,
   ];
 
-  return { message: lines.join("\n"), token: submission.token, submissionId: submission.id, status: submission.status };
+  const todaySendLog = await getTodaySendLogForPatient(patientId, day);
+
+  return {
+    message: lines.join("\n"),
+    token: submission.token,
+    submissionId: submission.id,
+    status: submission.status,
+    missionTemplateId: assignment.missionTemplateId,
+    todaySendLog,
+  };
 }
 
 // ── 미션 제출 페이지 (/m/[token]) ───────────────────────────────────────────
