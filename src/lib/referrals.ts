@@ -15,6 +15,7 @@ import { startOfDay, getSystemStaffUserId } from "@/lib/teaching-pages";
 import { WORK_TASK_TYPE } from "@/lib/task-types";
 import { BODY_TYPE_MAX_SELECTIONS } from "@/lib/trial-application-format";
 import { isMainProgram } from "@/lib/program-categories";
+import { sendKillCapApplicationAlimtalk } from "@/lib/balsong";
 
 const REFERRAL_KIND_TRIAL = "TRIAL";
 const CREDIT_KIND_TRIAL_SIGNUP = "TRIAL_SIGNUP";
@@ -396,6 +397,22 @@ export async function createTrialApplication(input: TrialApplicationInput) {
   };
 
   const application = await prisma.trialApplication.create({ data });
+
+  // 발송닷컴 알림톡 자동발송(task.md) — best-effort. 신청 저장은 이미 끝났으므로 여기서
+  // 무슨 일이 있어도 throw하지 않는다(발송 실패가 신청 접수 자체를 막으면 안 됨).
+  try {
+    const sendResult = await sendKillCapApplicationAlimtalk({ name: input.name, phone: input.phone });
+    await prisma.trialApplication.update({
+      where: { id: application.id },
+      data: {
+        alimtalkJobNo: sendResult.jobNo,
+        alimtalkSendResult: sendResult.result,
+        alimtalkSentAt: new Date(),
+      },
+    });
+  } catch (err) {
+    console.error("킬팻캡슐 신청 알림톡 발송 실패:", err);
+  }
 
   await requestTrialApplicationCallback({ name: input.name, phone: input.phone });
 

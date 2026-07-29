@@ -7,6 +7,7 @@ import {
   type TrialApplicationInput,
 } from "@/lib/referrals";
 import { BODY_TYPE_MAX_SELECTIONS } from "@/lib/trial-application-format";
+import { refreshPendingAlimtalkStatuses } from "@/lib/balsong";
 
 const REQUIRED_TEXT_FIELDS = ["name", "phone"] as const;
 const BODY_TYPE_FIELDS = ["bodyType1", "bodyType2", "bodyType3", "bodyType4", "bodyType5", "bodyType6"] as const;
@@ -30,6 +31,10 @@ const OPTIONAL_TEXT_FIELDS = [
 // 직원용 목록 — unconverted=1이면 미전환분만(/prescriptions/new 피커),
 // 없으면 전체(/refer/applications 응답 전체보기, task.md 보완 1항).
 export async function GET(request: Request) {
+  // 알림톡 발송 결과 지연 확인(task.md 4단계) — 실제 cron 없이 조회 시점마다 확인한다
+  // (generateTalkTodos와 동일한 lazy-check 패턴).
+  await refreshPendingAlimtalkStatuses();
+
   const { searchParams } = new URL(request.url);
   const applications =
     searchParams.get("unconverted") === "1"

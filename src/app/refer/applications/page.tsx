@@ -21,6 +21,11 @@ type TrialApplicationRow = TrialApplicationForFormat & {
   // 추천인 실명 표시(task2.md) — referralToken이 없으면 null, 있는데 매칭되는
   // ReferralLink를 못 찾은 예외 케이스도 null(화면에서 "환자 정보 없음"으로 처리).
   referrerPatientName: string | null;
+  // 발송닷컴 알림톡 자동발송(task.md) — 셋 다 null이면 발송 시도 자체가 없었던(구현 이전)
+  // 신청건.
+  alimtalkSendResult: string | null;
+  alimtalkFailReason: string | null;
+  alimtalkSentAt: string | null;
 };
 
 function formatSubmittedAt(iso: string): string {
@@ -89,6 +94,11 @@ export default function TrialApplicationsPage() {
                     {app.name}
                     {app.referralToken && <span className={styles.referralTag}>추천</span>}
                     {app.convertedPrescriptionId && <span className={styles.convertedTag}>등록완료</span>}
+                    {app.alimtalkFailReason && (
+                      <span className={styles.alimtalkFailTag}>
+                        ⚠️ 발송실패 - {app.name} - {app.alimtalkFailReason}
+                      </span>
+                    )}
                   </span>
                   <span className={styles.itemMeta}>
                     {app.phone} · {formatGenderAge(app)} · {formatSubmittedAt(app.submittedAt)} · 우세타입{" "}
@@ -164,6 +174,16 @@ export default function TrialApplicationsPage() {
                         {app.convertedPrescriptionId
                           ? `처방 등록됨 (#${app.convertedPrescriptionId})`
                           : "미등록 — /prescriptions/new에서 등록 가능"}
+                      </span>
+                    </div>
+                    <div className={styles.detailRow}>
+                      <span className={styles.detailLabel}>알림톡 발송</span>
+                      <span>
+                        {!app.alimtalkSendResult
+                          ? "발송 시도 없음"
+                          : app.alimtalkFailReason
+                            ? `⚠️ 발송실패 (${app.alimtalkFailReason})`
+                            : `접수됨 (${app.alimtalkSendResult}${app.alimtalkSentAt ? `, ${formatSubmittedAt(app.alimtalkSentAt)}` : ""})`}
                       </span>
                     </div>
                   </div>

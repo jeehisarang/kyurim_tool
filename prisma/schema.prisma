@@ -1126,6 +1126,17 @@ model TrialApplication {
   convertedPrescriptionId Int?          @unique
   prescription            Prescription? @relation(fields: [convertedPrescriptionId], references: [id])
   referralCreditEntries   ReferralCreditEntry[]
+  // 발송닷컴 알림톡 자동발송(task.md, 킬팻캡슐신청본인확인 템플릿 14361) — 신청 저장은
+  // 항상 성공해야 하므로(발송은 best-effort) 전부 nullable. alimtalkSendResult는
+  // "OK"(접수 성공, 최종 성공/실패는 아래 상태조회로 나중에 확정) | "ERROR"(API 호출 자체 실패)
+  // | "FAILED"(Report_Detail 상태조회 결과 실제 발송 실패로 확인됨).
+  alimtalkJobNo           String?
+  alimtalkSendResult      String?
+  alimtalkSentAt          DateTime?
+  // 실패 사유(Report_Detail 조회 결과) — 관리자 화면 "⚠️ 발송실패 - 사유" 표시용.
+  alimtalkFailReason      String?
+  // 상태조회(Report_Detail) 완료 여부 — true면 더 이상 폴링 대상 아님(성공/실패 확정됨).
+  alimtalkStatusChecked   Boolean       @default(false)
 }
 
 // 킬팻캡슐 3일체험 추천 이벤트(task.md) — 마감설문(기존 구글폼) 대체용 스키마.
