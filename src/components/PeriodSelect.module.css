@@ -1,0 +1,10 @@
+.select {
+  border: 1px solid rgba(110, 148, 140, 0.4);
+  border-radius: 4px;
+  background: var(--color-hanji-bg);
+  color: var(--color-ink);
+  padding: 4px 8px;
+  font-size: 12px;
+  font-family: var(--font-body);
+  cursor: pointer;
+}

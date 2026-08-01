@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
-import { computeDashboardStats } from "@/lib/stats";
+import { getDashboardStatsForApi } from "@/lib/stats";
 
 export async function GET() {
-  const stats = await computeDashboardStats();
+  const stats = await getDashboardStatsForApi();
   return NextResponse.json(stats);
 }

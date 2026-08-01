@@ -4,6 +4,7 @@ import {
   PROGRAM_CATEGORY_ORDER,
   type ProgramCategoryKey,
 } from "@/lib/program-categories";
+import type { StatsPeriod } from "@/lib/stats-period";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -141,6 +142,86 @@ export async function computeDashboardStats(): Promise<DashboardStats> {
     sevenDayRevisitRate,
     threeVisitFirstVisitRate,
   };
+}
+
+export type DashboardStatsWithMeta = DashboardStats & { snapshotAt: string | null };
+
+const DASHBOARD_SNAPSHOT_HOUR = 3;
+
+function snapshotRowToStats(row: {
+  totalPatients: number;
+  visitsPerCategoryJson: string;
+  todayVisitCount: number;
+  todayReservationRate: number;
+  last7DaysAvgReservationRate: number;
+  last7DaysAvgVisitsPerDay: number;
+  visitsPerPatient: number;
+  sevenDayRevisitRate: number;
+  threeVisitFirstVisitRate: number;
+  createdAt: Date;
+}): DashboardStatsWithMeta {
+  return {
+    totalPatients: row.totalPatients,
+    visitsPerCategory: JSON.parse(row.visitsPerCategoryJson) as CategoryPatientCount[],
+    todayVisitCount: row.todayVisitCount,
+    todayReservationRate: row.todayReservationRate,
+    last7DaysAvgReservationRate: row.last7DaysAvgReservationRate,
+    last7DaysAvgVisitsPerDay: row.last7DaysAvgVisitsPerDay,
+    visitsPerPatient: row.visitsPerPatient,
+    sevenDayRevisitRate: row.sevenDayRevisitRate,
+    threeVisitFirstVisitRate: row.threeVisitFirstVisitRate,
+    snapshotAt: row.createdAt.toISOString(),
+  };
+}
+
+/**
+ * 새벽 배치(instrumentation-node.ts 폴러)가 호출 — 오늘자 스냅샷이 이미 있으면 아무것도
+ * 하지 않고, 없고 지금이 새벽 3시(DASHBOARD_SNAPSHOT_HOUR) 이후면 computeDashboardStats()를
+ * 실행해 저장한다. 시각 게이트를 두는 이유는 "환자 없는 시간대에 계산"이라는 취지 때문이지,
+ * 정확성을 위한 건 아니다 — 실패해도 다음 폴링 주기에 그대로 재시도된다(멱등, snapshotDate
+ * unique라 중복 생성 불가).
+ */
+export async function ensureTodayDashboardSnapshot(): Promise<void> {
+  const now = new Date();
+  if (now.getHours() < DASHBOARD_SNAPSHOT_HOUR) return;
+
+  const today = startOfDay(now);
+  const existing = await prisma.dashboardStatsSnapshot.findUnique({ where: { snapshotDate: today } });
+  if (existing) return;
+
+  const stats = await computeDashboardStats();
+  try {
+    await prisma.dashboardStatsSnapshot.create({
+      data: {
+        snapshotDate: today,
+        totalPatients: stats.totalPatients,
+        visitsPerCategoryJson: JSON.stringify(stats.visitsPerCategory),
+        todayVisitCount: stats.todayVisitCount,
+        todayReservationRate: stats.todayReservationRate,
+        last7DaysAvgReservationRate: stats.last7DaysAvgReservationRate,
+        last7DaysAvgVisitsPerDay: stats.last7DaysAvgVisitsPerDay,
+        visitsPerPatient: stats.visitsPerPatient,
+        sevenDayRevisitRate: stats.sevenDayRevisitRate,
+        threeVisitFirstVisitRate: stats.threeVisitFirstVisitRate,
+      },
+    });
+  } catch {
+    // 동시 폴링 등으로 그 사이 다른 프로세스가 이미 만들었을 수 있음(unique 충돌) — 무해하므로 무시.
+  }
+}
+
+/**
+ * /api/dashboard 전용 — 오늘자 스냅샷이 있으면 그걸 읽어서 반환(빠름), 없으면(배치가 아직
+ * 안 돌았거나 실패한 경우) computeDashboardStats()로 실시간 폴백한다(주의사항: 빈 화면보다
+ * 느리더라도 실시간 계산이 낫다). snapshotAt이 null이면 화면에서 "실시간 계산"으로 표시.
+ */
+export async function getDashboardStatsForApi(): Promise<DashboardStatsWithMeta> {
+  const today = startOfDay(new Date());
+  const snapshot = await prisma.dashboardStatsSnapshot.findUnique({ where: { snapshotDate: today } });
+  if (snapshot) return snapshotRowToStats(snapshot);
+
+  const stats = await computeDashboardStats();
+  return { ...stats, snapshotAt: null };
 }
 
 export type DailyStat = {
@@ -349,4 +430,137 @@ export async function computePrescriptionStats(): Promise<PrescriptionStats> {
   );
 
   return { perProgram, perCategory, newThisMonth };
+}
+
+/** period 시작~끝(exclusive) 범위. "7d"/"30d"는 오늘 포함 롤링 구간, "thisMonth"는 이번달 1일~다음달 1일. */
+function periodRange(period: StatsPeriod, now: Date): { start: Date; end: Date } {
+  const today = startOfDay(now);
+  if (period === "thisMonth") {
+    return {
+      start: new Date(today.getFullYear(), today.getMonth(), 1),
+      end: new Date(today.getFullYear(), today.getMonth() + 1, 1),
+    };
+  }
+  const daysBack = period === "7d" ? 6 : 29; // 오늘 포함이라 7일=오늘-6, 30일=오늘-29
+  return {
+    start: new Date(today.getFullYear(), today.getMonth(), today.getDate() - daysBack),
+    end: new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1),
+  };
+}
+
+export type PeriodStats = {
+  reservationRate: number;
+  visitsPerPatient: number;
+  // 4단계(task2.md 결정2, 근사치) — 링크 생성 건수 대비 firstViewedAt 존재 비율.
+  linkClickThroughRate: number;
+  linkCount: number;
+};
+
+/**
+ * 예약율/인당내원수/링크클릭률 카드용 — 기간선택 드롭다운(7일/30일/이번달)에 맞춰 매번
+ * 새로 계산한다. computeDashboardStats()와 달리 날짜 범위로 좁혀서 쿼리하므로(전체 Visit
+ * 테이블 스캔이 아님) 스냅샷 캐싱 없이 실시간 계산해도 가볍다.
+ */
+export async function computePeriodStats(period: StatsPeriod): Promise<PeriodStats> {
+  const { start, end } = periodRange(period, new Date());
+
+  const [visits, shareLinks, teachingPages] = await Promise.all([
+    prisma.visit.findMany({
+      where: { isActive: true, visitDate: { gte: start, lt: end } },
+      select: { visitDate: true, isReserved: true, patientId: true },
+    }),
+    prisma.patientShareLink.findMany({
+      where: { createdAt: { gte: start, lt: end } },
+      select: { firstViewedAt: true },
+    }),
+    prisma.patientTeachingPage.findMany({
+      where: { createdAt: { gte: start, lt: end } },
+      select: { firstViewedAt: true },
+    }),
+  ]);
+
+  // 예약율: 기존 최근7일 평균예약율과 동일 기준(날짜별 예약율을 구해서 평균) — 방문이 많은
+  // 날에 가중치가 쏠리지 않도록 날짜 단위로 먼저 평균낸다.
+  const byDay = new Map<string, { total: number; reserved: number }>();
+  const patientIds = new Set<number>();
+  for (const v of visits) {
+    const key = dateKey(v.visitDate);
+    const entry = byDay.get(key) ?? { total: 0, reserved: 0 };
+    entry.total += 1;
+    if (v.isReserved) entry.reserved += 1;
+    byDay.set(key, entry);
+    patientIds.add(v.patientId);
+  }
+  const dailyRates = Array.from(byDay.values()).map((d) => d.reserved / d.total);
+  const reservationRate =
+    dailyRates.length === 0 ? 0 : dailyRates.reduce((a, b) => a + b, 0) / dailyRates.length;
+
+  // 인당내원수(기간 한정): 그 기간에 실제로 내원한 환자 기준 — 전체 누적 정의(stats.visitsPerPatient)와
+  // 달리 기간이 바뀌면 분모(내원 환자 수)도 함께 바뀐다(task2.md 3단계 지시).
+  const visitsPerPatient = patientIds.size === 0 ? 0 : visits.length / patientIds.size;
+
+  const allLinks = [...shareLinks, ...teachingPages];
+  const viewedCount = allLinks.filter((l) => l.firstViewedAt !== null).length;
+  const linkClickThroughRate = allLinks.length === 0 ? 0 : viewedCount / allLinks.length;
+
+  return {
+    reservationRate,
+    visitsPerPatient,
+    linkClickThroughRate,
+    linkCount: allLinks.length,
+  };
+}
+
+export type MonthlyPatientTrendPoint = {
+  month: string; // YYYY-MM
+  newPatients: number;
+  cumulativeTotal: number;
+};
+
+/**
+ * 월별 누적환자수 콤보차트용(task.md 2단계) — 환자별 "첫 방문월"을 기준으로 그 달의
+ * 신규환자수를 세고, 월 순서대로 누적 합산한다. 인당내원수 등과 동일하게 로컬(=KST) 월
+ * 경계 기준(startOfDay/getMonth)을 그대로 쓴다. 데이터가 있는 첫 달부터 이번달까지 반환.
+ */
+export async function computeMonthlyPatientTrend(): Promise<MonthlyPatientTrendPoint[]> {
+  const visits = await prisma.visit.findMany({
+    where: { isActive: true },
+    select: { patientId: true, visitDate: true },
+    orderBy: { visitDate: "asc" },
+  });
+  if (visits.length === 0) return [];
+
+  function monthKey(d: Date): string {
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+  }
+
+  // visits가 visitDate 오름차순이라, 환자별로 처음 만나는 행이 곧 첫 방문이다.
+  const firstVisitByPatient = new Map<number, Date>();
+  for (const v of visits) {
+    if (!firstVisitByPatient.has(v.patientId)) firstVisitByPatient.set(v.patientId, v.visitDate);
+  }
+
+  const newPatientsByMonth = new Map<string, number>();
+  let minDate = visits[0].visitDate;
+  for (const firstDate of firstVisitByPatient.values()) {
+    const key = monthKey(firstDate);
+    newPatientsByMonth.set(key, (newPatientsByMonth.get(key) ?? 0) + 1);
+    if (firstDate < minDate) minDate = firstDate;
+  }
+
+  const now = new Date();
+  const months: string[] = [];
+  let cursor = new Date(minDate.getFullYear(), minDate.getMonth(), 1);
+  const last = new Date(now.getFullYear(), now.getMonth(), 1);
+  while (cursor <= last) {
+    months.push(monthKey(cursor));
+    cursor = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1);
+  }
+
+  let cumulativeTotal = 0;
+  return months.map((month) => {
+    const newPatients = newPatientsByMonth.get(month) ?? 0;
+    cumulativeTotal += newPatients;
+    return { month, newPatients, cumulativeTotal };
+  });
 }

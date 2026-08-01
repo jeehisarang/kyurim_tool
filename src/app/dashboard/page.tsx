@@ -16,6 +16,8 @@ import BackButton from "@/components/BackButton";
 import GoalTracker, { type Goal } from "./GoalTracker";
 import { GOAL_METRICS, type MetricKey } from "@/lib/goals";
 import CategoryBadge from "@/components/CategoryBadge";
+import PeriodSelect from "@/components/PeriodSelect";
+import { DEFAULT_STATS_PERIOD, type StatsPeriod } from "@/lib/stats-period";
 
 type CategoryStat = { categoryId: number; categoryName: string; patientCount: number };
 type DashboardStats = {
@@ -27,6 +29,7 @@ type DashboardStats = {
   visitsPerPatient: number;
   sevenDayRevisitRate: number;
   threeVisitFirstVisitRate: number;
+  snapshotAt: string | null;
 };
 
 type DailyStat = {
@@ -36,12 +39,35 @@ type DailyStat = {
   reservationRate: number | null;
 };
 
+type MonthlyPatientTrendPoint = {
+  month: string; // YYYY-MM
+  newPatients: number;
+  cumulativeTotal: number;
+};
+
+type PeriodStats = {
+  reservationRate: number;
+  visitsPerPatient: number;
+  linkClickThroughRate: number;
+  linkCount: number;
+};
+
 function formatPercent(rate: number): string {
   return `${(rate * 100).toFixed(1)}%`;
 }
 
 function formatCount(value: number): string {
   return value.toFixed(1);
+}
+
+function formatSnapshotAt(iso: string | null): string {
+  if (!iso) return "실시간 계산";
+  const d = new Date(iso);
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  const hh = String(d.getHours()).padStart(2, "0");
+  const mi = String(d.getMinutes()).padStart(2, "0");
+  return `최종 업데이트: ${mm}/${dd} ${hh}:${mi}`;
 }
 
 function getCurrentValue(stats: DashboardStats, key: MetricKey): number {
@@ -62,27 +88,73 @@ function getCurrentValue(stats: DashboardStats, key: MetricKey): number {
 function StatCard({
   label,
   value,
+  headerRight,
+  caption,
   children,
 }: {
   label: string;
   value: string;
+  headerRight?: React.ReactNode;
+  caption?: string;
   children?: React.ReactNode;
 }) {
   return (
     <div className={styles.statCard}>
+      {headerRight ? (
+        <div className={styles.statCardHeaderRow}>
+          <span className={styles.statLabel}>{label}</span>
+          {headerRight}
+        </div>
+      ) : null}
       <div className={styles.statValue}>{value}</div>
-      <div className={styles.statLabel}>{label}</div>
+      {!headerRight ? <div className={styles.statLabel}>{label}</div> : null}
+      {caption ? <div className={styles.cardCaption}>{caption}</div> : null}
       {children}
     </div>
   );
+}
+
+function usePeriodStats(period: StatsPeriod) {
+  const [data, setData] = useState<PeriodStats | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch(`/api/dashboard/period?period=${period}`)
+      .then((res) => {
+        if (!res.ok) throw new Error("dashboard/period 응답 실패");
+        return res.json();
+      })
+      .then((json) => {
+        if (!cancelled) setData(json);
+      })
+      .catch(() => {
+        if (!cancelled) setData(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [period]);
+
+  return data;
 }
 
 export default function DashboardPage() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [goals, setGoals] = useState<Goal[] | null>(null);
   const [daily, setDaily] = useState<DailyStat[] | null>(null);
+  const [monthlyTrend, setMonthlyTrend] = useState<MonthlyPatientTrendPoint[] | null>(null);
   const [loadError, setLoadError] = useState(false);
   const [retryKey, setRetryKey] = useState(0);
+
+  // 예약율/인당내원수/링크클릭률 카드는 기간선택 드롭다운을 각자 독립적으로 갖는다
+  // (task2.md — "예약율은 30일, 인당내원수는 7일 이렇게 따로 볼 수 있어야 함").
+  const [reservationPeriod, setReservationPeriod] = useState<StatsPeriod>(DEFAULT_STATS_PERIOD);
+  const [visitsPerPatientPeriod, setVisitsPerPatientPeriod] = useState<StatsPeriod>(DEFAULT_STATS_PERIOD);
+  const [linkClickPeriod, setLinkClickPeriod] = useState<StatsPeriod>(DEFAULT_STATS_PERIOD);
+
+  const reservationPeriodStats = usePeriodStats(reservationPeriod);
+  const visitsPerPatientPeriodStats = usePeriodStats(visitsPerPatientPeriod);
+  const linkClickPeriodStats = usePeriodStats(linkClickPeriod);
 
   const refreshGoals = useCallback(() => {
     fetch("/api/goals")
@@ -113,6 +185,13 @@ export default function DashboardPage() {
       })
       .then((data) => setDaily(data.daily))
       .catch(() => setLoadError(true));
+    fetch("/api/dashboard/monthly-patients")
+      .then((res) => {
+        if (!res.ok) throw new Error("dashboard/monthly-patients 응답 실패");
+        return res.json();
+      })
+      .then(setMonthlyTrend)
+      .catch(() => setLoadError(true));
     refreshGoals();
   }, [refreshGoals, retryKey]);
 
@@ -138,6 +217,7 @@ export default function DashboardPage() {
       <div className={styles.titleRow}>
         <BackButton />
         <h1 className={styles.pageTitle}>통계 대시보드</h1>
+        {stats ? <span className={styles.snapshotNote}>{formatSnapshotAt(stats.snapshotAt)}</span> : null}
       </div>
 
       {loadError && !stats ? (
@@ -152,13 +232,12 @@ export default function DashboardPage() {
       ) : (
         <>
           <div className={styles.cardGrid}>
-            <StatCard label="누적환자수" value={`${stats.totalPatients}명`}>
-              {renderGoalTracker("totalPatients")}
-            </StatCard>
-            <StatCard label="오늘 예약율" value={formatPercent(stats.todayReservationRate)} />
             <StatCard
-              label="최근 7일 평균 예약율"
-              value={formatPercent(stats.last7DaysAvgReservationRate)}
+              label="예약율"
+              value={
+                reservationPeriodStats ? formatPercent(reservationPeriodStats.reservationRate) : "-"
+              }
+              headerRight={<PeriodSelect value={reservationPeriod} onChange={setReservationPeriod} />}
             >
               {renderGoalTracker("reservationRate")}
             </StatCard>
@@ -166,9 +245,88 @@ export default function DashboardPage() {
               label="일평균 내원수 (최근 7일)"
               value={`${formatCount(stats.last7DaysAvgVisitsPerDay)}건`}
             />
-            <StatCard label="인당 내원수" value={`${formatCount(stats.visitsPerPatient)}회`}>
+            <StatCard
+              label="인당 내원수"
+              value={
+                visitsPerPatientPeriodStats
+                  ? `${formatCount(visitsPerPatientPeriodStats.visitsPerPatient)}회`
+                  : "-"
+              }
+              headerRight={
+                <PeriodSelect value={visitsPerPatientPeriod} onChange={setVisitsPerPatientPeriod} />
+              }
+            >
               {renderGoalTracker("visitsPerPatient")}
             </StatCard>
+            <StatCard
+              label="링크 클릭률"
+              value={
+                linkClickPeriodStats ? formatPercent(linkClickPeriodStats.linkClickThroughRate) : "-"
+              }
+              headerRight={<PeriodSelect value={linkClickPeriod} onChange={setLinkClickPeriod} />}
+              caption="근사치: 링크 생성 후 열람 비율"
+            />
+          </div>
+
+          <div className={styles.section}>
+            <div className={styles.chartHeaderRow}>
+              <div className={styles.sectionTitle}>월별 신규·누적 환자수</div>
+              <span className={styles.goalRowValue}>전체 등록환자수 {stats.totalPatients}명</span>
+            </div>
+            <div className={styles.chartGoalWrap}>{renderGoalTracker("totalPatients")}</div>
+            {!monthlyTrend ? (
+              <p className={styles.muted}>불러오는 중...</p>
+            ) : (
+              <ResponsiveContainer width="100%" height={280}>
+                <ComposedChart data={monthlyTrend} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+                  <CartesianGrid stroke="rgba(110, 148, 140, 0.2)" vertical={false} />
+                  <XAxis
+                    dataKey="month"
+                    tick={{ fontSize: 12, fill: "var(--color-ink)" }}
+                    tickLine={false}
+                  />
+                  <YAxis
+                    yAxisId="newCount"
+                    allowDecimals={false}
+                    tick={{ fontSize: 12, fill: "var(--color-ink)" }}
+                    tickLine={false}
+                    axisLine={false}
+                    width={32}
+                  />
+                  <YAxis
+                    yAxisId="cumulative"
+                    orientation="right"
+                    allowDecimals={false}
+                    tick={{ fontSize: 12, fill: "var(--color-ink)" }}
+                    tickLine={false}
+                    axisLine={false}
+                    width={40}
+                  />
+                  <Tooltip
+                    formatter={(value, name) =>
+                      name === "cumulativeTotal" ? [`${value}명`, "누적환자수"] : [`${value}명`, "신규환자수"]
+                    }
+                    labelFormatter={(month) => month}
+                  />
+                  <Bar
+                    yAxisId="newCount"
+                    dataKey="newPatients"
+                    name="신규환자수"
+                    fill="rgba(110, 148, 140, 0.55)"
+                    radius={[2, 2, 0, 0]}
+                  />
+                  <Line
+                    yAxisId="cumulative"
+                    type="monotone"
+                    dataKey="cumulativeTotal"
+                    name="누적환자수"
+                    stroke="var(--color-seal)"
+                    strokeWidth={2}
+                    dot={{ r: 2 }}
+                  />
+                </ComposedChart>
+              </ResponsiveContainer>
+            )}
           </div>
 
           <div className={styles.section}>

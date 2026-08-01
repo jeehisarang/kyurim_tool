@@ -11,6 +11,14 @@
   margin-bottom: 24px;
 }
 
+.snapshotNote {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--color-ink);
+  opacity: 0.55;
+  white-space: nowrap;
+}
+
 .pageTitle {
   font-family: var(--font-display);
   font-weight: 700;
@@ -50,6 +58,40 @@
   font-size: 13px;
   color: var(--color-ink);
   opacity: 0.75;
+}
+
+.statCardHeaderRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.statCardHeaderRow .statLabel {
+  text-align: left;
+}
+
+.cardCaption {
+  font-size: 11px;
+  color: var(--color-ink);
+  opacity: 0.5;
+  margin-top: 4px;
+}
+
+.chartHeaderRow {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.chartHeaderRow .sectionTitle {
+  margin-bottom: 0;
+}
+
+.chartGoalWrap {
+  margin: 10px 0 16px;
 }
 
 .section {

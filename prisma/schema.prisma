@@ -1250,3 +1250,25 @@ model TrialCampaignSettings {
   exitSurveyCompletionAmount Int?
   updatedAt     DateTime @updatedAt
 }
+
+// 통계 대시보드 성능개선(task2.md 결정1) — computeDashboardStats()는 Visit 테이블 전체를
+// 스캔하는 무거운 집계라, 매 요청 실시간 계산 대신 하루 1회(새벽, instrumentation-node.ts
+// 폴러) 미리 계산해 저장해두고 화면은 이 스냅샷을 읽는다. computeDashboardStats() 자체는
+// 그대로 두고(로직 중복 구현 금지) 이 테이블은 그 반환값을 그대로 저장하는 캐시일 뿐이다.
+// snapshotDate는 로컬(=KST) 자정 정규화값 하루 1건 원칙(@unique) — dashboard/page.tsx
+// startOfDay와 동일 기준. visitsPerCategory는 진료분야 목록이 가변적이라 컬럼화 대신 JSON
+// 직렬화로 저장한다.
+model DashboardStatsSnapshot {
+  id                          Int      @id @default(autoincrement())
+  snapshotDate                DateTime @unique
+  totalPatients               Int
+  visitsPerCategoryJson        String
+  todayVisitCount              Int
+  todayReservationRate         Float
+  last7DaysAvgReservationRate  Float
+  last7DaysAvgVisitsPerDay     Float
+  visitsPerPatient             Float
+  sevenDayRevisitRate          Float
+  threeVisitFirstVisitRate     Float
+  createdAt                    DateTime @default(now())
+}
