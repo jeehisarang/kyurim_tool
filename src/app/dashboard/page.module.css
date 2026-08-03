@@ -112,14 +112,53 @@
   margin-bottom: 16px;
 }
 
-.visitTypeSummary {
-  font-size: 13px;
-  font-family: var(--font-mono);
-  color: var(--color-celadon-dark);
-  background: rgba(110, 148, 140, 0.08);
-  border-radius: 4px;
-  padding: 8px 12px;
-  margin: -8px 0 16px;
+.axisLegend {
+  font-size: 11px;
+  color: var(--color-ink);
+  opacity: 0.55;
+  margin: -8px 0 12px;
+}
+
+.sectionGroup {
+  margin-bottom: 36px;
+}
+
+.sectionGroupHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.sectionGroupTitle {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 18px;
+  color: var(--color-ink);
+}
+
+.cohortGroup {
+  background: rgba(179, 60, 46, 0.04);
+  border: 1px solid rgba(179, 60, 46, 0.15);
+  border-radius: 8px;
+  padding: 16px;
+}
+
+.cohortBadge {
+  font-size: 12px;
+  color: var(--color-seal);
+  background: rgba(179, 60, 46, 0.1);
+  border-radius: 999px;
+  padding: 3px 10px;
+  white-space: nowrap;
+}
+
+.metricCaption {
+  font-size: 12px;
+  color: var(--color-ink);
+  opacity: 0.6;
+  margin: -4px 0 8px;
 }
 
 .table {

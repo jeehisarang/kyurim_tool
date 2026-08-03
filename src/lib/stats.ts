@@ -244,7 +244,6 @@ export type MonthlyDailyStats = {
   daily: DailyStat[];
   monthTotalVisits: number;
   monthAvgReservationRate: number;
-  visitTypeCounts: VisitTypeMonthlyCount[];
 };
 
 /** 이번 달 1일~말일까지의 일별 내원수/예약율 및 월 누적 지표. */
@@ -256,22 +255,17 @@ export async function computeMonthlyDailyStats(): Promise<MonthlyDailyStats> {
   const monthStart = new Date(year, month, 1);
   const monthEnd = new Date(year, month + 1, 1);
 
-  const [monthVisits, visitTypes] = await Promise.all([
-    prisma.visit.findMany({
-      where: { visitDate: { gte: monthStart, lt: monthEnd }, isActive: true },
-    }),
-    prisma.visitType.findMany({ where: { isActive: true }, orderBy: { sortOrder: "asc" } }),
-  ]);
+  const monthVisits = await prisma.visit.findMany({
+    where: { visitDate: { gte: monthStart, lt: monthEnd }, isActive: true },
+  });
 
   const byDay = new Map<number, { total: number; reserved: number }>();
-  const countByVisitType = new Map<number, number>();
   for (const visit of monthVisits) {
     const day = visit.visitDate.getDate();
     const entry = byDay.get(day) ?? { total: 0, reserved: 0 };
     entry.total += 1;
     if (visit.isReserved) entry.reserved += 1;
     byDay.set(day, entry);
-    countByVisitType.set(visit.visitTypeId, (countByVisitType.get(visit.visitTypeId) ?? 0) + 1);
   }
 
   const daily: DailyStat[] = [];
@@ -293,14 +287,6 @@ export async function computeMonthlyDailyStats(): Promise<MonthlyDailyStats> {
       : daysWithVisits.reduce((sum, d) => sum + (d.reservationRate ?? 0), 0) /
         daysWithVisits.length;
 
-  // 진료구분(초진/재초진/재진 등, task.md) — 원장 커스텀 설정(VisitType.sortOrder) 순서
-  // 그대로, 0건인 항목도 일단 포함해서 반환한다(표시 단계에서 숨길지는 화면 쪽 판단).
-  const visitTypeCounts: VisitTypeMonthlyCount[] = visitTypes.map((vt) => ({
-    visitTypeId: vt.id,
-    visitTypeName: vt.name,
-    count: countByVisitType.get(vt.id) ?? 0,
-  }));
-
   return {
     year,
     month: month + 1,
@@ -308,7 +294,6 @@ export async function computeMonthlyDailyStats(): Promise<MonthlyDailyStats> {
     daily,
     monthTotalVisits: monthVisits.length,
     monthAvgReservationRate,
-    visitTypeCounts,
   };
 }
 
@@ -471,25 +456,35 @@ function periodRange(period: StatsPeriod, now: Date): { start: Date; end: Date }
 
 export type PeriodStats = {
   reservationRate: number;
+  // "1인당 평균 내원횟수"(task.md 섹션A) = 기간 내 총 내원건수 ÷ 실인원. 전체 누적 정의
+  // (stats.visitsPerPatient)와 달리 기간이 바뀌면 분모(그 기간에 내원한 환자 수)도 같이 바뀐다.
   visitsPerPatient: number;
+  // 실인원(중복제거) — 그 기간에 최소 1회 이상 내원한 고유 환자 수.
+  uniquePatientCount: number;
+  // 진료구분별 건수(초진/재초진/재진 등, task.md 섹션A) — visitTypeId 태그 기준 row 수다.
+  // 조사 결과(task.md 1단계) 이 값은 "그 진료구분으로 체크된 방문 건수"일 뿐 고유 환자수가
+  // 아니다 — 같은 환자가 이론상 같은 진료구분을 두 번 받을 수 있고 실제로도 사례가 있었다.
+  // 그래서 사람 기준 지표(실인원)와 반드시 분리해서 "건" 단위로 표기해야 한다.
+  visitTypeCounts: VisitTypeMonthlyCount[];
   // 4단계(task2.md 결정2, 근사치) — 링크 생성 건수 대비 firstViewedAt 존재 비율.
   linkClickThroughRate: number;
   linkCount: number;
 };
 
 /**
- * 예약율/인당내원수/링크클릭률 카드용 — 기간선택 드롭다운(7일/30일/이번달)에 맞춰 매번
- * 새로 계산한다. computeDashboardStats()와 달리 날짜 범위로 좁혀서 쿼리하므로(전체 Visit
- * 테이블 스캔이 아님) 스냅샷 캐싱 없이 실시간 계산해도 가볍다.
+ * 환자현황 섹션(예약율/1인당평균내원횟수/실인원/진료구분별 건수/링크클릭률) 전용 — 기간선택
+ * 드롭다운(7일/30일/이번달)에 맞춰 매번 새로 계산한다. computeDashboardStats()와 달리 날짜
+ * 범위로 좁혀서 쿼리하므로(전체 Visit 테이블 스캔이 아님) 스냅샷 캐싱 없이 실시간 계산해도 가볍다.
  */
 export async function computePeriodStats(period: StatsPeriod): Promise<PeriodStats> {
   const { start, end } = periodRange(period, new Date());
 
-  const [visits, shareLinks, teachingPages] = await Promise.all([
+  const [visits, visitTypes, shareLinks, teachingPages] = await Promise.all([
     prisma.visit.findMany({
       where: { isActive: true, visitDate: { gte: start, lt: end } },
-      select: { visitDate: true, isReserved: true, patientId: true },
+      select: { visitDate: true, isReserved: true, patientId: true, visitTypeId: true },
     }),
+    prisma.visitType.findMany({ where: { isActive: true }, orderBy: { sortOrder: "asc" } }),
     prisma.patientShareLink.findMany({
       where: { createdAt: { gte: start, lt: end } },
       select: { firstViewedAt: true },
@@ -504,6 +499,7 @@ export async function computePeriodStats(period: StatsPeriod): Promise<PeriodSta
   // 날에 가중치가 쏠리지 않도록 날짜 단위로 먼저 평균낸다.
   const byDay = new Map<string, { total: number; reserved: number }>();
   const patientIds = new Set<number>();
+  const countByVisitType = new Map<number, number>();
   for (const v of visits) {
     const key = dateKey(v.visitDate);
     const entry = byDay.get(key) ?? { total: 0, reserved: 0 };
@@ -511,14 +507,19 @@ export async function computePeriodStats(period: StatsPeriod): Promise<PeriodSta
     if (v.isReserved) entry.reserved += 1;
     byDay.set(key, entry);
     patientIds.add(v.patientId);
+    countByVisitType.set(v.visitTypeId, (countByVisitType.get(v.visitTypeId) ?? 0) + 1);
   }
   const dailyRates = Array.from(byDay.values()).map((d) => d.reserved / d.total);
   const reservationRate =
     dailyRates.length === 0 ? 0 : dailyRates.reduce((a, b) => a + b, 0) / dailyRates.length;
 
-  // 인당내원수(기간 한정): 그 기간에 실제로 내원한 환자 기준 — 전체 누적 정의(stats.visitsPerPatient)와
-  // 달리 기간이 바뀌면 분모(내원 환자 수)도 함께 바뀐다(task2.md 3단계 지시).
   const visitsPerPatient = patientIds.size === 0 ? 0 : visits.length / patientIds.size;
+
+  const visitTypeCounts: VisitTypeMonthlyCount[] = visitTypes.map((vt) => ({
+    visitTypeId: vt.id,
+    visitTypeName: vt.name,
+    count: countByVisitType.get(vt.id) ?? 0,
+  }));
 
   const allLinks = [...shareLinks, ...teachingPages];
   const viewedCount = allLinks.filter((l) => l.firstViewedAt !== null).length;
@@ -527,6 +528,8 @@ export async function computePeriodStats(period: StatsPeriod): Promise<PeriodSta
   return {
     reservationRate,
     visitsPerPatient,
+    uniquePatientCount: patientIds.size,
+    visitTypeCounts,
     linkClickThroughRate,
     linkCount: allLinks.length,
   };
