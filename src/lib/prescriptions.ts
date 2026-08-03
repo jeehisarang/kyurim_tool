@@ -126,12 +126,21 @@ export function computeSplitSchedule(
   const elapsedDays = Math.floor(
     (startOfDay(referenceDate).getTime() - startOfDay(startDate).getTime()) / (1000 * 60 * 60 * 24),
   );
-  const elapsedRounds = Math.max(0, Math.floor(elapsedDays / splitIntervalDays));
-  const rawRound = 2 + elapsedRounds;
 
-  if (rawRound > totalRounds) {
+  // 마지막 회차(totalRounds번째)의 예정일은 start+(totalRounds-1)*간격이다. 예전에는
+  // rawRound(=2+elapsedRounds)가 totalRounds를 "넘는" 순간 바로 완료 처리했는데, 간격이
+  // totalDurationDays를 나머지 없이 나누는 프로그램(예: 84일/14일=6회차 정확히 나눠떨어짐)에서는
+  // 마지막 회차 예정일 당일에 이미 rawRound가 totalRounds+1로 계산되어(=존재하지 않는 회차)
+  // 등록 즉시 COMPLETED로 잘못 저장되는 버그가 있었다(task.md 회차계산 경계값 버그 수정 —
+  // 이명은 환자 킬캡3개월, 시작일 5/25(정확히 오늘로부터 70일=5×14일 전)로 등록 시 재현).
+  // 마지막 회차 예정일이 지났다고 곧바로 끝난 게 아니라, 그 이후로 한 간격이 온전히 더
+  // 지나야(=총기간이 다 지나야) 비로소 프로그램이 끝난 것으로 본다.
+  if (elapsedDays >= totalRounds * splitIntervalDays) {
     return { currentRound: totalRounds, nextDueDate: null, isCompleted: true };
   }
+
+  const elapsedRounds = Math.max(0, Math.floor(elapsedDays / splitIntervalDays));
+  const rawRound = Math.min(2 + elapsedRounds, totalRounds);
 
   return {
     currentRound: rawRound,
