@@ -39,6 +39,12 @@ type DailyStat = {
   reservationRate: number | null;
 };
 
+type VisitTypeMonthlyCount = {
+  visitTypeId: number;
+  visitTypeName: string;
+  count: number;
+};
+
 type MonthlyPatientTrendPoint = {
   month: string; // YYYY-MM
   newPatients: number;
@@ -142,6 +148,7 @@ export default function DashboardPage() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [goals, setGoals] = useState<Goal[] | null>(null);
   const [daily, setDaily] = useState<DailyStat[] | null>(null);
+  const [visitTypeCounts, setVisitTypeCounts] = useState<VisitTypeMonthlyCount[] | null>(null);
   const [monthlyTrend, setMonthlyTrend] = useState<MonthlyPatientTrendPoint[] | null>(null);
   const [loadError, setLoadError] = useState(false);
   const [retryKey, setRetryKey] = useState(0);
@@ -183,7 +190,10 @@ export default function DashboardPage() {
         if (!res.ok) throw new Error("dashboard/daily 응답 실패");
         return res.json();
       })
-      .then((data) => setDaily(data.daily))
+      .then((data) => {
+        setDaily(data.daily);
+        setVisitTypeCounts(data.visitTypeCounts);
+      })
       .catch(() => setLoadError(true));
     fetch("/api/dashboard/monthly-patients")
       .then((res) => {
@@ -331,6 +341,15 @@ export default function DashboardPage() {
 
           <div className={styles.section}>
             <div className={styles.sectionTitle}>이번달 일별 내원수·예약율 추이</div>
+            {visitTypeCounts && visitTypeCounts.some((v) => v.count > 0) ? (
+              <div className={styles.visitTypeSummary}>
+                이번달{" "}
+                {visitTypeCounts
+                  .filter((v) => v.count > 0)
+                  .map((v) => `${v.visitTypeName} ${v.count}명`)
+                  .join(" · ")}
+              </div>
+            ) : null}
             {!daily ? (
               <p className={styles.muted}>불러오는 중...</p>
             ) : (

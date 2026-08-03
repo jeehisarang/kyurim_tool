@@ -112,6 +112,16 @@
   margin-bottom: 16px;
 }
 
+.visitTypeSummary {
+  font-size: 13px;
+  font-family: var(--font-mono);
+  color: var(--color-celadon-dark);
+  background: rgba(110, 148, 140, 0.08);
+  border-radius: 4px;
+  padding: 8px 12px;
+  margin: -8px 0 16px;
+}
+
 .table {
   width: 100%;
   border-collapse: collapse;

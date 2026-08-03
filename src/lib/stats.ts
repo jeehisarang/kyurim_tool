@@ -231,6 +231,12 @@ export type DailyStat = {
   reservationRate: number | null; // null = 해당 날짜에 내원 기록 없음
 };
 
+export type VisitTypeMonthlyCount = {
+  visitTypeId: number;
+  visitTypeName: string;
+  count: number;
+};
+
 export type MonthlyDailyStats = {
   year: number;
   month: number; // 1-12
@@ -238,6 +244,7 @@ export type MonthlyDailyStats = {
   daily: DailyStat[];
   monthTotalVisits: number;
   monthAvgReservationRate: number;
+  visitTypeCounts: VisitTypeMonthlyCount[];
 };
 
 /** 이번 달 1일~말일까지의 일별 내원수/예약율 및 월 누적 지표. */
@@ -249,17 +256,22 @@ export async function computeMonthlyDailyStats(): Promise<MonthlyDailyStats> {
   const monthStart = new Date(year, month, 1);
   const monthEnd = new Date(year, month + 1, 1);
 
-  const monthVisits = await prisma.visit.findMany({
-    where: { visitDate: { gte: monthStart, lt: monthEnd }, isActive: true },
-  });
+  const [monthVisits, visitTypes] = await Promise.all([
+    prisma.visit.findMany({
+      where: { visitDate: { gte: monthStart, lt: monthEnd }, isActive: true },
+    }),
+    prisma.visitType.findMany({ where: { isActive: true }, orderBy: { sortOrder: "asc" } }),
+  ]);
 
   const byDay = new Map<number, { total: number; reserved: number }>();
+  const countByVisitType = new Map<number, number>();
   for (const visit of monthVisits) {
     const day = visit.visitDate.getDate();
     const entry = byDay.get(day) ?? { total: 0, reserved: 0 };
     entry.total += 1;
     if (visit.isReserved) entry.reserved += 1;
     byDay.set(day, entry);
+    countByVisitType.set(visit.visitTypeId, (countByVisitType.get(visit.visitTypeId) ?? 0) + 1);
   }
 
   const daily: DailyStat[] = [];
@@ -281,6 +293,14 @@ export async function computeMonthlyDailyStats(): Promise<MonthlyDailyStats> {
       : daysWithVisits.reduce((sum, d) => sum + (d.reservationRate ?? 0), 0) /
         daysWithVisits.length;
 
+  // 진료구분(초진/재초진/재진 등, task.md) — 원장 커스텀 설정(VisitType.sortOrder) 순서
+  // 그대로, 0건인 항목도 일단 포함해서 반환한다(표시 단계에서 숨길지는 화면 쪽 판단).
+  const visitTypeCounts: VisitTypeMonthlyCount[] = visitTypes.map((vt) => ({
+    visitTypeId: vt.id,
+    visitTypeName: vt.name,
+    count: countByVisitType.get(vt.id) ?? 0,
+  }));
+
   return {
     year,
     month: month + 1,
@@ -288,6 +308,7 @@ export async function computeMonthlyDailyStats(): Promise<MonthlyDailyStats> {
     daily,
     monthTotalVisits: monthVisits.length,
     monthAvgReservationRate,
+    visitTypeCounts,
   };
 }
 
