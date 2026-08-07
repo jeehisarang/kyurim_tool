@@ -357,9 +357,12 @@ export async function completeTodoTask(taskId: number, doneByUserId: number) {
     const nextRound = prescription.currentRound + 1;
 
     if (nextRound > prescription.totalRounds) {
+      // task2.md: 마지막 회차 완료 시 status를 COMPLETED로 자동전환하지 않는다 — 직원이
+      // 직접 확인 후 상세페이지의 "완료" 버튼으로 수동 전환한다(회차 완료 ≠ 처방 종료,
+      // 예: 재구매 상담 등 후속 조치가 더 필요할 수 있음).
       await prisma.prescription.update({
         where: { id: prescription.id },
-        data: { status: STATUS_COMPLETED, currentRound: prescription.totalRounds },
+        data: { currentRound: prescription.totalRounds },
       });
     } else {
       await prisma.prescription.update({
@@ -385,12 +388,9 @@ export async function completeTodoTask(taskId: number, doneByUserId: number) {
         },
       });
     }
-  } else if (task.taskType === TASK_TYPE_FOLLOW_UP) {
-    await prisma.prescription.update({
-      where: { id: prescription.id },
-      data: { status: STATUS_COMPLETED },
-    });
   }
+  // task2.md: SINGLE 타입 후속조치(FOLLOW_UP) 완료 시에도 status를 자동으로 COMPLETED로
+  // 바꾸지 않는다 — 직원이 상세페이지의 "완료" 버튼으로 수동 전환한다.
 }
 
 export type PrescriptionRoundEntry = {

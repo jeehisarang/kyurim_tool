@@ -285,6 +285,29 @@ export default function PrescriptionDetailPage() {
     }
   }
 
+  // task2.md: 회차/후속조치를 다 완료했다고 해서 자동으로 처방을 종료하지 않고, 직원이
+  // 직접 확인 후 이 버튼으로 수동 전환한다.
+  async function handleComplete() {
+    if (!data) return;
+    if (!window.confirm(`"${data.program.name}" 처방을 완료 처리하시겠습니까?`)) {
+      return;
+    }
+    try {
+      const res = await fetch(`/api/prescriptions/${prescriptionId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "COMPLETED" }),
+      });
+      if (!res.ok) {
+        alert("처리에 실패했습니다. 다시 시도해주세요.");
+        return;
+      }
+      refresh();
+    } catch {
+      alert("서버에 연결하지 못했습니다. 다시 시도해주세요.");
+    }
+  }
+
   if (loadError) {
     return (
       <div className={styles.container}>
@@ -363,6 +386,9 @@ export default function PrescriptionDetailPage() {
             <div className={styles.actionsRow}>
               <button type="button" className={styles.actionButton} onClick={startEdit}>
                 수정
+              </button>
+              <button type="button" className={styles.actionButton} onClick={handleComplete}>
+                완료
               </button>
               <button type="button" className={styles.stopButton} onClick={handleStop}>
                 중단

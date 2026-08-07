@@ -169,6 +169,28 @@ export default function PrescriptionListPage() {
     }
   }
 
+  // task2.md: 회차/후속조치를 다 완료했다고 해서 자동으로 처방을 종료하지 않고, 직원이
+  // 직접 확인 후 이 버튼으로 수동 전환한다.
+  async function handleComplete(row: PrescriptionRow) {
+    if (!window.confirm(`"${row.program.name}" 처방을 완료 처리하시겠습니까?`)) {
+      return;
+    }
+    try {
+      const res = await fetch(`/api/prescriptions/${row.prescriptionId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "COMPLETED" }),
+      });
+      if (!res.ok) {
+        alert("처리에 실패했습니다. 다시 시도해주세요.");
+        return;
+      }
+      refresh();
+    } catch {
+      alert("서버에 연결하지 못했습니다. 다시 시도해주세요.");
+    }
+  }
+
   // 카테고리에 속하지 않는 프로그램(예: 미분류 "킬팻캡슐" 기본형)도 진행 중인 환자가
   // 있으면 개별 카드/탭으로는 계속 보이게 한다 — 완전히 숨기지 않음.
   const categorizedProgramIds = useMemo(
@@ -446,6 +468,13 @@ export default function PrescriptionListPage() {
                                   onClick={() => startEdit(row)}
                                 >
                                   수정
+                                </button>
+                                <button
+                                  type="button"
+                                  className={styles.chipActionButton}
+                                  onClick={() => handleComplete(row)}
+                                >
+                                  완료
                                 </button>
                                 <button
                                   type="button"
