@@ -597,7 +597,7 @@ function VisitCheckPageInner() {
                         {v.patient.name}
                       </Link>
                       {(activePrescByPatientId.get(v.patient.id) ?? []).map((program) => (
-                        <span key={program.id} className={styles.inlineBadge}>
+                        <span key={program.prescriptionId} className={styles.inlineBadge}>
                           <ProgramBadge
                             id={program.id}
                             name={program.name}
